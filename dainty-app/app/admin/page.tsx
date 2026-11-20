@@ -66,10 +66,14 @@ export default function AdminPage() {
   const [uploadProgress, setUploadProgress] = useState('');
   const [savingBatch, setSavingBatch] = useState(false);
 
-  const [defaultSize, setDefaultSize] = useState('');
-  const [defaultRetail, setDefaultRetail] = useState('');
-  const [defaultWholesale, setDefaultWholesale] = useState('');
-  const [defaultShipping, setDefaultShipping] = useState('');
+  // "Same specifications, prices and everything" batch mode
+  const [sameForAll, setSameForAll] = useState(true);
+  const [sharedBaseName, setSharedBaseName] = useState('');
+  const [sharedSize, setSharedSize] = useState('');
+  const [sharedRetail, setSharedRetail] = useState('');
+  const [sharedWholesale, setSharedWholesale] = useState('');
+  const [sharedShipping, setSharedShipping] = useState('');
+  const [sharedDescription, setSharedDescription] = useState('');
 
   async function refreshData() {
     setErrorMsg(null);
@@ -182,6 +186,24 @@ export default function AdminPage() {
     }
   }
 
+  function applySharedSpecsToList(items: DraftPhotoItem[]): DraftPhotoItem[] {
+    const base = sharedBaseName.trim();
+    return items.map((item, idx) => ({
+      ...item,
+      name: base ? `${base} ${idx + 1}` : item.name,
+      size: sharedSize !== '' ? sharedSize : item.size,
+      retailPrice: sharedRetail !== '' ? sharedRetail : item.retailPrice,
+      wholesalePrice: sharedWholesale !== '' ? sharedWholesale : item.wholesalePrice,
+      estShippingFee: sharedShipping !== '' ? sharedShipping : item.estShippingFee,
+      description: sharedDescription !== '' ? sharedDescription : item.description,
+    }));
+  }
+
+  function handleApplySameSpecsNow() {
+    setDraftItems((prev) => applySharedSpecsToList(prev));
+    setStatusMsg('Applied the same specifications, prices, and details to all items in the queue.');
+  }
+
   async function handleGalleryFilesChange(e: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -191,6 +213,7 @@ export default function AdminPage() {
     setStatusMsg(null);
     setUploadProgress(`Uploading 0 of ${files.length}...`);
 
+    const startingCount = draftItems.length;
     const uploadedDrafts: DraftPhotoItem[] = [];
     const failedNames: string[] = [];
 
@@ -220,15 +243,21 @@ export default function AdminPage() {
             .from('product-images')
             .getPublicUrl(path);
 
+          const itemIndex = startingCount + uploadedDrafts.length;
+          const autoName =
+            sameForAll && sharedBaseName.trim()
+              ? `${sharedBaseName.trim()} ${itemIndex + 1}`
+              : cleanFileTitle(file.name) || `Item ${itemIndex + 1}`;
+
           uploadedDrafts.push({
             tempId: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-            name: cleanFileTitle(file.name) || `Item ${completed}`,
-            size: defaultSize,
-            retailPrice: defaultRetail,
-            wholesalePrice: defaultWholesale,
-            estShippingFee: defaultShipping,
+            name: autoName,
+            size: sameForAll ? sharedSize : '',
+            retailPrice: sameForAll ? sharedRetail : '',
+            wholesalePrice: sameForAll ? sharedWholesale : '',
+            estShippingFee: sameForAll ? sharedShipping : '',
             imageUrl: urlData.publicUrl,
-            description: '',
+            description: sameForAll ? sharedDescription : '',
           });
         })
       );
@@ -241,7 +270,9 @@ export default function AdminPage() {
 
     if (uploadedDrafts.length > 0) {
       setStatusMsg(
-        `Uploaded ${uploadedDrafts.length} photo(s). Fill in size, retail price, wholesale price, and estimated shipping fee below.`
+        sameForAll
+          ? `Uploaded ${uploadedDrafts.length} photo(s) with your shared specs and prices applied.`
+          : `Uploaded ${uploadedDrafts.length} photo(s). Fill in details for each item below.`
       );
     }
     if (failedNames.length > 0) {
@@ -263,19 +294,6 @@ export default function AdminPage() {
     setDraftItems((prev) => prev.filter((item) => item.tempId !== tempId));
   }
 
-  function applyDefaultsToAllDrafts() {
-    setDraftItems((prev) =>
-      prev.map((item) => ({
-        ...item,
-        size: defaultSize !== '' ? defaultSize : item.size,
-        retailPrice: defaultRetail !== '' ? defaultRetail : item.retailPrice,
-        wholesalePrice: defaultWholesale !== '' ? defaultWholesale : item.wholesalePrice,
-        estShippingFee: defaultShipping !== '' ? defaultShipping : item.estShippingFee,
-      }))
-    );
-    setStatusMsg('Applied quick-fill values to all uploaded photos.');
-  }
-
   async function handleSaveAllDraftProducts(e: FormEvent) {
     e.preventDefault();
     if (draftItems.length === 0) return;
@@ -284,12 +302,16 @@ export default function AdminPage() {
     setErrorMsg(null);
     setStatusMsg(null);
 
-    const payload = draftItems.map((item, idx) => {
+    const itemsToPublish = sameForAll ? applySharedSpecsToList(draftItems) : draftItems;
+
+    const payload = itemsToPublish.map((item, idx) => {
       const cleanName = item.name.trim() || `Product ${idx + 1}`;
       const retail = Number(item.retailPrice) || 0;
       const wholesale = Number(item.wholesalePrice) || 0;
       const shipping = Number(item.estShippingFee) || 0;
       const sizeText = item.size.trim() || null;
+      const descText =
+        item.description.trim() || (sizeText ? `Size: ${sizeText}` : null);
 
       return {
         name: cleanName,
@@ -299,9 +321,7 @@ export default function AdminPage() {
         wholesale_price: wholesale,
         est_shipping_fee: shipping,
         image_url: item.imageUrl || null,
-        description:
-          item.description.trim() ||
-          (sizeText ? `Size: ${sizeText}` : null),
+        description: descText,
       };
     });
 
@@ -483,16 +503,11 @@ export default function AdminPage() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 className="text-base font-semibold">
-                Upload Photos from Gallery ({draftItems.length} in queue)
+                Bulk Gallery Upload ({draftItems.length} in queue)
               </h2>
               <p className="mt-1 text-xs text-stone-500">
-                Select multiple photos (e.g., up to 100 at once) from your gallery, then enter each
-                item&apos;s <strong>size</strong>, <strong>retail price</strong>,{' '}
-                <strong>wholesale price</strong>, and <strong>estimated shipping fee</strong>.
-              </p>
-              <p className="mt-1 text-xs text-amber-800">
-                Note: Shipping fees entered here are <strong>estimates</strong> and may change when
-                the shipment arrives.
+                Select multiple photos from your gallery. Shipping fees are{' '}
+                <strong>estimates</strong> and may change when the shipment arrives.
               </p>
             </div>
 
@@ -513,16 +528,121 @@ export default function AdminPage() {
             </div>
           </div>
 
+          {/* Option for all uploaded pictures to have the same specs, prices, and everything */}
+          <div className="space-y-3 rounded-xl border border-stone-200 bg-stone-50 p-4">
+            <label className="flex cursor-pointer items-center gap-2.5 text-sm font-medium text-stone-900">
+              <input
+                type="checkbox"
+                checked={sameForAll}
+                onChange={(e) => setSameForAll(e.target.checked)}
+                className="h-4 w-4 rounded border-stone-300 text-stone-900"
+              />
+              All uploaded pictures have the same specifications, prices, and details
+            </label>
+
+            {sameForAll && (
+              <div className="space-y-3 pt-1">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  <div>
+                    <label className="block text-[11px] font-medium text-stone-600">
+                      Base Name (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={sharedBaseName}
+                      onChange={(e) => setSharedBaseName(e.target.value)}
+                      placeholder="e.g. Satin Set"
+                      className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-stone-600">Size</label>
+                    <input
+                      type="text"
+                      value={sharedSize}
+                      onChange={(e) => setSharedSize(e.target.value)}
+                      placeholder="e.g. M / Free / 25cm"
+                      className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-stone-600">
+                      Retail Price
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={sharedRetail}
+                      onChange={(e) => setSharedRetail(e.target.value)}
+                      placeholder="0"
+                      className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-stone-600">
+                      Wholesale Price
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={sharedWholesale}
+                      onChange={(e) => setSharedWholesale(e.target.value)}
+                      placeholder="0"
+                      className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-stone-600">
+                      Est. Shipping (est.)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={sharedShipping}
+                      onChange={(e) => setSharedShipping(e.target.value)}
+                      placeholder="0"
+                      className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="min-w-[220px] flex-1">
+                    <label className="block text-[11px] font-medium text-stone-600">
+                      Specifications / Notes (shared by all)
+                    </label>
+                    <input
+                      type="text"
+                      value={sharedDescription}
+                      onChange={(e) => setSharedDescription(e.target.value)}
+                      placeholder="e.g., Premium cotton, comes with pouch • Est. shipping may change on arrival"
+                      className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                  {draftItems.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleApplySameSpecsNow}
+                      className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs font-medium text-stone-800 hover:bg-stone-100"
+                    >
+                      Apply to All {draftItems.length} in Queue
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 p-4">
             <label className="flex cursor-pointer flex-col items-center justify-center gap-2 text-center">
               <Upload className="h-6 w-6 text-stone-600" />
               <span className="text-sm font-medium text-stone-800">
                 {uploadingPhotos
                   ? uploadProgress || 'Uploading photos...'
-                  : 'Tap or click to choose multiple pictures from your gallery'}
+                  : 'Tap or click to choose pictures from your gallery'}
               </span>
               <span className="text-xs text-stone-500">
-                Supports JPG, PNG, WEBP — select as many images as your device allows
+                Select multiple images at once — JPG, PNG, WEBP
               </span>
               <input
                 type="file"
@@ -537,52 +657,6 @@ export default function AdminPage() {
 
           {draftItems.length > 0 && (
             <>
-              <div className="rounded-xl border border-stone-200 bg-stone-50 p-3.5">
-                <p className="mb-2.5 text-xs font-semibold text-stone-700">
-                  Quick-Fill Helper (optional — fills matching fields across your uploaded photos)
-                </p>
-                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
-                  <input
-                    type="text"
-                    value={defaultSize}
-                    onChange={(e) => setDefaultSize(e.target.value)}
-                    placeholder="Size (e.g. M / Free)"
-                    className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
-                  />
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={defaultRetail}
-                    onChange={(e) => setDefaultRetail(e.target.value)}
-                    placeholder="Retail price"
-                    className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
-                  />
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={defaultWholesale}
-                    onChange={(e) => setDefaultWholesale(e.target.value)}
-                    placeholder="Wholesale price"
-                    className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
-                  />
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={defaultShipping}
-                    onChange={(e) => setDefaultShipping(e.target.value)}
-                    placeholder="Est. shipping fee"
-                    className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
-                  />
-                  <button
-                    type="button"
-                    onClick={applyDefaultsToAllDrafts}
-                    className="col-span-2 rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs font-medium text-stone-800 hover:bg-stone-100 sm:col-span-1"
-                  >
-                    Apply to All
-                  </button>
-                </div>
-              </div>
-
               <div className="space-y-3">
                 {draftItems.map((item, idx) => (
                   <div
@@ -608,143 +682,4 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    <div className="sm:col-span-2">
-                      <label className="block text-[11px] text-stone-500">Size</label>
-                      <input
-                        type="text"
-                        value={item.size}
-                        onChange={(e) => updateDraftItem(item.tempId, 'size', e.target.value)}
-                        placeholder="e.g. S/M/L or 30cm"
-                        className="mt-0.5 w-full rounded-md border border-stone-300 px-2 py-1 text-xs"
-                      />
-                    </div>
-
-                    <div className="sm:col-span-2">
-                      <label className="block text-[11px] text-stone-500">Retail Price</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        required
-                        value={item.retailPrice}
-                        onChange={(e) =>
-                          updateDraftItem(item.tempId, 'retailPrice', e.target.value)
-                        }
-                        placeholder="0"
-                        className="mt-0.5 w-full rounded-md border border-stone-300 px-2 py-1 text-xs"
-                      />
-                    </div>
-
-                    <div className="sm:col-span-2">
-                      <label className="block text-[11px] text-stone-500">Wholesale Price</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        required
-                        value={item.wholesalePrice}
-                        onChange={(e) =>
-                          updateDraftItem(item.tempId, 'wholesalePrice', e.target.value)
-                        }
-                        placeholder="0"
-                        className="mt-0.5 w-full rounded-md border border-stone-300 px-2 py-1 text-xs"
-                      />
-                    </div>
-
-                    <div className="sm:col-span-2">
-                      <label className="block text-[11px] text-stone-500">
-                        Est. Shipping (est.)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        required
-                        value={item.estShippingFee}
-                        onChange={(e) =>
-                          updateDraftItem(item.tempId, 'estShippingFee', e.target.value)
-                        }
-                        placeholder="0"
-                        className="mt-0.5 w-full rounded-md border border-stone-300 px-2 py-1 text-xs"
-                      />
-                    </div>
-
-                    <div className="flex justify-end sm:col-span-1">
-                      <button
-                        type="button"
-                        onClick={() => removeDraftItem(item.tempId)}
-                        aria-label={`Remove ${item.name}`}
-                        className="rounded-lg border border-stone-200 p-2 text-stone-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex items-center justify-between gap-4 pt-2">
-                <p className="text-xs text-stone-500">
-                  Shipping fees are saved as estimates and may change on arrival.
-                </p>
-                <button
-                  type="submit"
-                  disabled={savingBatch || uploadingPhotos}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                >
-                  <Upload className="h-4 w-4" />
-                  {savingBatch
-                    ? `Saving ${draftItems.length} items...`
-                    : `Publish ${draftItems.length} Product(s)`}
-                </button>
-              </div>
-            </>
-          )}
-        </form>
-
-        <section className="rounded-xl border border-stone-200 bg-white p-5 shadow-xs">
-          <h2 className="mb-4 text-base font-semibold">Published Products ({products.length})</h2>
-          {products.length === 0 ? (
-            <p className="text-sm text-stone-500">No published products yet.</p>
-          ) : (
-            <div className="divide-y divide-stone-100">
-              {products.map((p) => (
-                <div key={p.id} className="flex items-center justify-between gap-4 py-3">
-                  <div className="flex items-center gap-3">
-                    {p.image_url && (
-                      <img
-                        src={p.image_url}
-                        alt={p.name}
-                        className="h-12 w-12 rounded-lg border border-stone-200 object-cover"
-                      />
-                    )}
-                    <div>
-                      <p className="text-sm font-medium">
-                        {p.name}{' '}
-                        {p.size ? (
-                          <span className="ml-1 rounded bg-stone-100 px-1.5 py-0.5 text-xs font-normal text-stone-700">
-                            Size: {p.size}
-                          </span>
-                        ) : null}
-                      </p>
-                      <p className="text-xs text-stone-500">
-                        Retail: {Number(p.retail_price).toLocaleString()} • Wholesale:{' '}
-                        {Number(p.wholesale_price).toLocaleString()} • Est. Shipping:{' '}
-                        {Number(p.est_shipping_fee ?? 0).toLocaleString()} (may change on arrival)
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteProduct(p.id)}
-                    aria-label={`Delete ${p.name}`}
-                    className="rounded-lg border border-stone-200 p-2 text-stone-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      </main>
-    </div>
-  );
-}
+                    <div className="sm:col-span-
