@@ -1,31 +1,47 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, LogOut, Plus, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, LogOut, Plus, Trash2, Upload } from 'lucide-react';
 
 type Category = {
   id: string;
   name: string;
   slug: string;
-  wholesale_moq: number;
-  allow_mix_and_match: boolean;
-  allow_air_shipping: boolean;
-  allow_sea_shipping: boolean;
 };
 
 type Product = {
   id: string;
   category_id: string | null;
   name: string;
+  size: string | null;
   description: string | null;
   image_url: string | null;
   retail_price: number;
   wholesale_price: number;
-  est_weight_kg: number;
+  est_shipping_fee: number | null;
 };
+
+type DraftPhotoItem = {
+  tempId: string;
+  name: string;
+  size: string;
+  retailPrice: string;
+  wholesalePrice: string;
+  estShippingFee: string;
+  imageUrl: string;
+  description: string;
+};
+
+function cleanFileTitle(filename: string): string {
+  return filename
+    .replace(/\.[^/.]+$/, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 export default function AdminPage() {
   const [session, setSession] = useState<Session | null>(null);
@@ -39,55 +55,40 @@ export default function AdminPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  const [whatsappNumber, setWhatsappNumber] = useState('');
-  const [airRate, setAirRate] = useState('0');
-  const [seaRate, setSeaRate] = useState('0');
 
   const [catName, setCatName] = useState('');
   const [catSlug, setCatSlug] = useState('');
-  const [wholesaleMoq, setWholesaleMoq] = useState('1');
-  const [mixAndMatch, setMixAndMatch] = useState(true);
-  const [allowAir, setAllowAir] = useState(true);
-  const [allowSea, setAllowSea] = useState(true);
+  const [savingCat, setSavingCat] = useState(false);
 
-  const [prodName, setProdName] = useState('');
-  const [prodCategoryId, setProdCategoryId] = useState('');
-  const [prodDesc, setProdDesc] = useState('');
-  const [prodImageUrl, setProdImageUrl] = useState('');
-  const [retailPrice, setRetailPrice] = useState('');
-  const [wholesalePrice, setWholesalePrice] = useState('');
-  const [estWeightKg, setEstWeightKg] = useState('0.5');
+  const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const [draftItems, setDraftItems] = useState<DraftPhotoItem[]>([]);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
+  const [savingBatch, setSavingBatch] = useState(false);
+
+  const [defaultSize, setDefaultSize] = useState('');
+  const [defaultRetail, setDefaultRetail] = useState('');
+  const [defaultWholesale, setDefaultWholesale] = useState('');
+  const [defaultShipping, setDefaultShipping] = useState('');
 
   async function refreshData() {
     setErrorMsg(null);
-    const [settingsRes, catsRes, prodsRes] = await Promise.all([
-      supabase.from('store_settings').select('*').eq('id', 1).maybeSingle(),
+    const [catsRes, prodsRes] = await Promise.all([
       supabase.from('categories').select('*').order('name', { ascending: true }),
       supabase.from('products').select('*').order('created_at', { ascending: false }),
     ]);
 
-    if (settingsRes.error || catsRes.error || prodsRes.error) {
+    if (catsRes.error || prodsRes.error) {
       setErrorMsg(
-        settingsRes.error?.message ||
-          catsRes.error?.message ||
-          prodsRes.error?.message ||
-          'Failed to load admin data.'
+        catsRes.error?.message || prodsRes.error?.message || 'Failed to load store data.'
       );
       return;
     }
 
-    if (settingsRes.data) {
-      setWhatsappNumber(settingsRes.data.whatsapp_number || '');
-      setAirRate(String(settingsRes.data.air_rate_per_kg ?? 0));
-      setSeaRate(String(settingsRes.data.sea_rate_per_kg ?? 0));
-    }
-
     const loadedCats = catsRes.data || [];
     setCategories(loadedCats);
-    if (!prodCategoryId && loadedCats.length > 0) {
-      setProdCategoryId(loadedCats[0].id);
+    if (!selectedCategoryId && loadedCats.length > 0) {
+      setSelectedCategoryId(loadedCats[0].id);
     }
     setProducts(prodsRes.data || []);
   }
@@ -145,33 +146,12 @@ export default function AdminPage() {
     await supabase.auth.signOut();
   }
 
-  async function handleSaveSettings(e: FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setStatusMsg(null);
-    setErrorMsg(null);
-
-    const { error } = await supabase.from('store_settings').upsert({
-      id: 1,
-      whatsapp_number: whatsappNumber.trim() || null,
-      air_rate_per_kg: Number(airRate) || 0,
-      sea_rate_per_kg: Number(seaRate) || 0,
-    });
-
-    setSaving(false);
-    if (error) {
-      setErrorMsg(error.message);
-    } else {
-      setStatusMsg('Store settings saved.');
-    }
-  }
-
   async function handleAddCategory(e: FormEvent) {
     e.preventDefault();
     if (!catName.trim()) return;
-    setSaving(true);
-    setStatusMsg(null);
+    setSavingCat(true);
     setErrorMsg(null);
+    setStatusMsg(null);
 
     const computedSlug =
       catSlug.trim() ||
@@ -186,55 +166,153 @@ export default function AdminPage() {
       .insert({
         name: catName.trim(),
         slug: computedSlug,
-        wholesale_moq: Math.max(1, Number(wholesaleMoq) || 1),
-        allow_mix_and_match: mixAndMatch,
-        allow_air_shipping: allowAir,
-        allow_sea_shipping: allowSea,
       })
       .select()
       .single();
 
-    setSaving(false);
+    setSavingCat(false);
     if (error) {
       setErrorMsg(error.message);
     } else {
       setCatName('');
       setCatSlug('');
-      setWholesaleMoq('1');
-      if (data?.id) setProdCategoryId(data.id);
+      if (data?.id) setSelectedCategoryId(data.id);
       setStatusMsg(`Category "${data.name}" added.`);
       await refreshData();
     }
   }
 
-  async function handleAddProduct(e: FormEvent) {
-    e.preventDefault();
-    if (!prodName.trim()) return;
-    setSaving(true);
-    setStatusMsg(null);
-    setErrorMsg(null);
+  async function handleGalleryFilesChange(e: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    const { error } = await supabase.from('products').insert({
-      name: prodName.trim(),
-      category_id: prodCategoryId || null,
-      description: prodDesc.trim() || null,
-      image_url: prodImageUrl.trim() || null,
-      retail_price: Number(retailPrice) || 0,
-      wholesale_price: Number(wholesalePrice) || 0,
-      est_weight_kg: Number(estWeightKg) || 0,
+    setUploadingPhotos(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    setUploadProgress(`Uploading 0 of ${files.length}...`);
+
+    const uploadedDrafts: DraftPhotoItem[] = [];
+    const failedNames: string[] = [];
+
+    const batchSize = 6;
+    let completed = 0;
+
+    for (let i = 0; i < files.length; i += batchSize) {
+      const chunk = files.slice(i, i + batchSize);
+      await Promise.all(
+        chunk.map(async (file) => {
+          const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+          const path = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('product-images')
+            .upload(path, file, { upsert: false });
+
+          completed += 1;
+          setUploadProgress(`Uploading ${completed} of ${files.length}...`);
+
+          if (uploadError) {
+            failedNames.push(file.name);
+            return;
+          }
+
+          const { data: urlData } = supabase.storage
+            .from('product-images')
+            .getPublicUrl(path);
+
+          uploadedDrafts.push({
+            tempId: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+            name: cleanFileTitle(file.name) || `Item ${completed}`,
+            size: defaultSize,
+            retailPrice: defaultRetail,
+            wholesalePrice: defaultWholesale,
+            estShippingFee: defaultShipping,
+            imageUrl: urlData.publicUrl,
+            description: '',
+          });
+        })
+      );
+    }
+
+    setDraftItems((prev) => [...prev, ...uploadedDrafts]);
+    setUploadingPhotos(false);
+    setUploadProgress('');
+    e.target.value = '';
+
+    if (uploadedDrafts.length > 0) {
+      setStatusMsg(
+        `Uploaded ${uploadedDrafts.length} photo(s). Fill in size, retail price, wholesale price, and estimated shipping fee below.`
+      );
+    }
+    if (failedNames.length > 0) {
+      setErrorMsg(`Could not upload ${failedNames.length} file(s): ${failedNames.join(', ')}`);
+    }
+  }
+
+  function updateDraftItem(
+    tempId: string,
+    field: keyof Omit<DraftPhotoItem, 'tempId' | 'imageUrl'>,
+    value: string
+  ) {
+    setDraftItems((prev) =>
+      prev.map((item) => (item.tempId === tempId ? { ...item, [field]: value } : item))
+    );
+  }
+
+  function removeDraftItem(tempId: string) {
+    setDraftItems((prev) => prev.filter((item) => item.tempId !== tempId));
+  }
+
+  function applyDefaultsToAllDrafts() {
+    setDraftItems((prev) =>
+      prev.map((item) => ({
+        ...item,
+        size: defaultSize !== '' ? defaultSize : item.size,
+        retailPrice: defaultRetail !== '' ? defaultRetail : item.retailPrice,
+        wholesalePrice: defaultWholesale !== '' ? defaultWholesale : item.wholesalePrice,
+        estShippingFee: defaultShipping !== '' ? defaultShipping : item.estShippingFee,
+      }))
+    );
+    setStatusMsg('Applied quick-fill values to all uploaded photos.');
+  }
+
+  async function handleSaveAllDraftProducts(e: FormEvent) {
+    e.preventDefault();
+    if (draftItems.length === 0) return;
+
+    setSavingBatch(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+
+    const payload = draftItems.map((item, idx) => {
+      const cleanName = item.name.trim() || `Product ${idx + 1}`;
+      const retail = Number(item.retailPrice) || 0;
+      const wholesale = Number(item.wholesalePrice) || 0;
+      const shipping = Number(item.estShippingFee) || 0;
+      const sizeText = item.size.trim() || null;
+
+      return {
+        name: cleanName,
+        category_id: selectedCategoryId || null,
+        size: sizeText,
+        retail_price: retail,
+        wholesale_price: wholesale,
+        est_shipping_fee: shipping,
+        image_url: item.imageUrl || null,
+        description:
+          item.description.trim() ||
+          (sizeText ? `Size: ${sizeText}` : null),
+      };
     });
 
-    setSaving(false);
+    const { error } = await supabase.from('products').insert(payload);
+
+    setSavingBatch(false);
     if (error) {
       setErrorMsg(error.message);
     } else {
-      setProdName('');
-      setProdDesc('');
-      setProdImageUrl('');
-      setRetailPrice('');
-      setWholesalePrice('');
-      setEstWeightKg('0.5');
-      setStatusMsg('Product added to storefront.');
+      setDraftItems([]);
+      setStatusMsg(`Published ${payload.length} product(s) to your storefront.`);
       await refreshData();
     }
   }
@@ -266,7 +344,7 @@ export default function AdminPage() {
           <div>
             <h1 className="text-lg font-bold">Admin Sign In</h1>
             <p className="mt-1 text-xs text-stone-500">
-              Sign in with your Supabase admin account to manage the store.
+              Sign in with your Supabase admin account to upload photos and manage products.
             </p>
           </div>
 
@@ -329,7 +407,7 @@ export default function AdminPage() {
       <header className="border-b border-stone-200 bg-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4">
           <div>
-            <h1 className="text-xl font-bold">Store Admin</h1>
+            <h1 className="text-xl font-bold">Store Admin — Gallery & Pricing</h1>
             <p className="text-xs text-stone-500">Signed in as {session.user.email}</p>
           </div>
           <div className="flex items-center gap-2">
@@ -364,30 +442,65 @@ export default function AdminPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-          <form
-            onSubmit={handleAddProduct}
-            className="space-y-4 rounded-xl border border-stone-200 bg-white p-5 shadow-xs"
+        <form
+          onSubmit={handleAddCategory}
+          className="flex flex-wrap items-end gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-xs"
+        >
+          <div className="min-w-[180px] flex-1">
+            <label className="block text-xs font-medium text-stone-700">New Category Name</label>
+            <input
+              type="text"
+              value={catName}
+              onChange={(e) => setCatName(e.target.value)}
+              placeholder="e.g., Dresses or Bags"
+              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="w-40">
+            <label className="block text-xs font-medium text-stone-700">Slug (optional)</label>
+            <input
+              type="text"
+              value={catSlug}
+              onChange={(e) => setCatSlug(e.target.value)}
+              placeholder="dresses"
+              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={savingCat}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-50"
           >
-            <h2 className="text-base font-semibold">Add Product</h2>
+            <Plus className="h-4 w-4" />
+            Add Category
+          </button>
+        </form>
 
+        <form
+          onSubmit={handleSaveAllDraftProducts}
+          className="space-y-5 rounded-xl border border-stone-200 bg-white p-5 shadow-xs"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <label className="block text-xs font-medium text-stone-700">Product Name *</label>
-              <input
-                type="text"
-                required
-                value={prodName}
-                onChange={(e) => setProdName(e.target.value)}
-                placeholder="e.g., Mini Leather Tote"
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
-              />
+              <h2 className="text-base font-semibold">
+                Upload Photos from Gallery ({draftItems.length} in queue)
+              </h2>
+              <p className="mt-1 text-xs text-stone-500">
+                Select multiple photos (e.g., up to 100 at once) from your gallery, then enter each
+                item&apos;s <strong>size</strong>, <strong>retail price</strong>,{' '}
+                <strong>wholesale price</strong>, and <strong>estimated shipping fee</strong>.
+              </p>
+              <p className="mt-1 text-xs text-amber-800">
+                Note: Shipping fees entered here are <strong>estimates</strong> and may change when
+                the shipment arrives.
+              </p>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-stone-700">Category</label>
+            <div className="w-full sm:w-56">
+              <label className="block text-xs font-medium text-stone-700">Category for Batch</label>
               <select
-                value={prodCategoryId}
-                onChange={(e) => setProdCategoryId(e.target.value)}
+                value={selectedCategoryId}
+                onChange={(e) => setSelectedCategoryId(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
               >
                 <option value="">Uncategorized</option>
@@ -398,224 +511,231 @@ export default function AdminPage() {
                 ))}
               </select>
             </div>
+          </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div>
-                <label className="block text-xs font-medium text-stone-700">Retail Price</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={retailPrice}
-                  onChange={(e) => setRetailPrice(e.target.value)}
-                  placeholder="25000"
-                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-stone-700">Wholesale Price</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={wholesalePrice}
-                  onChange={(e) => setWholesalePrice(e.target.value)}
-                  placeholder="18000"
-                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-stone-700">Est. Weight (kg)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={estWeightKg}
-                  onChange={(e) => setEstWeightKg(e.target.value)}
-                  placeholder="0.5"
-                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-stone-700">Image URL</label>
+          <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 p-4">
+            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 text-center">
+              <Upload className="h-6 w-6 text-stone-600" />
+              <span className="text-sm font-medium text-stone-800">
+                {uploadingPhotos
+                  ? uploadProgress || 'Uploading photos...'
+                  : 'Tap or click to choose multiple pictures from your gallery'}
+              </span>
+              <span className="text-xs text-stone-500">
+                Supports JPG, PNG, WEBP — select as many images as your device allows
+              </span>
               <input
-                type="url"
-                value={prodImageUrl}
-                onChange={(e) => setProdImageUrl(e.target.value)}
-                placeholder="https://..."
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                type="file"
+                accept="image/*"
+                multiple
+                disabled={uploadingPhotos || savingBatch}
+                onChange={handleGalleryFilesChange}
+                className="sr-only"
               />
-            </div>
+            </label>
+          </div>
 
-            <div>
-              <label className="block text-xs font-medium text-stone-700">Description</label>
-              <textarea
-                rows={2}
-                value={prodDesc}
-                onChange={(e) => setProdDesc(e.target.value)}
-                placeholder="Short details about size, material, or colors"
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-50"
-            >
-              <Plus className="h-4 w-4" />
-              Add Product
-            </button>
-          </form>
-
-          <div className="space-y-6">
-            <form
-              onSubmit={handleAddCategory}
-              className="space-y-4 rounded-xl border border-stone-200 bg-white p-5 shadow-xs"
-            >
-              <h2 className="text-base font-semibold">Add Category</h2>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-medium text-stone-700">Category Name *</label>
+          {draftItems.length > 0 && (
+            <>
+              <div className="rounded-xl border border-stone-200 bg-stone-50 p-3.5">
+                <p className="mb-2.5 text-xs font-semibold text-stone-700">
+                  Quick-Fill Helper (optional — fills matching fields across your uploaded photos)
+                </p>
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
                   <input
                     type="text"
-                    required
-                    value={catName}
-                    onChange={(e) => setCatName(e.target.value)}
-                    placeholder="e.g., Bags"
-                    className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                    value={defaultSize}
+                    onChange={(e) => setDefaultSize(e.target.value)}
+                    placeholder="Size (e.g. M / Free)"
+                    className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-stone-700">Wholesale MOQ</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={wholesaleMoq}
-                    onChange={(e) => setWholesaleMoq(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-4 text-xs text-stone-700">
-                <label className="inline-flex items-center gap-1.5">
-                  <input
-                    type="checkbox"
-                    checked={mixAndMatch}
-                    onChange={(e) => setMixAndMatch(e.target.checked)}
-                  />
-                  Mix & match wholesale
-                </label>
-                <label className="inline-flex items-center gap-1.5">
-                  <input
-                    type="checkbox"
-                    checked={allowAir}
-                    onChange={(e) => setAllowAir(e.target.checked)}
-                  />
-                  Allow Air shipping
-                </label>
-                <label className="inline-flex items-center gap-1.5">
-                  <input
-                    type="checkbox"
-                    checked={allowSea}
-                    onChange={(e) => setAllowSea(e.target.checked)}
-                  />
-                  Allow Sea shipping
-                </label>
-              </div>
-
-              <button
-                type="submit"
-                disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-50"
-              >
-                <Plus className="h-4 w-4" />
-                Add Category
-              </button>
-            </form>
-
-            <form
-              onSubmit={handleSaveSettings}
-              className="space-y-4 rounded-xl border border-stone-200 bg-white p-5 shadow-xs"
-            >
-              <h2 className="text-base font-semibold">WhatsApp & Shipping Rates</h2>
-
-              <div>
-                <label className="block text-xs font-medium text-stone-700">
-                  WhatsApp Number (with country code, e.g., 2348012345678)
-                </label>
-                <input
-                  type="text"
-                  value={whatsappNumber}
-                  onChange={(e) => setWhatsappNumber(e.target.value)}
-                  placeholder="2348012345678"
-                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-medium text-stone-700">
-                    Air Rate per kg
-                  </label>
                   <input
                     type="number"
                     step="0.01"
-                    value={airRate}
-                    onChange={(e) => setAirRate(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                    value={defaultRetail}
+                    onChange={(e) => setDefaultRetail(e.target.value)}
+                    placeholder="Retail price"
+                    className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-stone-700">
-                    Sea Rate per kg
-                  </label>
                   <input
                     type="number"
                     step="0.01"
-                    value={seaRate}
-                    onChange={(e) => setSeaRate(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                    value={defaultWholesale}
+                    onChange={(e) => setDefaultWholesale(e.target.value)}
+                    placeholder="Wholesale price"
+                    className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
                   />
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={defaultShipping}
+                    onChange={(e) => setDefaultShipping(e.target.value)}
+                    placeholder="Est. shipping fee"
+                    className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyDefaultsToAllDrafts}
+                    className="col-span-2 rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs font-medium text-stone-800 hover:bg-stone-100 sm:col-span-1"
+                  >
+                    Apply to All
+                  </button>
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-              >
-                <Save className="h-4 w-4" />
-                Save Settings
-              </button>
-            </form>
-          </div>
-        </div>
+              <div className="space-y-3">
+                {draftItems.map((item, idx) => (
+                  <div
+                    key={item.tempId}
+                    className="grid grid-cols-1 items-center gap-3 rounded-xl border border-stone-200 p-3 sm:grid-cols-12"
+                  >
+                    <div className="flex items-center gap-3 sm:col-span-3">
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="h-14 w-14 shrink-0 rounded-lg border border-stone-200 object-cover"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <span className="block text-[11px] text-stone-400">#{idx + 1}</span>
+                        <input
+                          type="text"
+                          required
+                          value={item.name}
+                          onChange={(e) => updateDraftItem(item.tempId, 'name', e.target.value)}
+                          placeholder="Item name"
+                          className="w-full rounded-md border border-stone-300 px-2 py-1 text-xs font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] text-stone-500">Size</label>
+                      <input
+                        type="text"
+                        value={item.size}
+                        onChange={(e) => updateDraftItem(item.tempId, 'size', e.target.value)}
+                        placeholder="e.g. S/M/L or 30cm"
+                        className="mt-0.5 w-full rounded-md border border-stone-300 px-2 py-1 text-xs"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] text-stone-500">Retail Price</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={item.retailPrice}
+                        onChange={(e) =>
+                          updateDraftItem(item.tempId, 'retailPrice', e.target.value)
+                        }
+                        placeholder="0"
+                        className="mt-0.5 w-full rounded-md border border-stone-300 px-2 py-1 text-xs"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] text-stone-500">Wholesale Price</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={item.wholesalePrice}
+                        onChange={(e) =>
+                          updateDraftItem(item.tempId, 'wholesalePrice', e.target.value)
+                        }
+                        placeholder="0"
+                        className="mt-0.5 w-full rounded-md border border-stone-300 px-2 py-1 text-xs"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] text-stone-500">
+                        Est. Shipping (est.)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={item.estShippingFee}
+                        onChange={(e) =>
+                          updateDraftItem(item.tempId, 'estShippingFee', e.target.value)
+                        }
+                        placeholder="0"
+                        className="mt-0.5 w-full rounded-md border border-stone-300 px-2 py-1 text-xs"
+                      />
+                    </div>
+
+                    <div className="flex justify-end sm:col-span-1">
+                      <button
+                        type="button"
+                        onClick={() => removeDraftItem(item.tempId)}
+                        aria-label={`Remove ${item.name}`}
+                        className="rounded-lg border border-stone-200 p-2 text-stone-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between gap-4 pt-2">
+                <p className="text-xs text-stone-500">
+                  Shipping fees are saved as estimates and may change on arrival.
+                </p>
+                <button
+                  type="submit"
+                  disabled={savingBatch || uploadingPhotos}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  <Upload className="h-4 w-4" />
+                  {savingBatch
+                    ? `Saving ${draftItems.length} items...`
+                    : `Publish ${draftItems.length} Product(s)`}
+                </button>
+              </div>
+            </>
+          )}
+        </form>
 
         <section className="rounded-xl border border-stone-200 bg-white p-5 shadow-xs">
-          <h2 className="mb-4 text-base font-semibold">Current Products ({products.length})</h2>
+          <h2 className="mb-4 text-base font-semibold">Published Products ({products.length})</h2>
           {products.length === 0 ? (
-            <p className="text-sm text-stone-500">No products added yet.</p>
+            <p className="text-sm text-stone-500">No published products yet.</p>
           ) : (
             <div className="divide-y divide-stone-100">
               {products.map((p) => (
                 <div key={p.id} className="flex items-center justify-between gap-4 py-3">
-                  <div>
-                    <p className="text-sm font-medium">{p.name}</p>
-                    <p className="text-xs text-stone-500">
-                      Retail: {Number(p.retail_price).toLocaleString()} • Wholesale:{' '}
-                      {Number(p.wholesale_price).toLocaleString()} • {p.est_weight_kg} kg
-                    </p>
+                  <div className="flex items-center gap-3">
+                    {p.image_url && (
+                      <img
+                        src={p.image_url}
+                        alt={p.name}
+                        className="h-12 w-12 rounded-lg border border-stone-200 object-cover"
+                      />
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">
+                        {p.name}{' '}
+                        {p.size ? (
+                          <span className="ml-1 rounded bg-stone-100 px-1.5 py-0.5 text-xs font-normal text-stone-700">
+                            Size: {p.size}
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="text-xs text-stone-500">
+                        Retail: {Number(p.retail_price).toLocaleString()} • Wholesale:{' '}
+                        {Number(p.wholesale_price).toLocaleString()} • Est. Shipping:{' '}
+                        {Number(p.est_shipping_fee ?? 0).toLocaleString()} (may change on arrival)
+                      </p>
+                    </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => handleDeleteProduct(p.id)}
-                    className="rounded-lg border border-stone-200 p-2 text-stone-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                     aria-label={`Delete ${p.name}`}
+                    className="rounded-lg border border-stone-200 p-2 text-stone-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
