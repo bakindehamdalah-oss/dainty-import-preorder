@@ -22,6 +22,8 @@ type Product = {
   retail_price: number;
   wholesale_price: number;
   est_shipping_fee: number | null;
+  est_shipping_fee_air?: number | null;
+  est_shipping_fee_sea?: number | null;
 };
 
 type DraftPhotoItem = {
@@ -30,7 +32,8 @@ type DraftPhotoItem = {
   size: string;
   retailPrice: string;
   wholesalePrice: string;
-  estShippingFee: string;
+  estAirShipping: string;
+  estSeaShipping: string;
   imageUrl: string;
   description: string;
 };
@@ -72,7 +75,8 @@ export default function AdminPage() {
   const [sharedSize, setSharedSize] = useState('');
   const [sharedRetail, setSharedRetail] = useState('');
   const [sharedWholesale, setSharedWholesale] = useState('');
-  const [sharedShipping, setSharedShipping] = useState('');
+  const [sharedAirShipping, setSharedAirShipping] = useState('');
+  const [sharedSeaShipping, setSharedSeaShipping] = useState('');
   const [sharedDescription, setSharedDescription] = useState('');
 
   async function refreshData() {
@@ -194,7 +198,8 @@ export default function AdminPage() {
       size: sharedSize !== '' ? sharedSize : item.size,
       retailPrice: sharedRetail !== '' ? sharedRetail : item.retailPrice,
       wholesalePrice: sharedWholesale !== '' ? sharedWholesale : item.wholesalePrice,
-      estShippingFee: sharedShipping !== '' ? sharedShipping : item.estShippingFee,
+      estAirShipping: sharedAirShipping !== '' ? sharedAirShipping : item.estAirShipping,
+      estSeaShipping: sharedSeaShipping !== '' ? sharedSeaShipping : item.estSeaShipping,
       description: sharedDescription !== '' ? sharedDescription : item.description,
     }));
   }
@@ -267,7 +272,8 @@ export default function AdminPage() {
             size: sameForAll ? sharedSize : '',
             retailPrice: sameForAll ? sharedRetail : '',
             wholesalePrice: sameForAll ? sharedWholesale : '',
-            estShippingFee: sameForAll ? sharedShipping : '',
+            estAirShipping: sameForAll ? sharedAirShipping : '',
+            estSeaShipping: sameForAll ? sharedSeaShipping : '',
             imageUrl: publicUrl,
             description: sameForAll ? sharedDescription : '',
           });
@@ -320,7 +326,8 @@ export default function AdminPage() {
       const cleanName = item.name.trim() || `Product ${idx + 1}`;
       const retail = Number(item.retailPrice) || 0;
       const wholesale = Number(item.wholesalePrice) || 0;
-      const shipping = Number(item.estShippingFee) || 0;
+      const airFee = Number(item.estAirShipping) || 0;
+      const seaFee = Number(item.estSeaShipping) || 0;
       const sizeText = item.size.trim() || null;
       const descText =
         item.description.trim() || (sizeText ? `Size: ${sizeText}` : null);
@@ -331,7 +338,9 @@ export default function AdminPage() {
         size: sizeText,
         retail_price: retail,
         wholesale_price: wholesale,
-        est_shipping_fee: shipping,
+        est_shipping_fee: airFee || seaFee || 0,
+        est_shipping_fee_air: airFee,
+        est_shipping_fee_sea: seaFee,
         image_url: item.imageUrl || null,
         description: descText,
       };
@@ -554,7 +563,7 @@ export default function AdminPage() {
 
             {sameForAll && (
               <div className="space-y-3 pt-1">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                   <div>
                     <label className="block text-[11px] font-medium text-stone-600">
                       Base Name (optional)
@@ -579,7 +588,7 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <label className="block text-[11px] font-medium text-stone-600">
-                      Retail Price
+                      Retail Price (₦)
                     </label>
                     <input
                       type="number"
@@ -592,7 +601,7 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <label className="block text-[11px] font-medium text-stone-600">
-                      Wholesale Price
+                      Wholesale Price (₦)
                     </label>
                     <input
                       type="number"
@@ -604,16 +613,29 @@ export default function AdminPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-medium text-stone-600">
-                      Est. Shipping (est.)
+                    <label className="block text-[11px] font-medium text-emerald-700">
+                      Est. Air Cargo (₦)
                     </label>
                     <input
                       type="number"
                       step="0.01"
-                      value={sharedShipping}
-                      onChange={(e) => setSharedShipping(e.target.value)}
-                      placeholder="0"
-                      className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
+                      value={sharedAirShipping}
+                      onChange={(e) => setSharedAirShipping(e.target.value)}
+                      placeholder="e.g. 5000"
+                      className="mt-1 w-full rounded-lg border border-emerald-300 bg-emerald-50/40 px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-blue-700">
+                      Est. Sea Cargo (₦)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={sharedSeaShipping}
+                      onChange={(e) => setSharedSeaShipping(e.target.value)}
+                      placeholder="e.g. 1500"
+                      className="mt-1 w-full rounded-lg border border-blue-300 bg-blue-50/40 px-2.5 py-1.5 text-xs"
                     />
                   </div>
                 </div>
@@ -736,19 +758,34 @@ export default function AdminPage() {
                     </div>
 
                     <div className="sm:col-span-2">
-                      <label className="block text-[11px] text-stone-500">
-                        Est. Shipping (est.)
+                      <label className="block text-[11px] font-medium text-emerald-700">
+                        Est. Air (₦)
                       </label>
                       <input
                         type="number"
                         step="0.01"
-                        required
-                        value={item.estShippingFee}
+                        value={item.estAirShipping}
                         onChange={(e) =>
-                          updateDraftItem(item.tempId, 'estShippingFee', e.target.value)
+                          updateDraftItem(item.tempId, 'estAirShipping', e.target.value)
                         }
                         placeholder="0"
-                        className="mt-0.5 w-full rounded-md border border-stone-300 px-2 py-1 text-xs"
+                        className="mt-0.5 w-full rounded-md border border-emerald-300 bg-emerald-50/30 px-2 py-1 text-xs"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] font-medium text-blue-700">
+                        Est. Sea (₦)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={item.estSeaShipping}
+                        onChange={(e) =>
+                          updateDraftItem(item.tempId, 'estSeaShipping', e.target.value)
+                        }
+                        placeholder="0"
+                        className="mt-0.5 w-full rounded-md border border-blue-300 bg-blue-50/30 px-2 py-1 text-xs"
                       />
                     </div>
 
@@ -811,9 +848,10 @@ export default function AdminPage() {
                         ) : null}
                       </p>
                       <p className="text-xs text-stone-500">
-                        Retail: {Number(p.retail_price).toLocaleString()} • Wholesale:{' '}
-                        {Number(p.wholesale_price).toLocaleString()} • Est. Shipping:{' '}
-                        {Number(p.est_shipping_fee ?? 0).toLocaleString()} (may change on arrival)
+                        Retail: ₦{Number(p.retail_price).toLocaleString()} • Wholesale: ₦
+                        {Number(p.wholesale_price).toLocaleString()} • Air Est: ₦
+                        {Number(p.est_shipping_fee_air ?? p.est_shipping_fee ?? 0).toLocaleString()} • Sea Est: ₦
+                        {Number(p.est_shipping_fee_sea ?? p.est_shipping_fee ?? 0).toLocaleString()}
                       </p>
                     </div>
                   </div>
