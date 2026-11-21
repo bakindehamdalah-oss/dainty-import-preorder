@@ -228,7 +228,7 @@ export default function AdminPage() {
           const path = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`;
 
           const { error: uploadError } = await supabase.storage
-            .from('product-images')
+            .from('productimages')
             .upload(path, file, { upsert: false });
 
           completed += 1;
@@ -240,7 +240,7 @@ export default function AdminPage() {
           }
 
           const { data: urlData } = supabase.storage
-            .from('product-images')
+            .from('productimages')
             .getPublicUrl(path);
 
           const itemIndex = startingCount + uploadedDrafts.length;
