@@ -235,7 +235,7 @@ export default function AdminPage() {
           setUploadProgress(`Uploading ${completed} of ${files.length}...`);
 
           if (uploadError) {
-            failedNames.push(file.name);
+            failedNames.push(`${file.name} (${uploadError.message})`);
             return;
           }
 
@@ -682,4 +682,143 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    <div className="sm:col-span-
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] text-stone-500">Size</label>
+                      <input
+                        type="text"
+                        value={item.size}
+                        onChange={(e) => updateDraftItem(item.tempId, 'size', e.target.value)}
+                        placeholder="e.g. S/M/L or 30cm"
+                        className="mt-0.5 w-full rounded-md border border-stone-300 px-2 py-1 text-xs"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] text-stone-500">Retail Price</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={item.retailPrice}
+                        onChange={(e) =>
+                          updateDraftItem(item.tempId, 'retailPrice', e.target.value)
+                        }
+                        placeholder="0"
+                        className="mt-0.5 w-full rounded-md border border-stone-300 px-2 py-1 text-xs"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] text-stone-500">Wholesale Price</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={item.wholesalePrice}
+                        onChange={(e) =>
+                          updateDraftItem(item.tempId, 'wholesalePrice', e.target.value)
+                        }
+                        placeholder="0"
+                        className="mt-0.5 w-full rounded-md border border-stone-300 px-2 py-1 text-xs"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] text-stone-500">
+                        Est. Shipping (est.)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={item.estShippingFee}
+                        onChange={(e) =>
+                          updateDraftItem(item.tempId, 'estShippingFee', e.target.value)
+                        }
+                        placeholder="0"
+                        className="mt-0.5 w-full rounded-md border border-stone-300 px-2 py-1 text-xs"
+                      />
+                    </div>
+
+                    <div className="flex justify-end sm:col-span-1">
+                      <button
+                        type="button"
+                        onClick={() => removeDraftItem(item.tempId)}
+                        aria-label={`Remove ${item.name}`}
+                        className="rounded-lg border border-stone-200 p-2 text-stone-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between gap-4 pt-2">
+                <p className="text-xs text-stone-500">
+                  Shipping fees are saved as estimates and may change on arrival.
+                </p>
+                <button
+                  type="submit"
+                  disabled={savingBatch || uploadingPhotos}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  <Upload className="h-4 w-4" />
+                  {savingBatch
+                    ? `Saving ${draftItems.length} items...`
+                    : `Publish ${draftItems.length} Product(s)`}
+                </button>
+              </div>
+            </>
+          )}
+        </form>
+
+        <section className="rounded-xl border border-stone-200 bg-white p-5 shadow-xs">
+          <h2 className="mb-4 text-base font-semibold">Published Products ({products.length})</h2>
+          {products.length === 0 ? (
+            <p className="text-sm text-stone-500">No published products yet.</p>
+          ) : (
+            <div className="divide-y divide-stone-100">
+              {products.map((p) => (
+                <div key={p.id} className="flex items-center justify-between gap-4 py-3">
+                  <div className="flex items-center gap-3">
+                    {p.image_url && (
+                      <img
+                        src={p.image_url}
+                        alt={p.name}
+                        className="h-12 w-12 rounded-lg border border-stone-200 object-cover"
+                      />
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">
+                        {p.name}{' '}
+                        {p.size ? (
+                          <span className="ml-1 rounded bg-stone-100 px-1.5 py-0.5 text-xs font-normal text-stone-700">
+                            Size: {p.size}
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="text-xs text-stone-500">
+                        Retail: {Number(p.retail_price).toLocaleString()} • Wholesale:{' '}
+                        {Number(p.wholesale_price).toLocaleString()} • Est. Shipping:{' '}
+                        {Number(p.est_shipping_fee ?? 0).toLocaleString()} (may change on arrival)
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteProduct(p.id)}
+                    aria-label={`Delete ${p.name}`}
+                    className="rounded-lg border border-stone-200 p-2 text-stone-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
+    </div>
+  );
+}
