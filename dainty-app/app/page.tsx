@@ -25,11 +25,15 @@ type Product = {
   id: string;
   category_id: string | null;
   name: string;
+  size?: string | null;
   description: string | null;
   image_url: string | null;
   retail_price: number;
   wholesale_price: number;
-  est_weight_kg: number;
+  est_shipping_fee?: number | null;
+  est_shipping_fee_air?: number | null;
+  est_shipping_fee_sea?: number | null;
+  est_weight_kg?: number;
 };
 
 type CartItem = {
@@ -141,8 +145,23 @@ export default function StorefrontPage() {
       ? Number(settings?.air_rate_per_kg || 0)
       : Number(settings?.sea_rate_per_kg || 0);
 
-  const estimatedShipping = totalWeightKg * ratePerKg;
+  const estimatedShipping = useMemo(() => {
+    return cart.reduce((sum, item) => {
+      const airFee = Number(item.product.est_shipping_fee_air ?? item.product.est_shipping_fee ?? 0);
+      const seaFee = Number(item.product.est_shipping_fee_sea ?? item.product.est_shipping_fee ?? 0);
+      const perItemFee = shippingMethod === 'air' ? airFee : seaFee;
+
+      if (perItemFee > 0) {
+        return sum + perItemFee * item.quantity;
+      }
+      const weight = Number(item.product.est_weight_kg || 0);
+      const rate = shippingMethod === 'air' ? Number(settings?.air_rate_per_kg || 0) : Number(settings?.sea_rate_per_kg || 0);
+      return sum + weight * rate * item.quantity;
+    }, 0);
+  }, [cart, shippingMethod, settings]);
+
   const estimatedTotal = subtotal + estimatedShipping;
+  const shippingTimeline = shippingMethod === 'air' ? '7–14 days' : '45–60 days';
 
   const wholesaleWarnings = useMemo(() => {
     if (mode !== 'wholesale' || cart.length === 0) return [];
@@ -191,18 +210,27 @@ export default function StorefrontPage() {
   function buildWhatsAppLink() {
     const cleanPhone = (settings?.whatsapp_number || '').replace(/[^0-9]/g, '');
     const lines = [
-      `Hello Dainty Import! I'd like to place a ${mode.toUpperCase()} preorder (${shippingMethod.toUpperCase()} shipping):`,
+      `*Preorder Request (${mode.toUpperCase()})*`,
+      `*Shipping Method:* ${shippingMethod.toUpperCase()} Cargo (${shippingTimeline})`,
       '',
-      ...cart.map((item) => {
+      '*Items Ordered:*',
+      ...cart.map((item, idx) => {
         const price =
           mode === 'wholesale' ? item.product.wholesale_price : item.product.retail_price;
-        return `- ${item.product.name} x${item.quantity} (${price.toLocaleString()} each)`;
+        const airFee = Number(item.product.est_shipping_fee_air ?? item.product.est_shipping_fee ?? 0);
+        const seaFee = Number(item.product.est_shipping_fee_sea ?? item.product.est_shipping_fee ?? 0);
+        const fee = (shippingMethod === 'air' ? airFee : seaFee) * item.quantity;
+        const sizeInfo = item.product.size ? ` [Size: ${item.product.size}]` : '';
+        const shipNote = fee > 0 ? ` | Est. Ship: ₦${fee.toLocaleString()}` : '';
+        return `${idx + 1}. ${item.product.name}${sizeInfo} x${item.quantity} - ₦${(price * item.quantity).toLocaleString()}${shipNote}`;
       }),
       '',
-      `Subtotal: ${subtotal.toLocaleString()}`,
-      `Est. Weight: ${totalWeightKg.toFixed(2)} kg`,
-      `Est. Shipping (${shippingMethod.toUpperCase()}): ${estimatedShipping.toLocaleString()}`,
-      `Est. Total: ${estimatedTotal.toLocaleString()}`,
+      `*Total to Pay Now (Items Only):* ₦${subtotal.toLocaleString()}`,
+      `*Est. Shipping (${shippingMethod.toUpperCase()}):* ₦${estimatedShipping.toLocaleString()}`,
+      `*Est. Delivery Timeline:* ${shippingTimeline}`,
+      '',
+      '📌 *Note on Shipping:*',
+      'The initial payment covers the product cost only. The shipping fee shown is an estimate; exact shipping will be billed upon arrival once weighed and measured in Nigeria.'
     ];
     const encoded = encodeURIComponent(lines.join('\n'));
     return cleanPhone ? `https://wa.me/${cleanPhone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
@@ -248,7 +276,7 @@ export default function StorefrontPage() {
                 }`}
               >
                 <Plane className="h-4 w-4" />
-                Air
+                Air (7–14 days)
               </button>
               <button
                 type="button"
@@ -258,7 +286,7 @@ export default function StorefrontPage() {
                 }`}
               >
                 <Ship className="h-4 w-4" />
-                Sea
+                Sea (45–60 days)
               </button>
             </div>
           </div>
@@ -345,10 +373,10 @@ export default function StorefrontPage() {
                     <div className="flex items-center justify-between border-t border-stone-100 px-4 py-3">
                       <div>
                         <div className="text-base font-bold">
-                          {Number(displayPrice).toLocaleString()}
+                          ₦{Number(displayPrice).toLocaleString()}
                         </div>
-                        <div className="text-xs text-stone-500">
-                          Est. wt: {product.est_weight_kg} kg ({mode})
+                        <div className="text-[11px] text-stone-500">
+                          Air Est: ₦{Number(product.est_shipping_fee_air ?? product.est_shipping_fee ?? 0).toLocaleString()} • Sea Est: ₦{Number(product.est_shipping_fee_sea ?? product.est_shipping_fee ?? 0).toLocaleString()}
                         </div>
                       </div>
                       <button
@@ -431,25 +459,25 @@ export default function StorefrontPage() {
                 </div>
               )}
 
-              <div className="space-y-1.5 text-sm">
-                <div className="flex justify-between text-stone-600">
-                  <span>Subtotal ({mode})</span>
-                  <span>{subtotal.toLocaleString()}</span>
+              <div className="space-y-2 rounded-lg border border-stone-200 bg-stone-50 p-3 text-xs">
+                <div className="flex justify-between text-stone-700">
+                  <span>Product Subtotal ({mode}):</span>
+                  <span className="font-semibold">₦{subtotal.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between text-stone-600">
-                  <span>Total Est. Weight</span>
-                  <span>{totalWeightKg.toFixed(2)} kg</span>
-                </div>
-                <div className="flex justify-between text-stone-600">
+                <div className="flex justify-between text-stone-700">
                   <span>
-                    Est. {shippingMethod === 'air' ? 'Air' : 'Sea'} Shipping (@{' '}
-                    {ratePerKg.toLocaleString()}/kg)
+                    Est. {shippingMethod === 'air' ? 'Air Cargo (7–14 days)' : 'Sea Cargo (45–60 days)'}:
                   </span>
-                  <span>{estimatedShipping.toLocaleString()}</span>
+                  <span className="font-semibold">₦{estimatedShipping.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between border-t border-stone-200 pt-2 text-base font-bold">
-                  <span>Estimated Total</span>
-                  <span>{estimatedTotal.toLocaleString()}</span>
+                <div className="border-t border-stone-200 pt-2">
+                  <div className="flex justify-between text-sm font-bold text-stone-900">
+                    <span>Due Now (Products):</span>
+                    <span className="text-emerald-700">₦{subtotal.toLocaleString()}</span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-stone-500">
+                    * Estimated shipping is payable upon arrival when measured.
+                  </p>
                 </div>
               </div>
 
