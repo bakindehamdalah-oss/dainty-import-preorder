@@ -227,21 +227,33 @@ export default function AdminPage() {
           const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
           const path = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`;
 
-          const { error: uploadError } = await supabase.storage
-            .from('productimages')
-            .upload(path, file, { upsert: false });
+          const candidateBuckets = ['product images', 'productimages', 'product-images'];
+          let uploadError: any = null;
+          let publicUrl = '';
+
+          for (const bName of candidateBuckets) {
+            const { error: err } = await supabase.storage
+              .from(bName)
+              .upload(path, file, { upsert: false });
+            if (!err) {
+              const { data: uData } = supabase.storage.from(bName).getPublicUrl(path);
+              publicUrl = uData.publicUrl;
+              uploadError = null;
+              break;
+            }
+            uploadError = err;
+            if (!err.message?.toLowerCase().includes('not found')) {
+              break;
+            }
+          }
 
           completed += 1;
           setUploadProgress(`Uploading ${completed} of ${files.length}...`);
 
-          if (uploadError) {
-            failedNames.push(`${file.name} (${uploadError.message})`);
+          if (uploadError || !publicUrl) {
+            failedNames.push(`${file.name} (${uploadError?.message || 'Upload failed'})`);
             return;
           }
-
-          const { data: urlData } = supabase.storage
-            .from('productimages')
-            .getPublicUrl(path);
 
           const itemIndex = startingCount + uploadedDrafts.length;
           const autoName =
@@ -256,7 +268,7 @@ export default function AdminPage() {
             retailPrice: sameForAll ? sharedRetail : '',
             wholesalePrice: sameForAll ? sharedWholesale : '',
             estShippingFee: sameForAll ? sharedShipping : '',
-            imageUrl: urlData.publicUrl,
+            imageUrl: publicUrl,
             description: sameForAll ? sharedDescription : '',
           });
         })
