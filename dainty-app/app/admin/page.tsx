@@ -556,9 +556,16 @@ export default function AdminPage() {
     <div className="min-h-screen bg-stone-50 text-stone-900">
       <header className="border-b border-stone-200 bg-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4">
-          <div>
-            <h1 className="text-xl font-bold">Store Admin — Gallery & Pricing</h1>
-            <p className="text-xs text-stone-500">Signed in as {session.user.email}</p>
+          <div className="flex items-center gap-3">
+            <img
+              src="/logo.png"
+              alt="Dainty Import"
+              className="h-10 w-auto rounded-lg object-contain shadow-xs border border-[#fa9d26]/30"
+            />
+            <div>
+              <h1 className="text-xl font-bold">Dainty Import Admin</h1>
+              <p className="text-xs text-stone-500">Signed in as {session.user.email}</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Link
