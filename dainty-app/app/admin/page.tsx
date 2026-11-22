@@ -1076,7 +1076,7 @@ export default function AdminPage() {
                     {p.image_url && (
                       <img
                         src={p.image_url}
-                        alt={p.name}
+                        alt={p.name ?? 'Product'}
                         className="h-12 w-12 rounded-lg border border-stone-200 object-cover"
                       />
                     )}
