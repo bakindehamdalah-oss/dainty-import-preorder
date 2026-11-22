@@ -4,7 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, LogOut, Plus, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, LogOut, Plus, Trash2, Upload, Images, X, Layers } from 'lucide-react';
 
 type Category = {
   id: string;
@@ -15,10 +15,14 @@ type Category = {
 type Product = {
   id: string;
   category_id: string | null;
-  name: string;
+  name?: string | null;
+  title?: string | null;
   size: string | null;
   description: string | null;
   image_url: string | null;
+  images?: string[] | null;
+  colors?: string[] | null;
+  color_options?: string | null;
   retail_price: number;
   wholesale_price: number;
   est_shipping_fee: number | null;
@@ -35,6 +39,8 @@ type DraftPhotoItem = {
   estAirShipping: string;
   estSeaShipping: string;
   imageUrl: string;
+  additionalImages: string[];
+  colors: string;
   description: string;
 };
 
@@ -69,10 +75,14 @@ export default function AdminPage() {
   const [uploadProgress, setUploadProgress] = useState('');
   const [savingBatch, setSavingBatch] = useState(false);
 
+  // Upload mode: single product with multiple colors/photos OR separate products
+  const [uploadMode, setUploadMode] = useState<'separate' | 'single_product'>('separate');
+
   // "Same specifications, prices and everything" batch mode
   const [sameForAll, setSameForAll] = useState(true);
   const [sharedBaseName, setSharedBaseName] = useState('');
   const [sharedSize, setSharedSize] = useState('');
+  const [sharedColors, setSharedColors] = useState('');
   const [sharedRetail, setSharedRetail] = useState('');
   const [sharedWholesale, setSharedWholesale] = useState('');
   const [sharedAirShipping, setSharedAirShipping] = useState('');
@@ -194,8 +204,9 @@ export default function AdminPage() {
     const base = sharedBaseName.trim();
     return items.map((item, idx) => ({
       ...item,
-      name: base ? `${base} ${idx + 1}` : item.name,
+      name: base ? (items.length > 1 && uploadMode === 'separate' ? `${base} ${idx + 1}` : base) : item.name,
       size: sharedSize !== '' ? sharedSize : item.size,
+      colors: sharedColors !== '' ? sharedColors : item.colors,
       retailPrice: sharedRetail !== '' ? sharedRetail : item.retailPrice,
       wholesalePrice: sharedWholesale !== '' ? sharedWholesale : item.wholesalePrice,
       estAirShipping: sharedAirShipping !== '' ? sharedAirShipping : item.estAirShipping,
@@ -224,6 +235,8 @@ export default function AdminPage() {
 
     const batchSize = 6;
     let completed = 0;
+
+    const uploadedUrls: string[] = [];
 
     for (let i = 0; i < files.length; i += batchSize) {
       const chunk = files.slice(i, i + batchSize);
@@ -260,25 +273,51 @@ export default function AdminPage() {
             return;
           }
 
-          const itemIndex = startingCount + uploadedDrafts.length;
-          const autoName =
-            sameForAll && sharedBaseName.trim()
-              ? `${sharedBaseName.trim()} ${itemIndex + 1}`
-              : cleanFileTitle(file.name) || `Item ${itemIndex + 1}`;
+          uploadedUrls.push(publicUrl);
 
-          uploadedDrafts.push({
-            tempId: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-            name: autoName,
-            size: sameForAll ? sharedSize : '',
-            retailPrice: sameForAll ? sharedRetail : '',
-            wholesalePrice: sameForAll ? sharedWholesale : '',
-            estAirShipping: sameForAll ? sharedAirShipping : '',
-            estSeaShipping: sameForAll ? sharedSeaShipping : '',
-            imageUrl: publicUrl,
-            description: sameForAll ? sharedDescription : '',
-          });
+          if (uploadMode === 'separate') {
+            const itemIndex = startingCount + uploadedDrafts.length;
+            const autoName =
+              sameForAll && sharedBaseName.trim()
+                ? `${sharedBaseName.trim()} ${itemIndex + 1}`
+                : cleanFileTitle(file.name) || `Item ${itemIndex + 1}`;
+
+            uploadedDrafts.push({
+              tempId: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+              name: autoName,
+              size: sameForAll ? sharedSize : '',
+              colors: sameForAll ? sharedColors : '',
+              retailPrice: sameForAll ? sharedRetail : '',
+              wholesalePrice: sameForAll ? sharedWholesale : '',
+              estAirShipping: sameForAll ? sharedAirShipping : '',
+              estSeaShipping: sameForAll ? sharedSeaShipping : '',
+              imageUrl: publicUrl,
+              additionalImages: [],
+              description: sameForAll ? sharedDescription : '',
+            });
+          }
         })
       );
+    }
+
+    if (uploadMode === 'single_product' && uploadedUrls.length > 0) {
+      const autoName =
+        sharedBaseName.trim() ||
+        (files[0] ? cleanFileTitle(files[0].name) : 'Product');
+
+      uploadedDrafts.push({
+        tempId: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        name: autoName,
+        size: sharedSize || '',
+        colors: sharedColors || '',
+        retailPrice: sharedRetail || '',
+        wholesalePrice: sharedWholesale || '',
+        estAirShipping: sharedAirShipping || '',
+        estSeaShipping: sharedSeaShipping || '',
+        imageUrl: uploadedUrls[0],
+        additionalImages: uploadedUrls.slice(1),
+        description: sharedDescription || '',
+      });
     }
 
     setDraftItems((prev) => [...prev, ...uploadedDrafts]);
@@ -300,11 +339,62 @@ export default function AdminPage() {
 
   function updateDraftItem(
     tempId: string,
-    field: keyof Omit<DraftPhotoItem, 'tempId' | 'imageUrl'>,
+    field: keyof Omit<DraftPhotoItem, 'tempId' | 'imageUrl' | 'additionalImages'>,
     value: string
   ) {
     setDraftItems((prev) =>
       prev.map((item) => (item.tempId === tempId ? { ...item, [field]: value } : item))
+    );
+  }
+
+  async function handleAddPhotoToDraftItem(tempId: string, files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const fileList = Array.from(files);
+    setUploadingPhotos(true);
+    setUploadProgress(`Uploading ${fileList.length} extra photo(s)...`);
+
+    for (const file of fileList) {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`;
+      const candidateBuckets = ['product images', 'productimages', 'product-images'];
+      for (const bName of candidateBuckets) {
+        const { error: err } = await supabase.storage.from(bName).upload(path, file, { upsert: false });
+        if (!err) {
+          const { data: uData } = supabase.storage.from(bName).getPublicUrl(path);
+          if (uData.publicUrl) {
+            setDraftItems((prev) =>
+              prev.map((item) =>
+                item.tempId === tempId
+                  ? { ...item, additionalImages: [...(item.additionalImages || []), uData.publicUrl] }
+                  : item
+              )
+            );
+          }
+          break;
+        }
+      }
+    }
+    setUploadingPhotos(false);
+    setUploadProgress('');
+  }
+
+  function handleRemoveSubPhoto(tempId: string, imgUrl: string) {
+    setDraftItems((prev) =>
+      prev.map((item) => {
+        if (item.tempId !== tempId) return item;
+        if (item.imageUrl === imgUrl) {
+          const nextMain = item.additionalImages[0] || '';
+          return {
+            ...item,
+            imageUrl: nextMain,
+            additionalImages: item.additionalImages.slice(1),
+          };
+        }
+        return {
+          ...item,
+          additionalImages: (item.additionalImages || []).filter((u) => u !== imgUrl),
+        };
+      })
     );
   }
 
@@ -329,8 +419,17 @@ export default function AdminPage() {
       const airFee = Number(item.estAirShipping) || 0;
       const seaFee = Number(item.estSeaShipping) || 0;
       const sizeText = item.size.trim() || null;
-      const descText =
-        item.description.trim() || (sizeText ? `Size: ${sizeText}` : null);
+
+      const colorsList = item.colors
+        ? item.colors.split(',').map((c) => c.trim()).filter(Boolean)
+        : [];
+      const allImages = [item.imageUrl, ...(item.additionalImages || [])].filter(Boolean);
+
+      let descText = item.description.trim();
+      if (sizeText) descText = descText ? `${descText} • Size: ${sizeText}` : `Size: ${sizeText}`;
+      if (colorsList.length > 0) {
+        descText = descText ? `${descText} • Colors: ${colorsList.join(', ')}` : `Colors: ${colorsList.join(', ')}`;
+      }
 
       return {
         name: cleanName,
@@ -343,11 +442,20 @@ export default function AdminPage() {
         est_shipping_fee_air: airFee,
         est_shipping_fee_sea: seaFee,
         image_url: item.imageUrl || null,
-        description: descText,
+        images: allImages.length > 0 ? allImages : (item.imageUrl ? [item.imageUrl] : []),
+        colors: colorsList,
+        color_options: colorsList.join(', '),
+        description: descText || null,
       };
     });
 
-    const { error } = await supabase.from('products').insert(payload);
+    let { error } = await supabase.from('products').insert(payload);
+    if (error && error.message?.toLowerCase().includes('schema cache')) {
+      // Graceful fallback if images/colors columns haven't been added to Supabase yet
+      const fallbackPayload = payload.map(({ images, colors, color_options, ...rest }) => rest);
+      const fallbackRes = await supabase.from('products').insert(fallbackPayload);
+      error = fallbackRes.error;
+    }
 
     setSavingBatch(false);
     if (error) {
@@ -550,6 +658,54 @@ export default function AdminPage() {
             </div>
           </div>
 
+          {/* Upload Mode Selector: Single Product vs Separate Products */}
+          <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-2xs">
+            <label className="block text-xs font-semibold text-stone-900 mb-2">Upload Mode</label>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <label
+                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${
+                  uploadMode === 'separate'
+                    ? 'border-stone-900 bg-stone-50 ring-1 ring-stone-900'
+                    : 'border-stone-200 bg-white hover:bg-stone-50'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="uploadMode"
+                  value="separate"
+                  checked={uploadMode === 'separate'}
+                  onChange={() => setUploadMode('separate')}
+                  className="mt-0.5 text-stone-900"
+                />
+                <div>
+                  <span className="block text-xs font-semibold text-stone-900">Separate Products</span>
+                  <span className="block text-[11px] text-stone-500">Each uploaded photo creates its own product in your store.</span>
+                </div>
+              </label>
+
+              <label
+                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${
+                  uploadMode === 'single_product'
+                    ? 'border-stone-900 bg-stone-50 ring-1 ring-stone-900'
+                    : 'border-stone-200 bg-white hover:bg-stone-50'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="uploadMode"
+                  value="single_product"
+                  checked={uploadMode === 'single_product'}
+                  onChange={() => setUploadMode('single_product')}
+                  className="mt-0.5 text-stone-900"
+                />
+                <div>
+                  <span className="block text-xs font-semibold text-stone-900">Single Product (Multiple Colors / Angles)</span>
+                  <span className="block text-[11px] text-stone-500">All photos you choose attach to 1 product with color variants.</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
           {/* Option for all uploaded pictures to have the same specs, prices, and everything */}
           <div className="space-y-3 rounded-xl border border-stone-200 bg-stone-50 p-4">
             <label className="flex cursor-pointer items-center gap-2.5 text-sm font-medium text-stone-900">
@@ -564,7 +720,7 @@ export default function AdminPage() {
 
             {sameForAll && (
               <div className="space-y-3 pt-1">
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
                   <div>
                     <label className="block text-[11px] font-medium text-stone-600">
                       Base Name (optional)
@@ -584,6 +740,16 @@ export default function AdminPage() {
                       value={sharedSize}
                       onChange={(e) => setSharedSize(e.target.value)}
                       placeholder="e.g. M / Free / 25cm"
+                      className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-stone-600">Colors (comma-separated)</label>
+                    <input
+                      type="text"
+                      value={sharedColors}
+                      onChange={(e) => setSharedColors(e.target.value)}
+                      placeholder="e.g. Black, White, Beige, Red"
                       className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
                     />
                   </div>
@@ -696,36 +862,104 @@ export default function AdminPage() {
                 {draftItems.map((item, idx) => (
                   <div
                     key={item.tempId}
-                    className="grid grid-cols-1 items-center gap-3 rounded-xl border border-stone-200 p-3 sm:grid-cols-12"
+                    className="rounded-xl border border-stone-200 bg-white p-3.5 shadow-2xs space-y-3"
                   >
-                    <div className="flex items-center gap-3 sm:col-span-3">
-                      <img
-                        src={item.imageUrl}
-                        alt={item.name}
-                        className="h-14 w-14 shrink-0 rounded-lg border border-stone-200 object-cover"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <span className="block text-[11px] text-stone-400">#{idx + 1}</span>
+                    {/* Top Row: Images & Main Info */}
+                    <div className="grid grid-cols-1 items-center gap-3 sm:grid-cols-12">
+                      <div className="flex items-center gap-3 sm:col-span-4">
+                        <div className="relative group shrink-0">
+                          <img
+                            src={item.imageUrl}
+                            alt={item.name}
+                            className="h-16 w-16 rounded-lg border border-stone-200 object-contain bg-stone-50 p-1"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <span className="block text-[11px] font-semibold text-stone-400">#{idx + 1}</span>
+                          <input
+                            type="text"
+                            required
+                            value={item.name}
+                            onChange={(e) => updateDraftItem(item.tempId, 'name', e.target.value)}
+                            placeholder="Item name"
+                            className="w-full rounded-md border border-stone-300 px-2.5 py-1 text-xs font-semibold"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-medium text-stone-500">Size</label>
                         <input
                           type="text"
-                          required
-                          value={item.name}
-                          onChange={(e) => updateDraftItem(item.tempId, 'name', e.target.value)}
-                          placeholder="Item name"
-                          className="w-full rounded-md border border-stone-300 px-2 py-1 text-xs font-medium"
+                          value={item.size}
+                          onChange={(e) => updateDraftItem(item.tempId, 'size', e.target.value)}
+                          placeholder="e.g. S/M/L"
+                          className="mt-0.5 w-full rounded-md border border-stone-300 px-2 py-1 text-xs"
                         />
+                      </div>
+
+                      <div className="sm:col-span-3">
+                        <label className="block text-[11px] font-medium text-stone-700">Colors (comma-separated)</label>
+                        <input
+                          type="text"
+                          value={item.colors}
+                          onChange={(e) => updateDraftItem(item.tempId, 'colors', e.target.value)}
+                          placeholder="e.g. Black, White, Beige, Blue"
+                          className="mt-0.5 w-full rounded-md border border-stone-300 bg-stone-50/50 px-2 py-1 text-xs font-medium text-stone-900"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-end sm:col-span-3">
+                        <button
+                          type="button"
+                          onClick={() => removeDraftItem(item.tempId)}
+                          className="inline-flex items-center gap-1 rounded-md border border-stone-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Remove Item
+                        </button>
                       </div>
                     </div>
 
-                    <div className="sm:col-span-2">
-                      <label className="block text-[11px] text-stone-500">Size</label>
-                      <input
-                        type="text"
-                        value={item.size}
-                        onChange={(e) => updateDraftItem(item.tempId, 'size', e.target.value)}
-                        placeholder="e.g. S/M/L or 30cm"
-                        className="mt-0.5 w-full rounded-md border border-stone-300 px-2 py-1 text-xs"
-                      />
+                    {/* Photo Gallery for this single product */}
+                    <div className="rounded-lg border border-stone-100 bg-stone-50/60 p-2.5">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] font-medium text-stone-600">
+                          Photos for this product ({(item.additionalImages?.length || 0) + (item.imageUrl ? 1 : 0)} attached):
+                        </span>
+                        <label className="cursor-pointer inline-flex items-center gap-1 text-[11px] font-medium text-stone-700 hover:text-stone-900">
+                          <Plus className="h-3 w-3" />
+                          Add photo / color
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={(e) => handleAddPhotoToDraftItem(item.tempId, e.target.files)}
+                            className="sr-only"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {item.imageUrl && (
+                          <div className="relative group rounded-md border border-stone-300 bg-white p-1">
+                            <img src={item.imageUrl} alt="Main photo" className="h-12 w-12 object-contain rounded" />
+                            <span className="absolute bottom-1 left-1 bg-stone-900/80 text-[9px] text-white px-1 rounded">Main</span>
+                          </div>
+                        )}
+                        {(item.additionalImages || []).map((imgUrl, subIdx) => (
+                          <div key={subIdx} className="relative group rounded-md border border-stone-200 bg-white p-1">
+                            <img src={imgUrl} alt={`Photo ${subIdx + 2}`} className="h-12 w-12 object-contain rounded" />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSubPhoto(item.tempId, imgUrl)}
+                              className="absolute -top-1 -right-1 rounded-full bg-red-600 p-0.5 text-white opacity-0 group-hover:opacity-100 transition"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="sm:col-span-2">
