@@ -334,6 +334,7 @@ export default function AdminPage() {
 
       return {
         name: cleanName,
+        title: cleanName,
         category_id: selectedCategoryId || null,
         size: sizeText,
         retail_price: retail,
