@@ -450,13 +450,15 @@ export default function StorefrontPage() {
       {/* Top Banner */}
       <header className="sticky top-0 z-40 border-b border-stone-200 bg-white/95 backdrop-blur-xs">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-stone-900 text-white font-bold text-sm shadow-xs">
-              D
-            </div>
+          <div className="flex items-center gap-2.5">
+            <img
+              src="/logo.png"
+              alt="Dainty Import"
+              className="h-9 w-auto rounded-md object-contain shadow-xs border border-[#fa9d26]/20"
+            />
             <div>
-              <h1 className="text-base font-bold tracking-tight">Dainty Import</h1>
-              <p className="text-[11px] text-stone-500">1688 Direct Sourcing & Preorders</p>
+              <h1 className="text-base font-bold tracking-tight text-stone-900 leading-tight">Dainty Import</h1>
+              <p className="text-[10px] sm:text-[11px] font-semibold text-[#fa9d26] uppercase tracking-wider">Direct 1688 Pre-orders</p>
             </div>
           </div>
 
@@ -511,7 +513,39 @@ export default function StorefrontPage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8 sm:px-6">
+        {/* Dainty Import Brand Banner */}
+        <div className="mb-6 sm:mb-8 overflow-hidden rounded-2xl border border-[#fa9d26]/30 bg-gradient-to-r from-[#fce7cc] via-[#fff5eb] to-[#fce7cc] p-5 sm:p-7 shadow-xs">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-5 text-center sm:text-left">
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <img
+                src="/logo.png"
+                alt="Dainty Import"
+                className="h-16 w-auto rounded-xl object-contain shadow-xs border border-[#fa9d26]/30"
+              />
+              <div>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fa9d26] px-3 py-0.5 text-xs font-bold text-white uppercase tracking-wider shadow-xs">
+                  Factory-Direct 1688 Pre-Orders
+                </span>
+                <h2 className="mt-2 text-xl font-bold tracking-tight text-stone-900 sm:text-2xl">
+                  Curated 1688 Sourcing in Naira
+                </h2>
+                <p className="mt-1 text-xs sm:text-sm text-stone-700 max-w-xl">
+                  Shop transparently with upfront product prices in ₦. Choose Air or Sea shipping, pay for your items, and checkout directly via WhatsApp.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap sm:flex-col gap-2 shrink-0 text-xs">
+              <div className="flex items-center gap-2 rounded-lg bg-white/90 px-3 py-1.5 font-medium text-stone-800 shadow-xs border border-[#fa9d26]/20">
+                <span>✈️</span> <span><strong>Air Cargo:</strong> 7–14 days</span>
+              </div>
+              <div className="flex items-center gap-2 rounded-lg bg-white/90 px-3 py-1.5 font-medium text-stone-800 shadow-xs border border-[#fa9d26]/20">
+                <span>🚢</span> <span><strong>Sea Cargo:</strong> 45–60 days</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Categories Bar */}
         <div className="mb-6 flex gap-2 overflow-x-auto pb-2 text-xs">
           <button
