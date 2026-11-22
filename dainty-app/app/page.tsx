@@ -24,7 +24,8 @@ type Category = {
 type Product = {
   id: string;
   category_id: string | null;
-  name: string;
+  name?: string | null;
+  title?: string | null;
   size?: string | null;
   description: string | null;
   image_url: string | null;
@@ -222,7 +223,7 @@ export default function StorefrontPage() {
         const fee = (shippingMethod === 'air' ? airFee : seaFee) * item.quantity;
         const sizeInfo = item.product.size ? ` [Size: ${item.product.size}]` : '';
         const shipNote = fee > 0 ? ` | Est. Ship: ₦${fee.toLocaleString()}` : '';
-        return `${idx + 1}. ${item.product.name}${sizeInfo} x${item.quantity} - ₦${(price * item.quantity).toLocaleString()}${shipNote}`;
+        return `${idx + 1}. ${item.product.name || item.product.title || "Product"}${sizeInfo} x${item.quantity} - ₦${(price * item.quantity).toLocaleString()}${shipNote}`;
       }),
       '',
       `*Total to Pay Now (Items Only):* ₦${subtotal.toLocaleString()}`,
