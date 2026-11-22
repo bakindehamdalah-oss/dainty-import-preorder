@@ -13,6 +13,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://dainty-import-preorder.vercel.app")
+  ),
   title: "Dainty Import | 1688 Direct Factory Pre-orders & Sourcing",
   description:
     "Direct factory pre-orders from 1688 in Nigerian Naira. Transparent air & sea cargo estimates and direct WhatsApp ordering.",
