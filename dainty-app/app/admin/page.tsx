@@ -3,7 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Session } from '@supabase/supabase-js';
-import { Upload, Trash2, Plus, LogOut, Check, FolderPlus, RefreshCw, X, ShieldAlert, Sparkles, Layers, Image as ImageIcon, Ship, Plane, Tag, Box, Info, Pencil, Save, Settings, Phone, Search, Sliders, Edit2, CheckSquare, ExternalLink, User, UserPlus, MapPin, Truck, CheckCircle2, Clock, CreditCard, MessageCircle, AlertCircle, ChevronRight, Eye } from 'lucide-react';
+import { Upload, Trash2, Plus, LogOut, Check, FolderPlus, RefreshCw, X, ShieldAlert, Sparkles, Layers, Image as ImageIcon, Ship, Plane, Tag, Box, Package, Info, Pencil, Save, Settings, Phone, Search, Sliders, Edit2, CheckSquare, ExternalLink, User, UserPlus, MapPin, Truck, CheckCircle2, Clock, CreditCard, MessageCircle, AlertCircle, ChevronRight, Eye } from 'lucide-react';
 
 type Category = {
   id: string;
@@ -406,23 +406,33 @@ export default function AdminPage() {
     if (newStatus === 'shipped') statusTimestamps.shipped_at = timeNow;
     if (newStatus === 'ready_for_delivery') statusTimestamps.ready_at = timeNow;
     if (newStatus === 'delivered') statusTimestamps.delivered_at = timeNow;
+    if (newStatus === 'cancelled') statusTimestamps.cancelled_at = timeNow;
 
     const fullPayload = {
       status: newStatus,
       ...statusTimestamps,
       ...(extraFields || {}),
     };
+    const originalOrder = preorders.find((o) => o.id === orderId);
 
     setPreorders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, ...fullPayload } : o))
     );
 
     try {
-      await supabase.from('preorders').update(fullPayload).eq('id', orderId);
+      const { error } = await supabase.from('preorders').update(fullPayload).eq('id', orderId);
+      if (error) {
+        console.warn('Supabase update order status error:', error);
+        if (originalOrder) setPreorders((prev) => prev.map((o) => o.id === orderId ? originalOrder : o));
+        setErrorMsg(`Could not save this order update: ${error.message}`);
+      }
     } catch (err) {
       console.warn('Supabase update order status error:', err);
+      if (originalOrder) setPreorders((prev) => prev.map((o) => o.id === orderId ? originalOrder : o));
+      setErrorMsg('Could not save this order update. Please check your connection and database columns.');
+    } finally {
+      setUpdatingOrderId(null);
     }
-    setUpdatingOrderId(null);
   }
 
   function handleSendCustomerWhatsAppUpdate(order: any) {
@@ -448,6 +458,12 @@ export default function AdminPage() {
         `Your Preorder *#${order.id}* (${pieces} pcs) has been ordered from our China supplier and is being prepared for overseas shipping (${order.shipping_method || 'Air'}).\n\n` +
         `View your order catalog: https://${typeof window !== 'undefined' ? window.location.host : ''}/order?id=${order.id}\n\n` +
         `We will notify you once your package is in transit! ✈️`;
+    } else if (status === 'shipped' && order.is_delayed) {
+      message = `*DAINTY IMPORT - SHIPMENT DELAY UPDATE* ⚠️\n\n` +
+        `Hello ${name}!\n` +
+        `Your preorder *#${order.id}* is delayed in transit.\n` +
+        `${order.delay_reason || 'We are following up with the carrier and will share another update when available.'}\n` +
+        `${order.revised_arrival_date ? `Revised estimated arrival: ${order.revised_arrival_date}\n` : ''}`;
     } else if (status === 'shipped') {
       message = `*DAINTY IMPORT - ORDER IN TRANSIT* ✈️📦\n\n` +
         `Hello ${name}!\n` +
@@ -473,7 +489,9 @@ export default function AdminPage() {
         `View your catalog: https://${typeof window !== 'undefined' ? window.location.host : ''}/order?id=${order.id}`;
     }
 
-    const cleanMsg = message.replace(/\\n/g, '\n');
+    const trackingUrl = `https://${typeof window !== 'undefined' ? window.location.host : ''}/track?id=${encodeURIComponent(order.id)}`;
+    message += `\n\nTrack this order with ID *#${order.id}*: ${trackingUrl}`;
+    const cleanMsg = message;
     const targetUrl = phone
       ? `https://wa.me/${phone.startsWith('0') ? '234' + phone.substring(1) : phone}?text=${encodeURIComponent(cleanMsg)}`
       : `https://wa.me/?text=${encodeURIComponent(cleanMsg)}`;
@@ -1596,8 +1614,22 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* Admin Quick Navigation */}
+        <nav aria-label="Admin sections" className="sticky top-[57px] z-20 -mx-4 flex gap-2 overflow-x-auto border-b border-stone-200 bg-stone-100/95 px-4 py-2 backdrop-blur sm:top-[61px] sm:mx-0 sm:rounded-xl sm:border sm:bg-white sm:px-3">
+          {[
+            { id: 'upload-form', label: 'Upload', icon: Upload },
+            { id: 'published', label: 'Published Products', icon: CheckSquare },
+            { id: 'inventory', label: 'Inventory & Orders', icon: Package },
+          ].map((item) => {
+            const Icon = item.icon;
+            return <a key={item.id} href={`#${item.id}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-bold text-stone-700 shadow-2xs transition hover:border-[#fa9d26] hover:text-[#b86200]">
+              <Icon className="h-3.5 w-3.5" />{item.label}
+            </a>;
+          })}
+        </nav>
+
         {/* Categories Section */}
-        <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-xs space-y-4">
+        <section id="upload" className="scroll-mt-28 rounded-2xl border border-stone-200 bg-white p-5 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-sm font-bold text-stone-900">1. Select or Create Category</h2>
@@ -1823,7 +1855,7 @@ export default function AdminPage() {
         </section>
 
         {/* Gallery Upload & Batch Specifications */}
-        <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-xs space-y-5">
+        <section id="upload-form" className="rounded-2xl border border-stone-200 bg-white p-5 shadow-xs space-y-5">
           <div>
             <h2 className="text-sm font-bold text-stone-900">2. Upload China Product Photos & Specifications</h2>
             <p className="text-xs text-stone-500">
@@ -2399,7 +2431,7 @@ export default function AdminPage() {
         </section>
 
         {/* Existing Products List */}
-        <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-xs space-y-4">
+        <section id="published" className="scroll-mt-28 rounded-2xl border border-stone-200 bg-white p-5 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h2 className="text-sm font-bold text-stone-900 flex items-center gap-2">
@@ -2657,7 +2689,7 @@ export default function AdminPage() {
         {/* ========================================================= */}
         {/* EDIT PUBLISHED PRODUCT MODAL                              */}
                 {/* Section 4: Customer Preorders, CRM & Inventory Pipeline */}
-        <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-xs sm:p-6 space-y-5">
+        <section id="inventory" className="scroll-mt-28 rounded-2xl border border-stone-200 bg-white p-5 shadow-xs sm:p-6 space-y-5">
           {/* Section Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-stone-100 pb-4">
             <div>
@@ -2729,6 +2761,7 @@ export default function AdminPage() {
                   { id: 'shipped', label: 'Shipped (In Transit)', count: preorders.filter(p => p.status === 'shipped').length, icon: '🚢' },
                   { id: 'ready_for_delivery', label: 'Ready in Nigeria', count: preorders.filter(p => p.status === 'ready_for_delivery').length, icon: '📦' },
                   { id: 'delivered', label: 'Delivered', count: preorders.filter(p => p.status === 'delivered').length, icon: '✅' },
+                  { id: 'cancelled', label: 'Cancelled', count: preorders.filter(p => p.status === 'cancelled').length, icon: '❌' },
                 ].map((tab) => {
                   const isActive = orderStatusFilter === tab.id;
                   return (
@@ -2836,8 +2869,11 @@ export default function AdminPage() {
                         shipped: { label: 'Shipped (In Transit)', bg: 'bg-indigo-50', text: 'text-indigo-800', border: 'border-indigo-200', icon: '🚢' },
                         ready_for_delivery: { label: 'Ready in Nigeria', bg: 'bg-purple-50', text: 'text-purple-800', border: 'border-purple-200', icon: '📦' },
                         delivered: { label: 'Delivered', bg: 'bg-stone-100', text: 'text-stone-700', border: 'border-stone-300', icon: '✅' },
+                        cancelled: { label: 'Cancelled', bg: 'bg-red-50', text: 'text-red-800', border: 'border-red-200', icon: '❌' },
                       };
-                      const currStyle = statusStyles[status] || statusStyles.pending;
+                      const currStyle = po.is_delayed && status === 'shipped'
+                        ? { label: 'Delayed in Transit', bg: 'bg-amber-50', text: 'text-amber-900', border: 'border-amber-300', icon: '⚠️' }
+                        : (statusStyles[status] || statusStyles.pending);
 
                       return (
                         <div
@@ -3042,6 +3078,43 @@ export default function AdminPage() {
                             </div>
                           </div>
 
+                          {/* Shipment delay controls, available after shipment */}
+                          {(status === 'shipped' || po.is_delayed) && (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 space-y-2">
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                  <p className="text-xs font-bold text-amber-900">Customer tracking delay notice</p>
+                                  <p className="text-[11px] text-amber-800">Edit the message and revised arrival date shown to the customer.</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={isUpdating}
+                                  onClick={() => handleUpdateOrderStatus(po.id, status, po.is_delayed
+                                    ? { is_delayed: false, delay_reason: null, revised_arrival_date: null }
+                                    : { is_delayed: true })}
+                                  className={`rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-50 ${po.is_delayed ? 'border border-stone-300 bg-white text-stone-700' : 'bg-amber-600 text-white hover:bg-amber-700'}`}
+                                >{po.is_delayed ? 'Clear delay notice' : 'Mark as delayed'}</button>
+                              </div>
+                              {po.is_delayed && <div className="grid gap-2 sm:grid-cols-2">
+                                <input
+                                  type="text"
+                                  defaultValue={po.delay_reason || ''}
+                                  placeholder="Customer-facing delay update"
+                                  aria-label="Customer-facing delay update"
+                                  onBlur={(e) => { if (e.target.value !== (po.delay_reason || '')) handleUpdateOrderStatus(po.id, status, { delay_reason: e.target.value || null }); }}
+                                  className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs focus:border-amber-500 focus:outline-none"
+                                />
+                                <input
+                                  type="date"
+                                  defaultValue={po.revised_arrival_date || ''}
+                                  aria-label="Revised estimated arrival date"
+                                  onBlur={(e) => { if (e.target.value !== (po.revised_arrival_date || '')) handleUpdateOrderStatus(po.id, status, { revised_arrival_date: e.target.value || null }); }}
+                                  className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs focus:border-amber-500 focus:outline-none"
+                                />
+                              </div>}
+                            </div>
+                          )}
+
                           {/* Status Stepper & Action Controls */}
                           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-3 border-t border-stone-100">
                             {/* Manual status dropdown */}
@@ -3054,16 +3127,35 @@ export default function AdminPage() {
                                 className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-bold text-stone-800 focus:border-stone-900 focus:outline-hidden"
                               >
                                 <option value="pending">⏳ Pending Payment</option>
+                                {status === 'pending' && <option value="cancelled">❌ Cancel Unpaid Order</option>}
                                 <option value="paid">💳 Paid (Payment Confirmed)</option>
                                 <option value="ordered">🇨🇳 Ordered from China</option>
                                 <option value="shipped">🚢 Shipped (In Transit)</option>
                                 <option value="ready_for_delivery">📦 Ready in Nigeria</option>
                                 <option value="delivered">✅ Delivered</option>
+                                {status === 'cancelled' && <option value="cancelled">❌ Cancelled</option>}
                               </select>
                             </div>
 
                             {/* Action Buttons */}
                             <div className="flex items-center gap-2 flex-wrap">
+                              {/* Unpaid orders can be cancelled before fulfillment starts */}
+                              {status === 'pending' && (
+                                <button
+                                  type="button"
+                                  disabled={isUpdating}
+                                  onClick={() => {
+                                    if (window.confirm(`Cancel unpaid order #${po.id}?`)) {
+                                      handleUpdateOrderStatus(po.id, 'cancelled');
+                                    }
+                                  }}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                  <span>Cancel Unpaid Order</span>
+                                </button>
+                              )}
+
                               {/* One-click advance button */}
                               {status === 'pending' && (
                                 <button
