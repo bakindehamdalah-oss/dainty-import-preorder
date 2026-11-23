@@ -526,7 +526,7 @@ function MatrixOrderModal({
               ) : (
                 <span className={`text-[11px] font-bold ${totalSelected >= moq ? 'text-emerald-700' : 'text-[#d97706]'}`}>
                   {totalSelected >= moq
-                    ? '✅ Wholesale MOQ Reached!'
+                    ? 'Wholesale MOQ Reached!'
                     : `Need ${moq - totalSelected} more pieces to reach ${moq} pcs MOQ`}
                 </span>
               )}
@@ -1529,16 +1529,16 @@ export default function StorefrontPage() {
     const shareableLink = buildShareableCartUrl();
 
     const lines: string[] = [
-      `*🇨🇳 China Factory Preorder - Dainty Import*`,
+      `*China Factory Preorder - Dainty Import*`,
       activeOrderId ? `*Order Ref:* #${activeOrderId}` : '',
       '',
-      `*📦 Total Items Ordered:* ${cart.length} item${cart.length === 1 ? '' : 's'}`,
-      `*🔢 Total Pieces:* ${totalCartCount} pcs`,
-      `*💰 Total Product Price:* ₦${subtotal.toLocaleString()}`,
-      `*🚢 Shipping Method:* ${shippingMethod.toUpperCase()} (${shippingTimeline})`,
-      `*📦 Est. Shipping Fee:* ${estimatedShipping > 0 ? `₦${estimatedShipping.toLocaleString()}` : 'To be confirmed upon arrival in Nigeria'}`,
+      `*Total Items Ordered:* ${cart.length} item${cart.length === 1 ? '' : 's'}`,
+      `*Total Pieces:* ${totalCartCount} pcs`,
+      `*Total Product Price:* ₦${subtotal.toLocaleString()}`,
+      `*Shipping Method:* ${shippingMethod.toUpperCase()} (${shippingTimeline})`,
+      `*Est. Shipping Fee:* ${estimatedShipping > 0 ? `₦${estimatedShipping.toLocaleString()}` : 'To be confirmed upon arrival in Nigeria'}`,
       '',
-      `*🛒 View Full Cart & Catalog (Click link below):*`,
+      `*View Full Cart & Catalog (Click link below):*`,
       shareableLink,
       activeOrderId ? `*Track Order:* ${typeof window !== 'undefined' ? window.location.origin : ''}/track?id=${encodeURIComponent(activeOrderId)}` : '',
       '',
@@ -1595,7 +1595,7 @@ export default function StorefrontPage() {
 
       {/* China Sourcing Announcement Strip */}
       <div className="bg-[#fa9d26] text-white text-[10px] sm:text-[11px] font-semibold py-1.5 px-3 sm:px-4 text-center tracking-wide leading-tight w-full">
-        🇨🇳 China Factory Direct Sourcing • Direct Factory Prices in Naira • Air Cargo ~3 Weeks • Sea Cargo ~3 Months • WhatsApp Order Confirmation
+        China Factory Direct Sourcing • Direct Factory Prices in Naira • Air Cargo ~3 Weeks • Sea Cargo ~3 Months • WhatsApp Order Confirmation
       </div>
 
       {/* Main Sticky Header */}
@@ -1843,10 +1843,10 @@ export default function StorefrontPage() {
 
             <div className="flex flex-wrap sm:flex-col gap-2 shrink-0 text-xs w-full sm:w-auto">
               <div className="flex items-center gap-2 rounded-lg bg-white/95 px-3 py-1.5 font-medium text-stone-800 shadow-2xs border border-[#fa9d26]/25">
-                <span>✈️</span> <span><strong>Air Cargo:</strong> Within 3 weeks</span>
+                <span><strong>Air Cargo:</strong> Within 3 weeks</span>
               </div>
               <div className="flex items-center gap-2 rounded-lg bg-white/95 px-3 py-1.5 font-medium text-stone-800 shadow-2xs border border-[#fa9d26]/25">
-                <span>🚢</span> <span><strong>Sea Cargo:</strong> Within 3 months</span>
+                <span><strong>Sea Cargo:</strong> Within 3 months</span>
               </div>
             </div>
           </div>
@@ -1904,14 +1904,14 @@ export default function StorefrontPage() {
                   Pricing Mode
                 </span>
                 <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-extrabold text-[#b86200]">
-                  {mode === 'wholesale' ? '🇨🇳 Wholesale (Bulk MOQ Pricing)' : '🛍️ Retail (Single Item Pricing)'}
+                  {mode === 'wholesale' ? 'Wholesale (Bulk MOQ Pricing)' : 'Retail (Single Item Pricing)'}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-stone-600">
-                {mode === 'wholesale'
-                  ? 'Showing direct factory prices for bulk purchases. Buy in bulk to unlock discounted China factory rates.'
-                  : 'Showing standard retail pricing. Buy any quantity with no minimum required.'}
-              </p>
+              {mode === 'wholesale' && (
+                <p className="mt-1 text-xs text-stone-600">
+                  Direct Factory prices for bulk purchases, minimum order applies
+                </p>
+              )}
             </div>
 
             <div className="inline-flex shrink-0 rounded-xl border border-stone-200 bg-stone-100 p-1">
@@ -1924,7 +1924,7 @@ export default function StorefrontPage() {
                     : 'text-stone-600 hover:text-stone-900'
                 }`}
               >
-                🛍️ Retail
+                Retail
               </button>
               <button
                 type="button"
@@ -1935,7 +1935,7 @@ export default function StorefrontPage() {
                     : 'text-stone-600 hover:text-stone-900'
                 }`}
               >
-                🇨🇳 Wholesale
+                Wholesale
               </button>
             </div>
           </div>
@@ -2077,7 +2077,7 @@ export default function StorefrontPage() {
                   className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50/70 px-2.5 py-1 text-xs font-semibold text-amber-950 hover:bg-amber-100 hover:border-amber-300 shadow-2xs transition"
                   title="Copy direct shareable cart link"
                 >
-                  <span>{copiedLink ? '✓ Copied' : '🔗 Share Cart'}</span>
+                  <span>{copiedLink ? 'Copied' : 'Share Cart'}</span>
                 </button>
                 <button
                   type="button"

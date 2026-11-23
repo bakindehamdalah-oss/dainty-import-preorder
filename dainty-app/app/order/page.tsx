@@ -270,16 +270,16 @@ export default function OrderCatalogPage() {
     const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
 
     const lines: string[] = [
-      `*🇨🇳 China Factory Preorder - Dainty Import*`,
+      `*China Factory Preorder - Dainty Import*`,
       `*Order ID:* #${order.id}`,
       '',
-      `*📦 Total Items Ordered:* ${activeItems.length} item${activeItems.length === 1 ? '' : 's'}`,
-      `*🔢 Total Pieces:* ${totalPieces} pcs`,
-      `*💰 Total Product Price:* ₦${totalProductCost.toLocaleString()}`,
-      `*🚢 Shipping Method:* ${activeShippingMethod.toUpperCase()} (${shippingTimeline})`,
-      `*📦 Est. Shipping Fee:* ${estShippingCost > 0 ? `₦${estShippingCost.toLocaleString()}` : 'To be confirmed upon arrival in Nigeria'}`,
+      `*Total Items Ordered:* ${activeItems.length} item${activeItems.length === 1 ? '' : 's'}`,
+      `*Total Pieces:* ${totalPieces} pcs`,
+      `*Total Product Price:* ₦${totalProductCost.toLocaleString()}`,
+      `*Shipping Method:* ${activeShippingMethod.toUpperCase()} (${shippingTimeline})`,
+      `*Est. Shipping Fee:* ${estShippingCost > 0 ? `₦${estShippingCost.toLocaleString()}` : 'To be confirmed upon arrival in Nigeria'}`,
       '',
-      `*🛒 View Cart (Click link below to view full cart and all items on website):*`,
+      `*View Cart (Click link below to view full cart and all items on website):*`,
       currentUrl,
       '',
       `*China Sourcing & Preorder Terms*`,
@@ -454,7 +454,7 @@ export default function OrderCatalogPage() {
                   disabled={isSaving}
                   className="rounded-lg bg-[#fa9d26] px-3 py-1 text-xs font-bold text-white hover:bg-[#e68c1d] disabled:opacity-50 transition"
                 >
-                  {isSaving ? 'Saving...' : saveSuccess ? '✓ Saved!' : 'Save Changes'}
+                  {isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save Changes'}
                 </button>
               </div>
             )}
@@ -465,7 +465,7 @@ export default function OrderCatalogPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h1 className="text-lg sm:text-xl font-extrabold text-stone-900 tracking-tight">
-                      🇨🇳 China Factory Preorder Sheet
+                      China Factory Preorder Sheet
                     </h1>
                   </div>
                   <p className="mt-0.5 text-xs text-stone-500">
@@ -584,12 +584,12 @@ export default function OrderCatalogPage() {
                           <div className="mt-1 flex flex-wrap gap-1">
                             {item.selectedColor && (
                               <span className="inline-flex items-center gap-1 rounded-md bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-stone-700">
-                                🎨 {item.selectedColor}
+                                Color: {item.selectedColor}
                               </span>
                             )}
                             {item.selectedSize && (
                               <span className="inline-flex items-center gap-1 rounded-md bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-stone-700">
-                                📏 {item.selectedSize}
+                                Size: {item.selectedSize}
                               </span>
                             )}
                           </div>

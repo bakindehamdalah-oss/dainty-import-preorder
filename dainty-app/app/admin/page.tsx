@@ -478,44 +478,44 @@ export default function AdminPage() {
 
     let message = '';
     if (status === 'paid') {
-      message = `*DAINTY IMPORT - PREORDER PAYMENT CONFIRMED* 💳\n\n` +
+      message = `*DAINTY IMPORT - PREORDER PAYMENT CONFIRMED*\n\n` +
         `Hello ${name}!\n` +
         `We have received your payment of ₦${amount} for Preorder *#${order.id}* (${pieces} pcs).\n\n` +
-        `Next Step: We are processing and placing the order with our China supplier now! 🇨🇳\n\n` +
+        `Next Step: We are processing and placing the order with our China supplier now!\n\n` +
         `View your order catalog here: https://${typeof window !== 'undefined' ? window.location.host : ''}/order?id=${order.id}\n\n` +
-        `Thank you for choosing Dainty Import! ✨`;
+        `Thank you for choosing Dainty Import!`;
     } else if (status === 'ordered') {
-      message = `*DAINTY IMPORT - ORDERED FROM CHINA* 🇨🇳\n\n` +
+      message = `*DAINTY IMPORT - ORDERED FROM CHINA*\n\n` +
         `Hello ${name}!\n` +
         `Your Preorder *#${order.id}* (${pieces} pcs) has been ordered from our China supplier and is being prepared for overseas shipping (${order.shipping_method || 'Air'}).\n\n` +
         `View your order catalog: https://${typeof window !== 'undefined' ? window.location.host : ''}/order?id=${order.id}\n\n` +
-        `We will notify you once your package is in transit! ✈️`;
+        `We will notify you once your package is in transit!`;
     } else if (status === 'shipped' && order.is_delayed) {
-      message = `*DAINTY IMPORT - SHIPMENT DELAY UPDATE* ⚠️\n\n` +
+      message = `*DAINTY IMPORT - SHIPMENT DELAY UPDATE*\n\n` +
         `Hello ${name}!\n` +
         `Your preorder *#${order.id}* is delayed in transit.\n` +
         `${order.delay_reason || 'We are following up with the carrier and will share another update when available.'}\n` +
         `${order.revised_arrival_date ? `Revised estimated arrival: ${order.revised_arrival_date}\n` : ''}`;
     } else if (status === 'shipped') {
-      message = `*DAINTY IMPORT - ORDER IN TRANSIT* ✈️📦\n\n` +
+      message = `*DAINTY IMPORT - ORDER IN TRANSIT*\n\n` +
         `Hello ${name}!\n` +
         `Your Preorder *#${order.id}* has been shipped from China via ${order.shipping_method || 'Air'} shipping!\n` +
         `Timeline: ${order.shipping_timeline || (order.shipping_method === 'sea' ? 'Within 3 months' : 'Within 3 weeks')}.\n\n` +
         `View order details: https://${typeof window !== 'undefined' ? window.location.host : ''}/order?id=${order.id}`;
     } else if (status === 'ready_for_delivery') {
-      message = `*DAINTY IMPORT - ARRIVED IN NIGERIA* 🇳🇬🎉\n\n` +
+      message = `*DAINTY IMPORT - ARRIVED IN NIGERIA*\n\n` +
         `Hello ${name}!\n` +
         `Exciting news! Your Preorder *#${order.id}* (${pieces} pcs) has arrived in Nigeria and is ready for pickup or delivery!\n\n` +
         `*Confirmed Shipping Fee:* ₦${finalShip || estShip}\n` +
         `*Delivery Address:* ${order.customer_address || 'As registered'}\n\n` +
-        `Please confirm payment of the shipping fee so we can dispatch your parcel right away! 🚚`;
+        `Please confirm payment of the shipping fee so we can dispatch your parcel right away!`;
     } else if (status === 'delivered') {
-      message = `*DAINTY IMPORT - ORDER DELIVERED* ✅🎉\n\n` +
+      message = `*DAINTY IMPORT - ORDER DELIVERED*\n\n` +
         `Hello ${name}!\n` +
         `Your Preorder *#${order.id}* has been delivered! We hope you love all your items.\n\n` +
-        `Thank you so much for your patronising Dainty Import! We look forward to sourcing for you again soon! 💖`;
+        `Thank you so much for your patronising Dainty Import! We look forward to sourcing for you again soon!`;
     } else {
-      message = `*DAINTY IMPORT - PREORDER UPDATE* 📋\n\n` +
+      message = `*DAINTY IMPORT - PREORDER UPDATE*\n\n` +
         `Hello ${name}!\n` +
         `Here is the update regarding your Preorder *#${order.id}* (${pieces} pcs - ₦${amount}).\n\n` +
         `View your catalog: https://${typeof window !== 'undefined' ? window.location.host : ''}/order?id=${order.id}`;
@@ -1919,7 +1919,7 @@ export default function AdminPage() {
           <div className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3 sm:flex-row sm:items-center sm:justify-between shadow-2xs">
             <div className="space-y-0.5">
               <p className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                <span>📱</span> iPhone Cases Wholesale Minimum (50 pcs)
+                iPhone Cases Wholesale Minimum (50 pcs)
               </p>
               <p className="text-[11px] text-amber-900 leading-snug">
                 Enforce a 50-piece minimum across all iPhone cases (category bulk: customers can pick any iPhone case designs to reach 50 pcs).
@@ -2927,14 +2927,14 @@ export default function AdminPage() {
               {/* Pipeline Status Filter Tabs */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
                 {[
-                  { id: 'all', label: 'All Orders', count: preorders.length, icon: '📋' },
-                  { id: 'pending', label: 'Pending Payment', count: preorders.filter(p => !p.status || p.status === 'pending').length, icon: '⏳' },
-                  { id: 'paid', label: 'Paid', count: preorders.filter(p => p.status === 'paid').length, icon: '💳' },
-                  { id: 'ordered', label: 'Ordered (China)', count: preorders.filter(p => p.status === 'ordered').length, icon: '🇨🇳' },
-                  { id: 'shipped', label: 'Shipped (In Transit)', count: preorders.filter(p => p.status === 'shipped').length, icon: '🚢' },
-                  { id: 'ready_for_delivery', label: 'Ready in Nigeria', count: preorders.filter(p => p.status === 'ready_for_delivery').length, icon: '📦' },
-                  { id: 'delivered', label: 'Delivered', count: preorders.filter(p => p.status === 'delivered').length, icon: '✅' },
-                  { id: 'cancelled', label: 'Cancelled', count: preorders.filter(p => p.status === 'cancelled').length, icon: '❌' },
+                  { id: 'all', label: 'All Orders', count: preorders.length, icon: '' },
+                  { id: 'pending', label: 'Pending Payment', count: preorders.filter(p => !p.status || p.status === 'pending').length, icon: '' },
+                  { id: 'paid', label: 'Paid', count: preorders.filter(p => p.status === 'paid').length, icon: '' },
+                  { id: 'ordered', label: 'Ordered (China)', count: preorders.filter(p => p.status === 'ordered').length, icon: '' },
+                  { id: 'shipped', label: 'Shipped (In Transit)', count: preorders.filter(p => p.status === 'shipped').length, icon: '' },
+                  { id: 'ready_for_delivery', label: 'Ready in Nigeria', count: preorders.filter(p => p.status === 'ready_for_delivery').length, icon: '' },
+                  { id: 'delivered', label: 'Delivered', count: preorders.filter(p => p.status === 'delivered').length, icon: '' },
+                  { id: 'cancelled', label: 'Cancelled', count: preorders.filter(p => p.status === 'cancelled').length, icon: '' },
                 ].map((tab) => {
                   const isActive = orderStatusFilter === tab.id;
                   return (
@@ -3036,16 +3036,16 @@ export default function AdminPage() {
 
                       // Status visual config
                       const statusStyles: Record<string, { label: string; bg: string; text: string; border: string; icon: string }> = {
-                        pending: { label: 'Pending Payment', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200', icon: '⏳' },
-                        paid: { label: 'Paid', bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200', icon: '💳' },
-                        ordered: { label: 'Ordered from China', bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-blue-200', icon: '🇨🇳' },
-                        shipped: { label: 'Shipped (In Transit)', bg: 'bg-indigo-50', text: 'text-indigo-800', border: 'border-indigo-200', icon: '🚢' },
-                        ready_for_delivery: { label: 'Ready in Nigeria', bg: 'bg-purple-50', text: 'text-purple-800', border: 'border-purple-200', icon: '📦' },
-                        delivered: { label: 'Delivered', bg: 'bg-stone-100', text: 'text-stone-700', border: 'border-stone-300', icon: '✅' },
-                        cancelled: { label: 'Cancelled', bg: 'bg-red-50', text: 'text-red-800', border: 'border-red-200', icon: '❌' },
+                        pending: { label: 'Pending Payment', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200', icon: '' },
+                        paid: { label: 'Paid', bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200', icon: '' },
+                        ordered: { label: 'Ordered from China', bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-blue-200', icon: '' },
+                        shipped: { label: 'Shipped (In Transit)', bg: 'bg-indigo-50', text: 'text-indigo-800', border: 'border-indigo-200', icon: '' },
+                        ready_for_delivery: { label: 'Ready in Nigeria', bg: 'bg-purple-50', text: 'text-purple-800', border: 'border-purple-200', icon: '' },
+                        delivered: { label: 'Delivered', bg: 'bg-stone-100', text: 'text-stone-700', border: 'border-stone-300', icon: '' },
+                        cancelled: { label: 'Cancelled', bg: 'bg-red-50', text: 'text-red-800', border: 'border-red-200', icon: '' },
                       };
                       const currStyle = po.is_delayed && status === 'shipped'
-                        ? { label: 'Delayed in Transit', bg: 'bg-amber-50', text: 'text-amber-900', border: 'border-amber-300', icon: '⚠️' }
+                        ? { label: 'Delayed in Transit', bg: 'bg-amber-50', text: 'text-amber-900', border: 'border-amber-300', icon: '' }
                         : (statusStyles[status] || statusStyles.pending);
 
                       return (
@@ -3194,7 +3194,7 @@ export default function AdminPage() {
                                       />
                                     ) : (
                                       <div className="h-9 w-9 rounded-md bg-stone-100 flex items-center justify-center text-stone-400 text-xs">
-                                        📦
+                                        <Package className="h-4 w-4 text-stone-400" />
                                       </div>
                                     )}
                                     <div className="text-[11px] leading-tight">
@@ -3299,14 +3299,14 @@ export default function AdminPage() {
                                 disabled={isUpdating}
                                 className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-bold text-stone-800 focus:border-stone-900 focus:outline-hidden"
                               >
-                                <option value="pending">⏳ Pending Payment</option>
-                                {status === 'pending' && <option value="cancelled">❌ Cancel Unpaid Order</option>}
-                                <option value="paid">💳 Paid (Payment Confirmed)</option>
-                                <option value="ordered">🇨🇳 Ordered from China</option>
-                                <option value="shipped">🚢 Shipped (In Transit)</option>
-                                <option value="ready_for_delivery">📦 Ready in Nigeria</option>
-                                <option value="delivered">✅ Delivered</option>
-                                {status === 'cancelled' && <option value="cancelled">❌ Cancelled</option>}
+                                <option value="pending">Pending Payment</option>
+                                {status === 'pending' && <option value="cancelled">Cancel Unpaid Order</option>}
+                                <option value="paid">Paid (Payment Confirmed)</option>
+                                <option value="ordered">Ordered from China</option>
+                                <option value="shipped">Shipped (In Transit)</option>
+                                <option value="ready_for_delivery">Ready in Nigeria</option>
+                                <option value="delivered">Delivered</option>
+                                {status === 'cancelled' && <option value="cancelled">Cancelled</option>}
                               </select>
                             </div>
 
@@ -3346,7 +3346,7 @@ export default function AdminPage() {
                                   onClick={() => handleUpdateOrderStatus(po.id, 'ordered')}
                                   className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 shadow-2xs transition"
                                 >
-                                  <span>🇨🇳 Mark Ordered (China)</span>
+                                  <span>Mark Ordered (China)</span>
                                 </button>
                               )}
                               {status === 'ordered' && (
@@ -3355,7 +3355,7 @@ export default function AdminPage() {
                                   onClick={() => handleUpdateOrderStatus(po.id, 'shipped')}
                                   className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-700 shadow-2xs transition"
                                 >
-                                  <span>🚢 Mark Shipped</span>
+                                  <span>Mark Shipped</span>
                                 </button>
                               )}
                               {status === 'shipped' && (
@@ -3364,7 +3364,7 @@ export default function AdminPage() {
                                   onClick={() => handleUpdateOrderStatus(po.id, 'ready_for_delivery')}
                                   className="inline-flex items-center gap-1 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-purple-700 shadow-2xs transition"
                                 >
-                                  <span>📦 Mark Ready in Nigeria</span>
+                                  <span>Mark Ready in Nigeria</span>
                                 </button>
                               )}
                               {status === 'ready_for_delivery' && (
