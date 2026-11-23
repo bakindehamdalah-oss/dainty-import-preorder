@@ -3,27 +3,29 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import {
-  ShoppingBag,
-  Plane,
-  Ship,
-  MessageCircle,
-  Plus,
-  Minus,
-  Trash2,
-  Maximize2,
-  X,
-  Check,
   AlertCircle,
-  Info,
-  Search,
-  Layers,
-  Box,
-  Tag,
-  Sparkles,
-  ShieldCheck,
-  Clock,
   ArrowRight,
-  ChevronRight
+  Box,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  ImageIcon,
+  Info,
+  Layers,
+  Maximize2,
+  MessageCircle,
+  Minus,
+  Plane,
+  Plus,
+  Search,
+  ShieldCheck,
+  Ship,
+  ShoppingBag,
+  Sparkles,
+  Tag,
+  Trash2,
+  X,
 } from 'lucide-react';
 
 type StoreSettings = {
@@ -544,6 +546,60 @@ function MatrixOrderModal({
 }
 
 
+export function getProductAllImages(product: Product | null | undefined): string[] {
+  if (!product) return [];
+  const list: string[] = [];
+
+  const add = (url: any) => {
+    if (typeof url === 'string') {
+      const clean = url.trim();
+      if (clean && !list.includes(clean)) list.push(clean);
+    }
+  };
+
+  add(product.image_url);
+
+  // Check product.images array or string
+  if (Array.isArray(product.images)) {
+    for (const img of product.images) add(img);
+  } else if (typeof product.images === 'string') {
+    try {
+      const parsed = JSON.parse(product.images);
+      if (Array.isArray(parsed)) {
+        for (const img of parsed) add(img);
+      } else {
+        add(product.images);
+      }
+    } catch {
+      for (const part of (product.images as string).split(',')) {
+        add(part);
+      }
+    }
+  }
+
+  // Check embedded fallback in description
+  if (product.description && product.description.includes('<!--dainty_images:')) {
+    try {
+      const match = product.description.match(/<!--dainty_images:(.*?)-->/);
+      if (match && match[1]) {
+        const parsed = JSON.parse(match[1]);
+        if (Array.isArray(parsed)) {
+          for (const img of parsed) add(img);
+        }
+      }
+    } catch {}
+  }
+
+  // Check variants
+  if (Array.isArray(product.variants)) {
+    for (const v of product.variants) {
+      if (v?.image_url) add(v.image_url);
+    }
+  }
+
+  return list;
+}
+
 function ProductCard({
   product,
   mode,
@@ -571,22 +627,14 @@ function ProductCard({
   const moq = getProductWholesaleMOQ(product, cat);
   const moqScope = getProductMOQScope(product, cat);
 
-  // Gather all available images
-  const allImages = useMemo(() => {
-    const list: string[] = [];
-    if (product.image_url) list.push(product.image_url);
-    if (Array.isArray(product.images)) {
-      for (const img of product.images) {
-        if (img && !list.includes(img)) list.push(img);
-      }
-    }
-    if (Array.isArray(product.variants)) {
-      for (const v of product.variants) {
-        if (v?.image_url && !list.includes(v.image_url)) list.push(v.image_url);
-      }
-    }
-    return list;
-  }, [product]);
+  // Gather all available images with deep array/fallback parsing
+  const allImages = useMemo(() => getProductAllImages(product), [product]);
+
+  const cleanDescription = useMemo(() => {
+    return (product.description || '')
+      .replace(/<!--dainty_images:.*?-->/g, '')
+      .trim();
+  }, [product.description]);
 
   // Gather all available color options (optional)
   const allColors = useMemo(() => {
@@ -708,6 +756,45 @@ function ProductCard({
             </div>
           )}
 
+          {/* Carousel Arrows and Indicator for multiple photos */}
+          {allImages.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const curIdx = allImages.indexOf(activeImage);
+                  const nextIdx = curIdx <= 0 ? allImages.length - 1 : curIdx - 1;
+                  setActiveImage(allImages[nextIdx]);
+                  if (allColors[nextIdx]) setSelectedColor(allColors[nextIdx]);
+                }}
+                className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-white/90 text-stone-800 shadow-md flex items-center justify-center hover:bg-white hover:scale-110 transition z-10 opacity-90 sm:opacity-0 group-hover:opacity-100 cursor-pointer"
+                aria-label="Previous photo"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const curIdx = allImages.indexOf(activeImage);
+                  const nextIdx = curIdx >= allImages.length - 1 ? 0 : curIdx + 1;
+                  setActiveImage(allImages[nextIdx]);
+                  if (allColors[nextIdx]) setSelectedColor(allColors[nextIdx]);
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-white/90 text-stone-800 shadow-md flex items-center justify-center hover:bg-white hover:scale-110 transition z-10 opacity-90 sm:opacity-0 group-hover:opacity-100 cursor-pointer"
+                aria-label="Next photo"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+
+              <span className="absolute top-2.5 right-2.5 rounded-full bg-stone-900/80 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-xs backdrop-blur-xs z-10">
+                {Math.max(1, allImages.indexOf(activeImage) + 1)} / {allImages.length}
+              </span>
+            </>
+          )}
+
           {activeImage && (
             <button
               type="button"
@@ -716,7 +803,7 @@ function ProductCard({
                 onZoomImage(activeImage);
               }}
               title="Click to view full photo clearly"
-              className="absolute bottom-2.5 right-2.5 inline-flex items-center gap-1 rounded-md bg-stone-900/80 px-2 py-1 text-[11px] font-medium text-white opacity-0 backdrop-blur-xs transition group-hover:opacity-100 hover:bg-stone-900"
+              className="absolute bottom-2.5 right-2.5 inline-flex items-center gap-1 rounded-md bg-stone-900/80 px-2 py-1 text-[11px] font-medium text-white opacity-0 backdrop-blur-xs transition group-hover:opacity-100 hover:bg-stone-900 z-10 cursor-pointer"
             >
               <Maximize2 className="h-3 w-3" />
               Zoom
@@ -838,9 +925,9 @@ function ProductCard({
             </div>
           )}
 
-          {product.description && (
-            <p className="mt-2.5 line-clamp-2 text-xs text-stone-600">{product.description}</p>
-          )}
+          {cleanDescription ? (
+            <p className="mt-2.5 line-clamp-2 text-xs text-stone-600">{cleanDescription}</p>
+          ) : null}
         </div>
       </div>
 
