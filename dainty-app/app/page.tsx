@@ -1512,6 +1512,7 @@ export default function StorefrontPage() {
       '',
       `*🛒 View Full Cart & Catalog (Click link below):*`,
       shareableLink,
+      activeOrderId ? `*Track Order:* ${typeof window !== 'undefined' ? window.location.origin : ''}/track?id=${encodeURIComponent(activeOrderId)}` : '',
       '',
       `*China Sourcing & Preorder Terms*`,
       `• *Initial Payment:* The initial payment covers only the cost of purchasing your item. Your order will be shipped once the purchase payment has been completed.`,
@@ -1586,6 +1587,8 @@ export default function StorefrontPage() {
               </p>
             </div>
           </div>
+
+          <a href="/track" className="shrink-0 rounded-lg px-2 py-1.5 text-[11px] font-bold text-stone-600 hover:bg-amber-50 hover:text-amber-800">Track</a>
 
           {/* Mobile Cart Trigger on Top Header */}
           <button
@@ -1683,6 +1686,8 @@ export default function StorefrontPage() {
                 Sea (3 mos)
               </button>
             </div>
+
+            <a href="/track" className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-bold text-stone-700 hover:border-[#fa9d26] hover:text-amber-800">Track Order</a>
 
             {/* Desktop Cart Button */}
             <button
