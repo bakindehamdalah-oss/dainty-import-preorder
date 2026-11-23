@@ -166,30 +166,37 @@ function MatrixOrderModal({
   // Extract all sizes and colors
   const sizes = useMemo(() => {
     const list: string[] = [];
-    if (Array.isArray(product.sizes)) {
-      for (const s of product.sizes) {
-        if (s && !list.includes(String(s).trim())) list.push(String(s).trim());
+    const addSize = (val: unknown) => {
+      if (!val) return;
+      const str = String(val).trim();
+      if (!str) return;
+      const parts = str.split(/[,/|;\n]+/);
+      for (const part of parts) {
+        const trimmed = part.trim();
+        if (trimmed && !list.includes(trimmed)) {
+          list.push(trimmed);
+        }
       }
+    };
+
+    if (Array.isArray(product.sizes)) {
+      for (const s of product.sizes) addSize(s);
     }
     if (product.size_options) {
-      for (const s of String(product.size_options).split(',')) {
-        const trimmed = s.trim();
-        if (trimmed && !list.includes(trimmed)) list.push(trimmed);
-      }
+      addSize(product.size_options);
     }
     if (product.size) {
-      for (const s of product.size.split(',')) {
-        const trimmed = s.trim();
-        if (trimmed && !list.includes(trimmed)) list.push(trimmed);
+      addSize(product.size);
+    }
+    if (Array.isArray(product.variants)) {
+      for (const v of product.variants) {
+        if (v?.size) addSize(v.size);
       }
     }
     if (list.length === 0 && product.description) {
       const match = product.description.match(/(?:sizes?|models?):\s*([^•\n]+)/i);
       if (match && match[1]) {
-        for (const s of match[1].split(',')) {
-          const trimmed = s.trim();
-          if (trimmed && !list.includes(trimmed)) list.push(trimmed);
-        }
+        addSize(match[1]);
       }
     }
     return list;
@@ -197,24 +204,34 @@ function MatrixOrderModal({
 
   const colors = useMemo(() => {
     const list: string[] = [];
-    if (Array.isArray(product.colors)) {
-      for (const c of product.colors) {
-        if (c && !list.includes(c.trim())) list.push(c.trim());
+    const addColor = (val: unknown) => {
+      if (!val) return;
+      const str = String(val).trim();
+      if (!str) return;
+      const parts = str.split(/[,/|;\n]+/);
+      for (const part of parts) {
+        const trimmed = part.trim();
+        if (trimmed && !list.includes(trimmed)) {
+          list.push(trimmed);
+        }
       }
+    };
+
+    if (Array.isArray(product.colors)) {
+      for (const c of product.colors) addColor(c);
     }
     if (product.color_options) {
-      for (const c of product.color_options.split(',')) {
-        const trimmed = c.trim();
-        if (trimmed && !list.includes(trimmed)) list.push(trimmed);
+      addColor(product.color_options);
+    }
+    if (Array.isArray(product.variants)) {
+      for (const v of product.variants) {
+        if (v?.color) addColor(v.color);
       }
     }
     if (list.length === 0 && product.description) {
       const match = product.description.match(/colors?:\s*([^•\n]+)/i);
       if (match && match[1]) {
-        for (const c of match[1].split(',')) {
-          const trimmed = c.trim();
-          if (trimmed && !list.includes(trimmed)) list.push(trimmed);
-        }
+        addColor(match[1]);
       }
     }
     return list;
@@ -394,29 +411,29 @@ function MatrixOrderModal({
         )}
 
         {/* Quick Batch Buttons Bar */}
-        <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 px-4 py-2 text-xs">
-          <span className="text-stone-500 text-[11px]">
-            Quick fill for visible view ({displayedColors.length * displayedSizes.length} variant{displayedColors.length * displayedSizes.length > 1 ? 's' : ''}):
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 bg-stone-50/70 px-4 py-2 text-xs">
+          <span className="text-stone-600 text-[11px] font-medium">
+            Quick fill ({displayedColors.length * displayedSizes.length} variant{displayedColors.length * displayedSizes.length > 1 ? 's' : ''}):
           </span>
           <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => quickFillActive(1)}
-              className="rounded bg-white border border-stone-200 px-2 py-0.5 text-[11px] font-medium text-stone-700 hover:bg-stone-100 shadow-2xs"
+              className="rounded-md bg-white border border-stone-200 px-2 py-1 text-[11px] font-semibold text-stone-700 hover:bg-stone-100 shadow-2xs active:bg-stone-200 transition"
             >
               +1 each
             </button>
             <button
               type="button"
               onClick={() => quickFillActive(5)}
-              className="rounded bg-white border border-stone-200 px-2 py-0.5 text-[11px] font-medium text-stone-700 hover:bg-stone-100 shadow-2xs"
+              className="rounded-md bg-white border border-stone-200 px-2 py-1 text-[11px] font-semibold text-stone-700 hover:bg-stone-100 shadow-2xs active:bg-stone-200 transition"
             >
               +5 each
             </button>
             <button
               type="button"
               onClick={() => quickFillActive(10)}
-              className="rounded bg-white border border-stone-200 px-2 py-0.5 text-[11px] font-medium text-stone-700 hover:bg-stone-100 shadow-2xs"
+              className="rounded-md bg-white border border-stone-200 px-2 py-1 text-[11px] font-semibold text-stone-700 hover:bg-stone-100 shadow-2xs active:bg-stone-200 transition"
             >
               +10 each
             </button>
@@ -424,7 +441,7 @@ function MatrixOrderModal({
               <button
                 type="button"
                 onClick={() => setQuantities({})}
-                className="text-[11px] text-red-600 hover:underline ml-1"
+                className="text-[11px] font-semibold text-red-600 hover:underline ml-1"
               >
                 Reset
               </button>
@@ -433,8 +450,8 @@ function MatrixOrderModal({
         </div>
 
         {/* Variant Quantity Selection Table */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3">
-          <div className="divide-y divide-stone-100 rounded-xl border border-stone-200 bg-white">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-2.5 sm:space-y-3">
+          <div className="divide-y divide-stone-100 rounded-xl border border-stone-200 bg-white overflow-hidden shadow-2xs">
             {displayedColors.map((color) => {
               return displayedSizes.map((size) => {
                 const qty = getQty(color, size);
@@ -444,60 +461,86 @@ function MatrixOrderModal({
                 return (
                   <div
                     key={getKey(color, size)}
-                    className={`flex items-center justify-between gap-3 p-3 transition ${
-                      qty > 0 ? 'bg-amber-50/40' : 'hover:bg-stone-50/60'
+                    className={`p-3 sm:p-3.5 transition ${
+                      qty > 0 ? 'bg-amber-50/60' : 'hover:bg-stone-50/60'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      {color && (
-                        <span className="inline-flex items-center rounded-md bg-stone-100 px-2 py-0.5 text-xs font-semibold text-stone-800 border border-stone-200">
-                          {color}
-                        </span>
-                      )}
-                      {size && (
-                        <span className="text-xs font-bold text-stone-900 truncate">
-                          {size}
-                        </span>
-                      )}
-                      {!color && !size && (
-                        <span className="text-xs font-medium text-stone-700">Standard Spec</span>
-                      )}
-                      <span className="text-[11px] text-stone-400">
-                        • ₦{unitPrice.toLocaleString()}/pc
-                      </span>
-                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+                      {/* Left: Size & Color Info - clearly visible and wrapping without truncation */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                          {/* Prominent Size Tag */}
+                          {size ? (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-stone-900 px-2.5 py-1 text-xs font-bold text-white shadow-2xs">
+                              <span className="text-stone-300 font-normal text-[11px]">Size:</span>
+                              <span className="break-words">{size}</span>
+                            </span>
+                          ) : (
+                            !color && (
+                              <span className="inline-flex items-center rounded-md bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-700 border border-stone-200">
+                                Standard Spec
+                              </span>
+                            )
+                          )}
 
-                    <div className="flex items-center gap-3 shrink-0">
-                      {/* Quantity Stepper */}
-                      <div className="flex items-center rounded-lg border border-stone-300 bg-white shadow-2xs">
-                        <button
-                          type="button"
-                          onClick={() => adjustQty(color, size, -1)}
-                          disabled={qty <= 0}
-                          className="h-7 w-7 flex items-center justify-center rounded-l text-stone-600 hover:bg-stone-100 disabled:opacity-30"
-                        >
-                          <Minus className="h-3 w-3" />
-                        </button>
-                        <input
-                          type="number"
-                          min="0"
-                          value={qty === 0 ? '' : qty}
-                          placeholder="0"
-                          onChange={(e) => setQty(color, size, parseInt(e.target.value, 10) || 0)}
-                          className="h-7 w-12 text-center text-xs font-bold text-stone-900 border-x border-stone-200 focus:outline-hidden"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => adjustQty(color, size, 1)}
-                          className="h-7 w-7 flex items-center justify-center rounded-r text-stone-600 hover:bg-stone-100"
-                        >
-                          <Plus className="h-3 w-3" />
-                        </button>
+                          {/* Color Badge if present */}
+                          {color && (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-stone-100 px-2 py-0.5 text-xs font-semibold text-stone-800 border border-stone-200">
+                              <span className="text-stone-500 font-normal text-[11px]">Color:</span>
+                              <span>{color}</span>
+                            </span>
+                          )}
+
+                          {/* Price Tag */}
+                          <span className="text-xs text-stone-500 font-medium">
+                            ₦{unitPrice.toLocaleString()}/pc
+                          </span>
+                        </div>
                       </div>
 
-                      {/* Row Total */}
-                      <div className="w-20 text-right text-xs font-semibold text-stone-900">
-                        {qty > 0 ? `₦${rowTotal.toLocaleString()}` : <span className="text-stone-300">₦0</span>}
+                      {/* Right: Quantity Stepper & Total */}
+                      <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-1.5 sm:pt-0 border-t border-stone-100 sm:border-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-medium text-stone-500 sm:hidden">
+                            Quantity:
+                          </span>
+                          <div className="flex items-center rounded-lg border border-stone-300 bg-white shadow-2xs">
+                            <button
+                              type="button"
+                              onClick={() => adjustQty(color, size, -1)}
+                              disabled={qty <= 0}
+                              className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-l text-stone-600 hover:bg-stone-100 active:bg-stone-200 disabled:opacity-30 transition"
+                              aria-label="Decrease quantity"
+                            >
+                              <Minus className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+                            </button>
+                            <input
+                              type="number"
+                              min="0"
+                              value={qty === 0 ? '' : qty}
+                              placeholder="0"
+                              onChange={(e) => setQty(color, size, parseInt(e.target.value, 10) || 0)}
+                              className="h-8 w-14 sm:h-7 sm:w-12 text-center text-xs font-bold text-stone-900 border-x border-stone-200 focus:outline-hidden"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => adjustQty(color, size, 1)}
+                              className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-r text-stone-600 hover:bg-stone-100 active:bg-stone-200 transition"
+                              aria-label="Increase quantity"
+                            >
+                              <Plus className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Row Total */}
+                        <div className="min-w-[70px] sm:w-20 text-right text-xs font-bold text-stone-900">
+                          {qty > 0 ? (
+                            <span className="text-[#fa9d26]">₦{rowTotal.toLocaleString()}</span>
+                          ) : (
+                            <span className="text-stone-300 font-normal">₦0</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -541,10 +584,10 @@ function MatrixOrderModal({
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-1">
-            <div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
+            <div className="flex items-center justify-between sm:block">
               <div className="text-[11px] text-stone-500">Subtotal for Selected:</div>
-              <div className="text-base font-bold text-stone-900">
+              <div className="text-base sm:text-lg font-extrabold text-stone-900">
                 ₦{(totalSelected * Number(product.wholesale_price)).toLocaleString()}
               </div>
             </div>
@@ -553,7 +596,7 @@ function MatrixOrderModal({
               type="button"
               disabled={totalSelected === 0}
               onClick={handleConfirm}
-              className="flex items-center gap-2 rounded-xl bg-[#fa9d26] px-5 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-[#e68c1d] disabled:opacity-40"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-[#fa9d26] px-5 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-[#e68c1d] disabled:opacity-40 active:scale-98"
             >
               <Check className="h-4 w-4" />
               Add {totalSelected} Pieces to Preorder Cart
@@ -659,30 +702,31 @@ function ProductCard({
   // Gather all available color options (optional)
   const allColors = useMemo(() => {
     const list: string[] = [];
-    if (Array.isArray(product.colors)) {
-      for (const c of product.colors) {
-        if (c && !list.includes(c.trim())) list.push(c.trim());
-      }
-    }
-    if (product.color_options) {
-      for (const c of product.color_options.split(',')) {
-        const trimmed = c.trim();
+    const addColor = (val: unknown) => {
+      if (!val) return;
+      const str = String(val).trim();
+      if (!str) return;
+      const parts = str.split(/[,/|;\n]+/);
+      for (const part of parts) {
+        const trimmed = part.trim();
         if (trimmed && !list.includes(trimmed)) list.push(trimmed);
       }
+    };
+
+    if (Array.isArray(product.colors)) {
+      for (const c of product.colors) addColor(c);
+    }
+    if (product.color_options) {
+      addColor(product.color_options);
     }
     if (Array.isArray(product.variants)) {
       for (const v of product.variants) {
-        if (v?.color && !list.includes(v.color.trim())) list.push(v.color.trim());
+        if (v?.color) addColor(v.color);
       }
     }
     if (list.length === 0 && product.description) {
       const match = product.description.match(/colors?:\s*([^•\n]+)/i);
-      if (match && match[1]) {
-        for (const c of match[1].split(',')) {
-          const trimmed = c.trim();
-          if (trimmed && !list.includes(trimmed)) list.push(trimmed);
-        }
-      }
+      if (match && match[1]) addColor(match[1]);
     }
     return list;
   }, [product]);
@@ -690,36 +734,34 @@ function ProductCard({
   // Gather all available size/model options (optional)
   const allSizes = useMemo(() => {
     const list: string[] = [];
-    if (Array.isArray(product.sizes)) {
-      for (const s of product.sizes) {
-        if (s && !list.includes(String(s).trim())) list.push(String(s).trim());
+    const addSize = (val: unknown) => {
+      if (!val) return;
+      const str = String(val).trim();
+      if (!str) return;
+      const parts = str.split(/[,/|;\n]+/);
+      for (const part of parts) {
+        const trimmed = part.trim();
+        if (trimmed && !list.includes(trimmed)) list.push(trimmed);
       }
+    };
+
+    if (Array.isArray(product.sizes)) {
+      for (const s of product.sizes) addSize(s);
     }
     if (product.size_options) {
-      for (const s of String(product.size_options).split(',')) {
-        const trimmed = s.trim();
-        if (trimmed && !list.includes(trimmed)) list.push(trimmed);
-      }
+      addSize(product.size_options);
     }
     if (product.size) {
-      for (const s of product.size.split(',')) {
-        const trimmed = s.trim();
-        if (trimmed && !list.includes(trimmed)) list.push(trimmed);
-      }
+      addSize(product.size);
     }
     if (Array.isArray(product.variants)) {
       for (const v of product.variants) {
-        if (v?.size && !list.includes(v.size.trim())) list.push(v.size.trim());
+        if (v?.size) addSize(v.size);
       }
     }
     if (list.length === 0 && product.description) {
       const match = product.description.match(/(?:sizes?|models?):\s*([^•\n]+)/i);
-      if (match && match[1]) {
-        for (const s of match[1].split(',')) {
-          const trimmed = s.trim();
-          if (trimmed && !list.includes(trimmed)) list.push(trimmed);
-        }
-      }
+      if (match && match[1]) addSize(match[1]);
     }
     return list;
   }, [product]);
@@ -897,7 +939,7 @@ function ProductCard({
               <span className="text-[11px] font-medium text-stone-600 block mb-1.5">
                 Size / Model: <span className="font-bold text-stone-900">{selectedSize || 'Select'}</span>
               </span>
-              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+              <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
                 {allSizes.map((sz, idx) => (
                   <button
                     key={idx}
@@ -914,9 +956,15 @@ function ProductCard({
                 ))}
               </div>
             </div>
+          ) : allSizes.length === 1 ? (
+            <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-md bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-800 border border-stone-200">
+              <span className="text-stone-500 font-normal">Size / Model:</span>
+              <span className="font-bold text-stone-900">{allSizes[0]}</span>
+            </div>
           ) : product.size ? (
-            <div className="mt-2 inline-flex items-center gap-1 rounded bg-stone-100 px-2 py-0.5 text-xs text-stone-700">
-              <span className="font-medium">Size/Model:</span> {product.size}
+            <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-md bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-800 border border-stone-200">
+              <span className="text-stone-500 font-normal">Size / Model:</span>
+              <span className="font-bold text-stone-900">{product.size}</span>
             </div>
           ) : null}
 
@@ -2190,9 +2238,17 @@ export default function StorefrontPage() {
                       <div className="font-semibold truncate text-xs text-stone-900">
                         {item.product.name || item.product.title || 'Product'}
                       </div>
-                      <div className="text-[11px] text-stone-500">
-                        {item.selectedColor && <span>Color: {item.selectedColor} </span>}
-                        {item.selectedSize && <span>Model: {item.selectedSize}</span>}
+                      <div className="text-[11px] text-stone-600 flex flex-wrap gap-1.5 mt-0.5">
+                        {item.selectedSize && (
+                          <span className="inline-flex items-center rounded bg-stone-100 px-1.5 py-0.5 font-semibold text-stone-800 border border-stone-200">
+                            Size: {item.selectedSize}
+                          </span>
+                        )}
+                        {item.selectedColor && (
+                          <span className="inline-flex items-center rounded bg-stone-100 px-1.5 py-0.5 font-semibold text-stone-700 border border-stone-200">
+                            Color: {item.selectedColor}
+                          </span>
+                        )}
                       </div>
                       <div className="font-bold text-xs text-stone-900 mt-0.5">
                         ₦{((mode === 'wholesale' ? item.product.wholesale_price : item.product.retail_price) * item.quantity).toLocaleString()}

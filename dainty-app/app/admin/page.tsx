@@ -2690,7 +2690,11 @@ export default function AdminPage() {
                           <div className="text-[11px] text-stone-500 flex flex-wrap gap-2 mt-1">
                             <span>Retail: <strong className="text-stone-800">₦{Number(p.retail_price).toLocaleString()}</strong></span>
                             <span className="text-amber-800">Wholesale: <strong className="text-amber-900">₦{Number(p.wholesale_price).toLocaleString()}</strong> ({p.moq_scope === 'category' ? `Cat. total ${moqVal} pcs` : `MOQ ${moqVal} pcs`})</span>
-                            {p.size && <span>Size: {p.size}</span>}
+                            {(p.size || (Array.isArray(p.sizes) && p.sizes.length > 0) || p.size_options) && (
+                              <span>
+                                Size: {Array.isArray(p.sizes) && p.sizes.length > 0 ? p.sizes.join(', ') : p.size || p.size_options}
+                              </span>
+                            )}
                             {p.colors && p.colors.length > 0 && <span>Colors: {p.colors.join(', ')}</span>}
                             {air <= 0 && sea > 0 ? (
                               <span className="text-blue-700 font-semibold">Sea Only (₦{sea.toLocaleString()})</span>
