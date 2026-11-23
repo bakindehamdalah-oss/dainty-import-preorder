@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   AlertCircle,
@@ -1009,6 +1009,8 @@ function ProductCard({
 }
 
 
+const CART_STORAGE_KEY = 'dainty_preorder_cart_v1';
+
 export default function StorefrontPage() {
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -1028,6 +1030,7 @@ export default function StorefrontPage() {
     const [matrixProduct, setMatrixProduct] = useState<Product | null>(null);
   const [loadedOrderNotice, setLoadedOrderNotice] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const isInitialCartLoadRef = useRef(false);
 
   useEffect(() => {
     async function loadStoreData() {
@@ -1059,50 +1062,114 @@ export default function StorefrontPage() {
   }, []);
 
 
-  // Restore cart from URL (?order=... or ?cart=...) so admin or customer can view order anytime
+  // Restore cart from URL (?order=...) or local phone storage so cart persists across page reloads
   useEffect(() => {
     if (products.length === 0 || typeof window === 'undefined') return;
 
+    // 1. Check if there is a shared order in the URL (?order=... or ?cart=...)
     const urlParams = new URLSearchParams(window.location.search);
     const orderParam = urlParams.get('order') || urlParams.get('cart');
-    if (!orderParam) return;
 
-    try {
-      const decoded = decodeURIComponent(orderParam);
-      const json = decodeURIComponent(atob(decoded));
-      const data = JSON.parse(json);
+    if (orderParam) {
+      try {
+        const decoded = decodeURIComponent(orderParam);
+        const json = decodeURIComponent(atob(decoded));
+        const data = JSON.parse(json);
 
-      if (data && Array.isArray(data.c)) {
-        const restoredCart: CartItem[] = [];
-        for (const item of data.c) {
-          const prod = products.find((p) => p.id === item.p);
-          if (prod) {
-            restoredCart.push({
-              product: prod,
-              quantity: Number(item.q) || 1,
-              selectedSize: item.s || null,
-              selectedColor: item.c || null,
-              selectedImage: item.img || null,
-            });
+        if (data && Array.isArray(data.c)) {
+          const restoredCart: CartItem[] = [];
+          for (const item of data.c) {
+            const prod = products.find((p) => p.id === item.p);
+            if (prod) {
+              restoredCart.push({
+                product: prod,
+                quantity: Number(item.q) || 1,
+                selectedSize: item.s || null,
+                selectedColor: item.c || null,
+                selectedImage: item.img || null,
+              });
+            }
+          }
+
+          if (restoredCart.length > 0) {
+            setCart(restoredCart);
+            if (data.m === 'wholesale' || data.m === 'retail') {
+              setMode(data.m);
+            }
+            if (data.sm === 'air' || data.sm === 'sea') {
+              setShippingMethod(data.sm);
+            }
+            setIsCartOpen(true);
+            setLoadedOrderNotice(`Viewing shared order (${restoredCart.length} item${restoredCart.length > 1 ? 's' : ''})`);
+            isInitialCartLoadRef.current = true;
+            return;
           }
         }
-
-        if (restoredCart.length > 0) {
-          setCart(restoredCart);
-          if (data.m === 'wholesale' || data.m === 'retail') {
-            setMode(data.m);
-          }
-          if (data.sm === 'air' || data.sm === 'sea') {
-            setShippingMethod(data.sm);
-          }
-          setIsCartOpen(true);
-          setLoadedOrderNotice(`Viewing shared order (${restoredCart.length} item${restoredCart.length > 1 ? 's' : ''})`);
-        }
+      } catch (err) {
+        console.error('Failed to parse shared cart parameter:', err);
       }
-    } catch (err) {
-      console.error('Failed to parse shared cart parameter:', err);
+    }
+
+    // 2. If no shared URL parameter, restore saved cart from phone / browser localStorage
+    if (!isInitialCartLoadRef.current) {
+      try {
+        const raw = localStorage.getItem(CART_STORAGE_KEY);
+        if (raw) {
+          const saved = JSON.parse(raw);
+          if (saved && Array.isArray(saved.items)) {
+            const restoredCart: CartItem[] = [];
+            for (const item of saved.items) {
+              const prod = products.find((p) => p.id === item.productId);
+              if (prod) {
+                restoredCart.push({
+                  product: prod,
+                  quantity: Number(item.quantity) || 1,
+                  selectedSize: item.selectedSize || null,
+                  selectedColor: item.selectedColor || null,
+                  selectedImage: item.selectedImage || null,
+                });
+              }
+            }
+            if (restoredCart.length > 0) {
+              setCart(restoredCart);
+            }
+            if (saved.mode === 'wholesale' || saved.mode === 'retail') {
+              setMode(saved.mode);
+            }
+            if (saved.shippingMethod === 'air' || saved.shippingMethod === 'sea') {
+              setShippingMethod(saved.shippingMethod);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Could not restore cart from localStorage:', err);
+      } finally {
+        isInitialCartLoadRef.current = true;
+      }
     }
   }, [products]);
+
+  // Save cart, pricing mode, and shipping method to phone/browser localStorage whenever updated
+  useEffect(() => {
+    if (!isInitialCartLoadRef.current || typeof window === 'undefined') return;
+    try {
+      const payload = {
+        items: cart.map((i) => ({
+          productId: i.product.id,
+          quantity: i.quantity,
+          selectedSize: i.selectedSize || null,
+          selectedColor: i.selectedColor || null,
+          selectedImage: i.selectedImage || null,
+        })),
+        mode,
+        shippingMethod,
+        updatedAt: Date.now(),
+      };
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(payload));
+    } catch (e) {
+      console.warn('Failed to save cart to localStorage:', e);
+    }
+  }, [cart, mode, shippingMethod]);
 
   const categoryMap = useMemo(() => {
     const map = new Map<string, Category>();
