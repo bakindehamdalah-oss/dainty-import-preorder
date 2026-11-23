@@ -1391,75 +1391,26 @@ export default function StorefrontPage() {
   function buildWhatsAppLink() {
     const cleanPhone = (settings?.whatsapp_number || '').replace(/[^0-9]/g, '');
     const shareableLink = buildShareableCartUrl();
+
     const lines: string[] = [
-      `*🇨🇳 China Factory Preorder Sourcing Sheet (${mode.toUpperCase()})*`,
-      `*Store:* Dainty Import`,
-      `*Shipping Cargo:* ${shippingMethod.toUpperCase()} (${shippingTimeline})`,
+      `*🇨🇳 China Factory Preorder - Dainty Import*`,
+      '',
+      `*📦 Total Items Ordered:* ${cart.length} item${cart.length === 1 ? '' : 's'}`,
+      `*🔢 Total Pieces:* ${totalCartCount} pcs`,
+      `*💰 Total Product Price:* ₦${subtotal.toLocaleString()}`,
+      `*🚢 Shipping Method:* ${shippingMethod.toUpperCase()} (${shippingTimeline})`,
+      `*📦 Est. Shipping Fee:* ${estimatedShipping > 0 ? `₦${estimatedShipping.toLocaleString()}` : 'To be confirmed upon arrival in Nigeria'}`,
+      '',
+      `*🛒 View Cart (Click link below to view full cart and all items on website):*`,
+      shareableLink,
+      '',
+      `*China Sourcing & Preorder Terms*`,
+      `• *Initial Payment:* The initial payment covers only the cost of purchasing your item. Your order will be shipped once the purchase payment has been completed.`,
+      `• *Shipping Estimate:* Shipping fees provided are estimates. The exact shipping cost will be confirmed when your order arrives in Nigeria.`,
+      `• *Shipping Payment:* Shipping fees are paid separately when your order arrives in Nigeria.`
     ];
 
-    if (shareableLink) {
-      lines.push(
-        `*🛒 View & Track Order Online:*\n${shareableLink}`
-      );
-    }
-
-    lines.push(
-      '',
-      '*📦 Ordered Items (Specifications & Photos):*'
-    );
-
-    cart.forEach((item, idx) => {
-      const price =
-        mode === 'wholesale' ? item.product.wholesale_price : item.product.retail_price;
-      const airFee = Number(item.product.est_shipping_fee_air ?? 0);
-      const seaFee = Number(item.product.est_shipping_fee_sea ?? 0);
-      const fee = (shippingMethod === 'air' ? airFee : seaFee) * item.quantity;
-      
-      const title = item.product.name || item.product.title || 'Product';
-      const colorPart = item.selectedColor ? `\n   🎨 Color: ${item.selectedColor}` : '';
-      const sizePart = item.selectedSize ? `\n   📏 Size/Model: ${item.selectedSize}` : '';
-      
-      const photoUrl = item.selectedImage || item.product.image_url || (item.product.images && item.product.images[0]) || '';
-      const photoPart = photoUrl ? `\n   📸 Photo: ${photoUrl}` : '';
-      
-      const shipNote = fee > 0 ? `\n   🚢 Est. Shipping: ₦${fee.toLocaleString()}` : '';
-
-      lines.push(
-        `${idx + 1}. *${title}*` +
-        `\n   🔢 Quantity: ${item.quantity} pcs` +
-        `\n   💰 Unit Price: ₦${Number(price).toLocaleString()}` +
-        `\n   💵 Item Subtotal: ₦${(price * item.quantity).toLocaleString()}` +
-        colorPart +
-        sizePart +
-        photoPart +
-        shipNote
-      );
-    });
-
-    lines.push(
-      '',
-      `*💳 Total Product Cost (Payable Now):* ₦${subtotal.toLocaleString()}`,
-      `*🚢 Est. Shipping (${shippingMethod.toUpperCase()} Cargo):* ${estimatedShipping > 0 ? `₦${estimatedShipping.toLocaleString()}` : 'Billed upon arrival in Nigeria'}`,
-      `*⏱️ Est. Delivery Timeline:* ${shippingTimeline}`
-    );
-
-    if (shareableLink) {
-      lines.push(
-        '',
-        `*🔗 Direct Cart Link (Click to view full order on website):*\n${shareableLink}`
-      );
-    }
-
-    lines.push(
-      '',
-      '📌 *China Sourcing Pre-order Terms:*',
-      '1. Initial payment covers product cost only to lock factory prices and production in China.',
-      '2. Shipping fee is an estimate and is payable when your package arrives safely in Nigeria.',
-      '3. Some items can only be shipped via air and some items can only be shipped via sea.',
-      '4. Estimated timelines: Air Cargo (~3 weeks) | Sea Cargo (~3 months).'
-    );
-
-    const encoded = encodeURIComponent(lines.join('\n\n'));
+    const encoded = encodeURIComponent(lines.join('\n'));
     return cleanPhone ? `https://wa.me/${cleanPhone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
   }
 
@@ -2128,9 +2079,12 @@ export default function StorefrontPage() {
               Send Preorder on WhatsApp
             </a>
 
-            <p className="text-[10px] text-center text-stone-400 leading-tight">
-              Pre-order payment covers product sourcing upfront. Shipping fee is billed when your package arrives safely in Nigeria.
-            </p>
+            <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 text-[11px] text-stone-600 space-y-1.5 text-left">
+              <div className="font-bold text-stone-900 text-xs">China Sourcing & Preorder Terms</div>
+              <div><strong className="text-stone-800">Initial Payment:</strong> The initial payment covers only the cost of purchasing your item. Your order will be shipped once the purchase payment has been completed.</div>
+              <div><strong className="text-stone-800">Shipping Estimate:</strong> Shipping fees provided are estimates. The exact shipping cost will be confirmed when your order arrives in Nigeria.</div>
+              <div><strong className="text-stone-800">Shipping Payment:</strong> Shipping fees are paid separately when your order arrives in Nigeria.</div>
+            </div>
           </div>
         )}
       </aside>
