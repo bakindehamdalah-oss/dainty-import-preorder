@@ -3,13 +3,14 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Session } from '@supabase/supabase-js';
-import { Upload, Trash2, Plus, LogOut, Check, FolderPlus, RefreshCw, X, ShieldAlert, Sparkles, Layers, Image as ImageIcon, Ship, Plane } from 'lucide-react';
+import { Upload, Trash2, Plus, LogOut, Check, FolderPlus, RefreshCw, X, ShieldAlert, Sparkles, Layers, Image as ImageIcon, Ship, Plane, Tag, Box, Info } from 'lucide-react';
 
 type Category = {
   id: string;
   name: string;
   slug: string;
   wholesale_moq?: number;
+  moq_scope?: 'item' | 'category';
 };
 
 type Product = {
@@ -22,6 +23,7 @@ type Product = {
   size_options?: string | null;
   wholesale_moq?: number | null;
   min_order_qty?: number | null;
+  moq_scope?: 'item' | 'category' | null;
   description: string | null;
   image_url: string | null;
   images?: string[] | null;
@@ -46,6 +48,7 @@ type DraftPhotoItem = {
   additionalImages: string[];
   colors: string;
   moq: string;
+  moqScope: 'item' | 'category';
   description: string;
 };
 
@@ -72,6 +75,8 @@ export default function AdminPage() {
 
   const [catName, setCatName] = useState('');
   const [catSlug, setCatSlug] = useState('');
+  const [catMoq, setCatMoq] = useState('50');
+  const [catMoqScope, setCatMoqScope] = useState<'item' | 'category'>('item');
   const [savingCat, setSavingCat] = useState(false);
 
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
@@ -90,21 +95,23 @@ export default function AdminPage() {
   const [sharedColors, setSharedColors] = useState('');
   const [sharedRetail, setSharedRetail] = useState('');
   const [sharedWholesale, setSharedWholesale] = useState('');
-  const [sharedMoq, setSharedMoq] = useState('');
+  const [sharedMoq, setSharedMoq] = useState('50');
+  const [sharedMoqScope, setSharedMoqScope] = useState<'item' | 'category'>('item');
   const [sharedAirShipping, setSharedAirShipping] = useState('');
   const [sharedSeaShipping, setSharedSeaShipping] = useState('');
   const [sharedDescription, setSharedDescription] = useState('');
 
-  // Auto-detect iPhone Case category to default MOQ to 50
+  // Auto-detect iPhone Case category to default MOQ to 50 and scope to item
   useEffect(() => {
     const selCat = categories.find((c) => c.id === selectedCategoryId);
     const catNameLower = (selCat?.name || '').toLowerCase();
     if (catNameLower.includes('case') || catNameLower.includes('iphone')) {
-      if (!sharedMoq || sharedMoq === '5') {
-        setSharedMoq('50');
-      }
-    } else if (!sharedMoq) {
-      setSharedMoq('5');
+      setSharedMoq('50');
+      setSharedMoqScope('item');
+    } else if (selCat) {
+      if (selCat.wholesale_moq) setSharedMoq(String(selCat.wholesale_moq));
+      if (selCat.moq_scope) setSharedMoqScope(selCat.moq_scope);
+      else setSharedMoqScope('category');
     }
   }, [selectedCategoryId, categories]);
 
@@ -119,73 +126,54 @@ export default function AdminPage() {
       setErrorMsg(
         catsRes.error?.message || prodsRes.error?.message || 'Failed to load store data.'
       );
-      return;
+    } else {
+      setCategories(catsRes.data || []);
+      setProducts(prodsRes.data || []);
+      if (!selectedCategoryId && catsRes.data && catsRes.data.length > 0) {
+        setSelectedCategoryId(catsRes.data[0].id);
+      }
     }
-
-    const loadedCats = catsRes.data || [];
-    setCategories(loadedCats);
-    if (!selectedCategoryId && loadedCats.length > 0) {
-      setSelectedCategoryId(loadedCats[0].id);
-    }
-    setProducts(prodsRes.data || []);
   }
 
   useEffect(() => {
-    let active = true;
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      setSession(data.session);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
       setAuthLoading(false);
-      if (data.session) {
-        refreshData();
-      }
+      if (session) refreshData();
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (!active) return;
-      setSession(nextSession);
-      if (nextSession) {
-        refreshData();
-      }
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) refreshData();
     });
 
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
-  async function handleLogin(e: FormEvent) {
+  async function handleSignIn(e: FormEvent) {
     e.preventDefault();
     setSigningIn(true);
     setErrorMsg(null);
-    setStatusMsg(null);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     setSigningIn(false);
     if (error) {
       setErrorMsg(error.message);
     } else {
+      setEmail('');
       setPassword('');
     }
   }
 
-  async function handleLogout() {
-    setErrorMsg(null);
-    setStatusMsg(null);
+  async function handleSignOut() {
     await supabase.auth.signOut();
   }
 
   async function handleAddCategory(e: FormEvent) {
     e.preventDefault();
     if (!catName.trim()) return;
+
     setSavingCat(true);
     setErrorMsg(null);
     setStatusMsg(null);
@@ -199,16 +187,48 @@ export default function AdminPage() {
         .replace(/^-|-$/g, '');
 
     const isCase = computedSlug.includes('case') || computedSlug.includes('iphone');
+    const targetMoq = Number(catMoq) || (isCase ? 50 : 5);
+    const targetScope = catMoqScope || (isCase ? 'item' : 'category');
 
-    const { data, error } = await supabase
+    // Try inserting with wholesale_moq & moq_scope, fallback if columns not yet present
+    let { data, error } = await supabase
       .from('categories')
       .insert({
         name: catName.trim(),
         slug: computedSlug,
-        wholesale_moq: isCase ? 50 : 5,
+        wholesale_moq: targetMoq,
+        moq_scope: targetScope,
       })
       .select()
-      .single();
+      .maybeSingle();
+
+    if (error && error.message?.toLowerCase().includes('schema cache')) {
+      const fallback = await supabase
+        .from('categories')
+        .insert({
+          name: catName.trim(),
+          slug: computedSlug,
+          wholesale_moq: targetMoq,
+        })
+        .select()
+        .maybeSingle();
+
+      if (fallback.error && fallback.error.message?.toLowerCase().includes('schema cache')) {
+        const minimal = await supabase
+          .from('categories')
+          .insert({
+            name: catName.trim(),
+            slug: computedSlug,
+          })
+          .select()
+          .maybeSingle();
+        data = minimal.data;
+        error = minimal.error;
+      } else {
+        data = fallback.data;
+        error = fallback.error;
+      }
+    }
 
     setSavingCat(false);
     if (error) {
@@ -217,7 +237,7 @@ export default function AdminPage() {
       setCatName('');
       setCatSlug('');
       if (data?.id) setSelectedCategoryId(data.id);
-      setStatusMsg(`Category "${data.name}" added.`);
+      setStatusMsg(`Category "${data?.name || catName}" added with MOQ ${targetMoq} (${targetScope === 'item' ? 'Per Item' : 'Whole Category'}).`);
       await refreshData();
     }
   }
@@ -232,6 +252,7 @@ export default function AdminPage() {
       retailPrice: sharedRetail !== '' ? sharedRetail : item.retailPrice,
       wholesalePrice: sharedWholesale !== '' ? sharedWholesale : item.wholesalePrice,
       moq: sharedMoq !== '' ? sharedMoq : item.moq,
+      moqScope: sharedMoqScope,
       estAirShipping: sharedAirShipping !== '' ? sharedAirShipping : item.estAirShipping,
       estSeaShipping: sharedSeaShipping !== '' ? sharedSeaShipping : item.estSeaShipping,
       description: sharedDescription !== '' ? sharedDescription : item.description,
@@ -240,7 +261,7 @@ export default function AdminPage() {
 
   function handleApplySameSpecsNow() {
     setDraftItems((prev) => applySharedSpecsToList(prev));
-    setStatusMsg('Applied the same specifications, prices, MOQ, and details to all items in queue.');
+    setStatusMsg('Applied specifications, MOQ, and scope to all items in queue.');
   }
 
   async function handleGalleryFilesChange(e: ChangeEvent<HTMLInputElement>) {
@@ -310,7 +331,9 @@ export default function AdminPage() {
 
     const selCat = categories.find((c) => c.id === selectedCategoryId);
     const catNameLower = (selCat?.name || '').toLowerCase();
-    const defaultMoq = (catNameLower.includes('case') || catNameLower.includes('iphone')) ? '50' : (sharedMoq || '5');
+    const isIphone = catNameLower.includes('case') || catNameLower.includes('iphone');
+    const defaultMoq = isIphone ? '50' : (sharedMoq || '5');
+    const defaultScope = isIphone ? 'item' : sharedMoqScope;
 
     if (uploadMode === 'single_product') {
       const mainPhoto = newUploadedUrls[0];
@@ -324,6 +347,7 @@ export default function AdminPage() {
         retailPrice: sameForAll ? sharedRetail : '',
         wholesalePrice: sameForAll ? sharedWholesale : '',
         moq: sameForAll ? (sharedMoq || defaultMoq) : defaultMoq,
+        moqScope: sameForAll ? sharedMoqScope : defaultScope,
         estAirShipping: sameForAll ? sharedAirShipping : '',
         estSeaShipping: sameForAll ? sharedSeaShipping : '',
         imageUrl: mainPhoto.url,
@@ -348,6 +372,7 @@ export default function AdminPage() {
           retailPrice: sharedRetail || '',
           wholesalePrice: sharedWholesale || '',
           moq: sharedMoq || defaultMoq,
+          moqScope: sharedMoqScope || defaultScope,
           estAirShipping: sharedAirShipping || '',
           estSeaShipping: sharedSeaShipping || '',
           imageUrl: item.url,
@@ -450,25 +475,28 @@ export default function AdminPage() {
       const wholesale = Number(item.wholesalePrice) || 0;
       const airFee = item.estAirShipping.trim() !== '' ? Number(item.estAirShipping) : 0;
       const seaFee = item.estSeaShipping.trim() !== '' ? Number(item.estSeaShipping) : 0;
-      const sizeText = item.size.trim() || null;
+      const sizeText = item.size ? item.size.trim() : null;
       const moqVal = Number(item.moq) || (isIphoneCaseCat ? 50 : 5);
+      const moqScopeVal = item.moqScope || (isIphoneCaseCat ? 'item' : 'category');
 
-      const colorsList = item.colors
+      // Colors and sizes are completely optional!
+      const colorsList = item.colors && item.colors.trim() !== ''
         ? item.colors.split(',').map((c) => c.trim()).filter(Boolean)
         : [];
-      const sizesList = sizeText
+      const sizesList = sizeText && sizeText.trim() !== ''
         ? sizeText.split(',').map((s) => s.trim()).filter(Boolean)
         : [];
       const allImages = [item.imageUrl, ...(item.additionalImages || [])].filter(Boolean);
 
-      let descText = item.description.trim();
+      let descText = item.description ? item.description.trim() : '';
       if (sizeText) descText = descText ? `${descText} • Sizes: ${sizeText}` : `Sizes: ${sizeText}`;
       if (colorsList.length > 0) {
         descText = descText ? `${descText} • Colors: ${colorsList.join(', ')}` : `Colors: ${colorsList.join(', ')}`;
       }
       if (moqVal > 0) {
-        descText = descText ? `${descText} • Wholesale MOQ: ${moqVal} pcs` : `Wholesale MOQ: ${moqVal} pcs`;
+        descText = descText ? `${descText} • Wholesale MOQ: ${moqVal} pcs (${moqScopeVal === 'category' ? 'Category' : 'Item'})` : `Wholesale MOQ: ${moqVal} pcs (${moqScopeVal === 'category' ? 'Category' : 'Item'})`;
       }
+      descText = descText ? `${descText} • MOQ Scope: ${moqScopeVal === 'category' ? 'Category' : 'Item'}` : `MOQ Scope: ${moqScopeVal === 'category' ? 'Category' : 'Item'}`;
       if (airFee <= 0 && seaFee > 0) {
         descText = descText ? `${descText} • Shipping: Sea Cargo Only` : `Shipping: Sea Cargo Only`;
       }
@@ -477,11 +505,12 @@ export default function AdminPage() {
         name: cleanName,
         title: cleanName,
         category_id: selectedCategoryId || null,
-        size: sizeText,
-        sizes: sizesList,
-        size_options: sizeText,
+        size: sizeText || null,
+        sizes: sizesList.length > 0 ? sizesList : null,
+        size_options: sizeText || null,
         wholesale_moq: moqVal,
         min_order_qty: moqVal,
+        moq_scope: moqScopeVal,
         retail_price: retail,
         wholesale_price: wholesale,
         est_shipping_fee: airFee || seaFee || 0,
@@ -489,8 +518,8 @@ export default function AdminPage() {
         est_shipping_fee_sea: seaFee > 0 ? seaFee : null,
         image_url: item.imageUrl || null,
         images: allImages.length > 0 ? allImages : (item.imageUrl ? [item.imageUrl] : []),
-        colors: colorsList,
-        color_options: colorsList.join(', '),
+        colors: colorsList.length > 0 ? colorsList : null,
+        color_options: colorsList.length > 0 ? colorsList.join(', ') : null,
         description: descText || null,
       };
     });
@@ -498,14 +527,20 @@ export default function AdminPage() {
     let { error } = await supabase.from('products').insert(payload);
     if (error && error.message?.toLowerCase().includes('schema cache')) {
       // Gracefully omit fields if Supabase columns do not exist yet
-      const fallbackPayload = payload.map(({ sizes, size_options, wholesale_moq, min_order_qty, ...rest }) => rest);
-      let fallbackRes = await supabase.from('products').insert(fallbackPayload);
-      error = fallbackRes.error;
+      const fallbackPayload1 = payload.map(({ moq_scope, ...rest }) => rest);
+      let fallbackRes1 = await supabase.from('products').insert(fallbackPayload1);
+      error = fallbackRes1.error;
 
       if (error && error.message?.toLowerCase().includes('schema cache')) {
-        const minimalPayload = payload.map(({ images, colors, color_options, sizes, size_options, wholesale_moq, min_order_qty, ...rest }) => rest);
-        const minRes = await supabase.from('products').insert(minimalPayload);
-        error = minRes.error;
+        const fallbackPayload2 = payload.map(({ moq_scope, sizes, size_options, wholesale_moq, min_order_qty, ...rest }) => rest);
+        let fallbackRes2 = await supabase.from('products').insert(fallbackPayload2);
+        error = fallbackRes2.error;
+
+        if (error && error.message?.toLowerCase().includes('schema cache')) {
+          const minimalPayload = payload.map(({ moq_scope, images, colors, color_options, sizes, size_options, wholesale_moq, min_order_qty, ...rest }) => rest);
+          const minRes = await supabase.from('products').insert(minimalPayload);
+          error = minRes.error;
+        }
       }
     }
 
@@ -533,30 +568,35 @@ export default function AdminPage() {
 
   if (authLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-stone-50 text-sm text-stone-600">
-        Checking session...
+      <div className="flex min-h-screen items-center justify-center bg-stone-50 text-xs text-stone-500">
+        Checking authentication...
       </div>
     );
   }
 
   if (!session) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-stone-50 px-4 text-stone-900">
-        <div className="w-full max-w-sm space-y-5 rounded-xl border border-stone-200 bg-white p-6 shadow-xs">
-          <div>
-            <h1 className="text-lg font-bold">Admin Sign In</h1>
-            <p className="mt-1 text-xs text-stone-500">
-              Sign in with your Supabase admin account to upload photos and manage China sourcing products.
-            </p>
+      <div className="flex min-h-screen items-center justify-center bg-stone-100 p-4">
+        <div className="w-full max-w-sm rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <img src="/logo.png" alt="Dainty Import" className="h-8 w-auto rounded object-contain border border-[#fa9d26]/30 p-0.5" />
+            <div>
+              <h1 className="text-base font-bold text-stone-900 leading-tight">Dainty Import Admin</h1>
+              <span className="text-[10px] font-semibold text-[#fa9d26] uppercase">China Sourcing Portal</span>
+            </div>
           </div>
 
+          <p className="text-xs text-stone-500 mb-4">
+            Sign in with your Supabase credentials to manage categories and bulk publish 1688 products.
+          </p>
+
           {errorMsg && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
               {errorMsg}
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleSignIn} className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-stone-700">Email</label>
               <input
@@ -584,7 +624,7 @@ export default function AdminPage() {
             <button
               type="submit"
               disabled={signingIn}
-              className="w-full rounded-lg bg-stone-900 py-2 text-xs font-semibold text-white transition hover:bg-stone-800 disabled:opacity-50"
+              className="w-full rounded-lg bg-stone-900 py-2 text-xs font-semibold text-white hover:bg-stone-800 disabled:opacity-50 transition"
             >
               {signingIn ? 'Signing In...' : 'Sign In'}
             </button>
@@ -595,36 +635,30 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900 pb-20">
-      {/* Header */}
-      <header className="border-b border-stone-200 bg-white sticky top-0 z-30">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <img
-              src="/logo.png"
-              alt="Dainty Import"
-              className="h-9 w-auto rounded-md object-contain border border-[#fa9d26]/20"
-            />
+    <div className="min-h-screen bg-stone-100 text-stone-900">
+      {/* Top Header */}
+      <header className="sticky top-0 z-30 border-b border-stone-200 bg-white/95 px-4 py-3 backdrop-blur-xs">
+        <div className="mx-auto flex max-w-6xl items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <img src="/logo.png" alt="Dainty Import" className="h-8 w-auto rounded object-contain border border-[#fa9d26]/30 p-0.5" />
             <div>
-              <h1 className="text-base font-bold text-stone-900 leading-tight">Dainty Import Admin</h1>
-              <p className="text-[11px] font-semibold text-[#fa9d26] uppercase tracking-wider">
-                China Sourcing Catalog Manager
-              </p>
+              <h1 className="text-sm font-bold text-stone-900 leading-tight">Dainty Import Admin</h1>
+              <span className="text-[10px] font-semibold text-[#fa9d26] uppercase tracking-wider">China Factory Catalog Management</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <a
               href="/"
               target="_blank"
-              className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-100"
+              rel="noreferrer"
+              className="text-xs font-medium text-stone-600 hover:text-stone-900 underline"
             >
-              View Storefront
+              View Storefront ↗
             </a>
             <button
-              type="button"
-              onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-100"
+              onClick={handleSignOut}
+              className="inline-flex items-center gap-1 rounded-lg border border-stone-200 px-2.5 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-100"
             >
               <LogOut className="h-3.5 w-3.5" />
               Sign Out
@@ -633,45 +667,39 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8 sm:px-6 space-y-6">
-        {statusMsg && (
-          <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-medium text-emerald-800">
-            <span>{statusMsg}</span>
-            <button type="button" onClick={() => setStatusMsg(null)} className="text-emerald-600 hover:text-emerald-900">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-
+      <main className="mx-auto max-w-6xl p-4 sm:p-6 space-y-6">
+        {/* Alerts */}
         {errorMsg && (
-          <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-medium text-red-800">
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 flex items-center justify-between">
             <span>{errorMsg}</span>
-            <button type="button" onClick={() => setErrorMsg(null)} className="text-red-600 hover:text-red-900">
-              <X className="h-4 w-4" />
-            </button>
+            <button onClick={() => setErrorMsg(null)}><X className="h-4 w-4" /></button>
+          </div>
+        )}
+        {statusMsg && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800 flex items-center justify-between">
+            <span>{statusMsg}</span>
+            <button onClick={() => setStatusMsg(null)}><X className="h-4 w-4" /></button>
           </div>
         )}
 
-        {/* Categories Bar & Quick Add */}
+        {/* Categories Section */}
         <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center justify-between">
             <div>
               <h2 className="text-sm font-bold text-stone-900">1. Select or Create Category</h2>
-              <p className="text-xs text-stone-500">
-                iPhone cases automatically default to a wholesale MOQ of 50 pieces.
-              </p>
+              <p className="text-xs text-stone-500">Pick which category your uploaded items belong to.</p>
             </div>
             <button
               type="button"
               onClick={refreshData}
-              className="inline-flex items-center gap-1 text-xs text-stone-500 hover:text-stone-900 self-start sm:self-auto"
+              className="inline-flex items-center gap-1 rounded-lg border border-stone-200 px-2.5 py-1 text-xs text-stone-600 hover:bg-stone-50"
             >
-              <RefreshCw className="h-3.5 w-3.5" />
-              Refresh Data
+              <RefreshCw className="h-3 w-3" /> Refresh
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Category Chips */}
+          <div className="flex flex-wrap gap-2">
             {categories.map((c) => (
               <button
                 key={c.id}
@@ -683,24 +711,56 @@ export default function AdminPage() {
                     : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
                 }`}
               >
-                {c.name}
+                {c.name} {c.wholesale_moq ? `(${c.wholesale_moq} pcs ${c.moq_scope === 'category' ? 'Cat' : 'Item'})` : ''}
               </button>
             ))}
           </div>
 
-          <form onSubmit={handleAddCategory} className="flex flex-wrap items-center gap-2 pt-2 border-t border-stone-100">
+          {/* Add Category Form with MOQ & Scope */}
+          <form onSubmit={handleAddCategory} className="flex flex-wrap items-center gap-2 pt-3 border-t border-stone-100 text-xs">
             <input
               type="text"
               required
               value={catName}
               onChange={(e) => setCatName(e.target.value)}
               placeholder="New category name (e.g. iPhone Cases)"
-              className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs focus:border-stone-900 focus:outline-hidden"
+              className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs focus:border-stone-900 focus:outline-hidden min-w-[200px]"
             />
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-stone-500">MOQ:</span>
+              <input
+                type="number"
+                min="1"
+                value={catMoq}
+                onChange={(e) => setCatMoq(e.target.value)}
+                placeholder="50"
+                className="w-16 rounded-lg border border-stone-300 px-2 py-1.5 text-xs"
+              />
+            </div>
+            <div className="flex items-center gap-1 bg-stone-100 rounded-lg p-0.5 border border-stone-200">
+              <button
+                type="button"
+                onClick={() => setCatMoqScope('item')}
+                className={`px-2 py-1 rounded text-[11px] font-medium transition ${
+                  catMoqScope === 'item' ? 'bg-white text-stone-900 shadow-2xs font-bold' : 'text-stone-600'
+                }`}
+              >
+                Per Item
+              </button>
+              <button
+                type="button"
+                onClick={() => setCatMoqScope('category')}
+                className={`px-2 py-1 rounded text-[11px] font-medium transition ${
+                  catMoqScope === 'category' ? 'bg-white text-stone-900 shadow-2xs font-bold' : 'text-stone-600'
+                }`}
+              >
+                Whole Category
+              </button>
+            </div>
             <button
               type="submit"
               disabled={savingCat}
-              className="inline-flex items-center gap-1 rounded-lg bg-stone-100 px-3 py-1.5 text-xs font-medium text-stone-800 hover:bg-stone-200 disabled:opacity-50"
+              className="inline-flex items-center gap-1 rounded-lg bg-stone-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-stone-800 disabled:opacity-50"
             >
               <Plus className="h-3.5 w-3.5" />
               {savingCat ? 'Adding...' : 'Add Category'}
@@ -711,9 +771,9 @@ export default function AdminPage() {
         {/* Gallery Upload & Batch Specifications */}
         <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-xs space-y-5">
           <div>
-            <h2 className="text-sm font-bold text-stone-900">2. Upload Product Photos & Details</h2>
+            <h2 className="text-sm font-bold text-stone-900">2. Upload China Product Photos & Specifications</h2>
             <p className="text-xs text-stone-500">
-              Easily configure sizes, colors, wholesale MOQs, and optional Air/Sea shipping fees.
+              Configure wholesale MOQs (per item or whole category), optional Air/Sea shipping, and optional sizes/colors.
             </p>
           </div>
 
@@ -741,24 +801,80 @@ export default function AdminPage() {
               }`}
             >
               <ImageIcon className="h-4 w-4" />
-              Single Product with Multiple Angles / Colors
+              Single Product (Multiple photos/angles/colors)
             </button>
           </div>
 
-          {/* Shared Specifications Box */}
+          {/* Shared Specifications Panel */}
           <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 space-y-3">
-            <label className="flex items-center gap-2 text-xs font-semibold text-stone-900 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={sameForAll}
-                onChange={(e) => setSameForAll(e.target.checked)}
-                className="h-4 w-4 rounded border-stone-300 text-stone-900"
-              />
-              All uploaded items share the same specifications, prices, and shipping details
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sameForAll}
+                  onChange={(e) => setSameForAll(e.target.checked)}
+                  className="rounded border-stone-300 text-stone-900 focus:ring-stone-900"
+                />
+                <span className="text-xs font-bold text-stone-900">
+                  Apply Same Specifications, MOQ & Prices to All Uploads
+                </span>
+              </label>
+              <span className="text-[11px] text-stone-500">
+                Sizes & colors are fully optional!
+              </span>
+            </div>
 
             {sameForAll && (
               <div className="space-y-3 pt-1">
+                {/* Wholesale MOQ Scope Selection (Requirement #1) */}
+                <div className="rounded-lg bg-amber-50/70 border border-amber-200/80 p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-amber-900 flex items-center gap-1">
+                      <Tag className="h-3.5 w-3.5" /> Wholesale Minimum Order (MOQ) Scope
+                    </span>
+                    <span className="text-[11px] text-amber-800 font-semibold">
+                      Target: {sharedMoq} pieces
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setSharedMoqScope('item')}
+                      className={`rounded-lg border p-2.5 text-left text-xs transition ${
+                        sharedMoqScope === 'item'
+                          ? 'border-[#fa9d26] bg-white ring-2 ring-[#fa9d26]/30 shadow-xs text-stone-900'
+                          : 'border-stone-200 bg-white/60 text-stone-600 hover:bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-stone-900">
+                        <Box className="h-3.5 w-3.5 text-[#fa9d26]" />
+                        <span>Per Item Only (Product Specific)</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-stone-500 leading-snug">
+                        Customers must buy at least <strong>{sharedMoq || 50} pcs</strong> of <em>this exact item</em>. They can mix sizes and colors toward the {sharedMoq || 50} pcs minimum. (Recommended for iPhone cases).
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSharedMoqScope('category')}
+                      className={`rounded-lg border p-2.5 text-left text-xs transition ${
+                        sharedMoqScope === 'category'
+                          ? 'border-[#fa9d26] bg-white ring-2 ring-[#fa9d26]/30 shadow-xs text-stone-900'
+                          : 'border-stone-200 bg-white/60 text-stone-600 hover:bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-stone-900">
+                        <FolderPlus className="h-3.5 w-3.5 text-blue-600" />
+                        <span>Whole Category (Mix & Match)</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-stone-500 leading-snug">
+                        Customers can mix and match <em>any different products</em> in this category to hit the <strong>{sharedMoq || 5} pcs</strong> wholesale minimum in their cart.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                   <div>
                     <label className="block text-[11px] font-medium text-stone-600">
@@ -772,30 +888,39 @@ export default function AdminPage() {
                       className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
                     />
                   </div>
+
                   <div>
-                    <label className="block text-[11px] font-medium text-stone-600">
-                      Sizes / Models (comma-separated)
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-medium text-stone-600">
+                        Sizes / Models
+                      </label>
+                      <span className="text-[10px] text-stone-400 font-normal">Optional</span>
+                    </div>
                     <input
                       type="text"
                       value={sharedSize}
                       onChange={(e) => setSharedSize(e.target.value)}
-                      placeholder="e.g. iPhone 11, 12, 13, 14, 15 Pro Max"
+                      placeholder="e.g. iPhone 11, 12, 13, 14, 15 Pro Max (or leave blank)"
                       className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
                     />
                   </div>
+
                   <div>
-                    <label className="block text-[11px] font-medium text-stone-600">
-                      Colors (comma-separated)
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-medium text-stone-600">
+                        Colors
+                      </label>
+                      <span className="text-[10px] text-stone-400 font-normal">Optional</span>
+                    </div>
                     <input
                       type="text"
                       value={sharedColors}
                       onChange={(e) => setSharedColors(e.target.value)}
-                      placeholder="e.g. Black, White, Titanium, Pink"
+                      placeholder="e.g. Black, White, Pink (or leave blank)"
                       className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
                     />
                   </div>
+
                   <div>
                     <label className="block text-[11px] font-medium text-amber-800">
                       Wholesale MOQ (pcs)
@@ -809,6 +934,7 @@ export default function AdminPage() {
                       className="mt-1 w-full rounded-lg border border-amber-300 bg-amber-50/50 px-2.5 py-1.5 text-xs font-semibold"
                     />
                   </div>
+
                   <div>
                     <label className="block text-[11px] font-medium text-stone-600">
                       Retail Price (₦)
@@ -822,6 +948,7 @@ export default function AdminPage() {
                       className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
                     />
                   </div>
+
                   <div>
                     <label className="block text-[11px] font-medium text-stone-600">
                       Wholesale Price (₦)
@@ -835,6 +962,7 @@ export default function AdminPage() {
                       className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
                     />
                   </div>
+
                   <div>
                     <div className="flex items-center justify-between">
                       <label className="text-[11px] font-medium text-emerald-700">
@@ -857,8 +985,9 @@ export default function AdminPage() {
                       placeholder="Leave blank if Sea only"
                       className="mt-1 w-full rounded-lg border border-emerald-300 bg-emerald-50/40 px-2.5 py-1.5 text-xs"
                     />
-                    <span className="text-[10px] text-stone-400">Delivery within 3 weeks (optional)</span>
+                    <span className="text-[10px] text-stone-400">Within 3 weeks (optional)</span>
                   </div>
+
                   <div>
                     <label className="block text-[11px] font-medium text-blue-700">
                       Est. Sea Cargo (₦)
@@ -871,7 +1000,7 @@ export default function AdminPage() {
                       placeholder="e.g. 1500 (optional)"
                       className="mt-1 w-full rounded-lg border border-blue-300 bg-blue-50/40 px-2.5 py-1.5 text-xs"
                     />
-                    <span className="text-[10px] text-stone-400">Delivery within 3 months (optional)</span>
+                    <span className="text-[10px] text-stone-400">Within 3 months (optional)</span>
                   </div>
                 </div>
 
@@ -912,7 +1041,7 @@ export default function AdminPage() {
                   : 'Tap or click to select China product photos from gallery'}
               </span>
               <span className="text-xs text-stone-500">
-                Select multiple pictures at once — JPG, PNG, WEBP
+                Select multiple pictures at once — JPG, PNG, WEBP. Sizes and colors are optional!
               </span>
               <input
                 type="file"
@@ -929,13 +1058,13 @@ export default function AdminPage() {
           {draftItems.length > 0 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-stone-200 pb-2">
-                <div className="text-sm font-bold text-stone-900">
-                  Review Draft Products ({draftItems.length})
-                </div>
+                <span className="text-xs font-bold text-stone-700">
+                  Ready to Publish ({draftItems.length} item{draftItems.length > 1 ? 's' : ''})
+                </span>
                 <button
                   type="button"
                   onClick={() => setDraftItems([])}
-                  className="text-xs text-stone-400 hover:text-stone-600"
+                  className="text-xs text-red-600 hover:underline"
                 >
                   Clear Queue
                 </button>
@@ -970,37 +1099,55 @@ export default function AdminPage() {
                       </div>
 
                       <div className="sm:col-span-3">
-                        <label className="block text-[11px] font-medium text-stone-500">Sizes / Models</label>
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-medium text-stone-500">Sizes / Models</label>
+                          <span className="text-[10px] text-stone-400 font-normal">Optional</span>
+                        </div>
                         <input
                           type="text"
                           value={item.size}
                           onChange={(e) => updateDraftItem(item.tempId, 'size', e.target.value)}
-                          placeholder="e.g. iPhone 11, 12, 13, 14, 15"
+                          placeholder="e.g. S, M, L or leave blank"
                           className="mt-0.5 w-full rounded-md border border-stone-300 px-2 py-1 text-xs"
                         />
                       </div>
 
                       <div className="sm:col-span-3">
-                        <label className="block text-[11px] font-medium text-stone-700">Colors</label>
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-medium text-stone-700">Colors</label>
+                          <span className="text-[10px] text-stone-400 font-normal">Optional</span>
+                        </div>
                         <input
                           type="text"
                           value={item.colors}
                           onChange={(e) => updateDraftItem(item.tempId, 'colors', e.target.value)}
-                          placeholder="e.g. Black, White, Clear"
+                          placeholder="e.g. Black, White or leave blank"
                           className="mt-0.5 w-full rounded-md border border-stone-300 bg-stone-50/50 px-2 py-1 text-xs font-medium text-stone-900"
                         />
                       </div>
 
                       <div className="sm:col-span-2">
-                        <label className="block text-[11px] font-medium text-amber-800">MOQ (pcs)</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.moq}
-                          onChange={(e) => updateDraftItem(item.tempId, 'moq', e.target.value)}
-                          placeholder="50"
-                          className="mt-0.5 w-full rounded-md border border-amber-300 bg-amber-50/50 px-2 py-1 text-xs font-semibold"
-                        />
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-medium text-amber-800">MOQ & Scope</label>
+                        </div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.moq}
+                            onChange={(e) => updateDraftItem(item.tempId, 'moq', e.target.value)}
+                            placeholder="50"
+                            className="w-14 rounded-md border border-amber-300 bg-amber-50/50 px-1.5 py-1 text-xs font-semibold"
+                          />
+                          <select
+                            value={item.moqScope || 'item'}
+                            onChange={(e) => updateDraftItem(item.tempId, 'moqScope', e.target.value as any)}
+                            className="text-[10px] rounded border border-stone-300 px-1 py-1 bg-white font-medium"
+                          >
+                            <option value="item">Item</option>
+                            <option value="category">Category</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
 
@@ -1053,19 +1200,18 @@ export default function AdminPage() {
                           step="0.01"
                           value={item.estSeaShipping}
                           onChange={(e) => updateDraftItem(item.tempId, 'estSeaShipping', e.target.value)}
-                          placeholder="0"
+                          placeholder="e.g. 1500"
                           className="mt-0.5 w-full rounded-md border border-blue-300 bg-blue-50/30 px-2 py-1 text-xs"
                         />
                       </div>
 
-                      <div className="flex justify-end">
+                      <div className="flex items-center justify-end">
                         <button
                           type="button"
                           onClick={() => removeDraftItem(item.tempId)}
-                          className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs text-red-600 hover:bg-red-50"
+                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Remove
+                          <Trash2 className="h-3.5 w-3.5" /> Remove
                         </button>
                       </div>
                     </div>
@@ -1073,13 +1219,15 @@ export default function AdminPage() {
                 ))}
               </div>
 
+              {/* Publish Button */}
               <button
                 type="button"
                 disabled={savingBatch}
                 onClick={handleSaveAllDraftProducts}
-                className="w-full rounded-xl bg-stone-900 py-3 text-sm font-bold text-white shadow-xs hover:bg-[#fa9d26] transition disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-stone-900 py-3 text-xs font-bold text-white shadow-sm hover:bg-[#fa9d26] transition disabled:opacity-50"
               >
-                {savingBatch ? 'Publishing Products to Storefront...' : `Publish All ${draftItems.length} Products to Storefront`}
+                <Check className="h-4 w-4" />
+                {savingBatch ? 'Publishing to China Catalog...' : `Publish All ${draftItems.length} Product(s) Now`}
               </button>
             </div>
           )}
@@ -1089,45 +1237,44 @@ export default function AdminPage() {
         <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-bold text-stone-900">Published Products ({products.length})</h2>
-              <p className="text-xs text-stone-500">Catalog items currently live on your storefront.</p>
+              <h2 className="text-sm font-bold text-stone-900">3. Current Store Products ({products.length})</h2>
+              <p className="text-xs text-stone-500">Live products in your store catalog.</p>
             </div>
           </div>
 
-          {products.length === 0 ? (
-            <div className="py-10 text-center text-xs text-stone-400">No products uploaded yet.</div>
-          ) : (
-            <div className="divide-y divide-stone-100">
-              {products.map((p) => {
-                const cat = categories.find((c) => c.id === p.category_id);
-                const air = p.est_shipping_fee_air ?? p.est_shipping_fee ?? 0;
-                const sea = p.est_shipping_fee_sea ?? p.est_shipping_fee ?? 0;
+          <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
+            {products.length === 0 ? (
+              <p className="text-xs text-stone-400 py-4 text-center">No products published yet.</p>
+            ) : (
+              products.map((p) => {
+                const air = Number(p.est_shipping_fee_air ?? p.est_shipping_fee ?? 0);
+                const sea = Number(p.est_shipping_fee_sea ?? p.est_shipping_fee ?? 0);
+                const pTitle = p.name || p.title || 'Untitled';
+                const moqVal = p.wholesale_moq || p.min_order_qty || 5;
+
                 return (
-                  <div key={p.id} className="flex items-center justify-between gap-3 py-3">
-                    <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50/50 p-3 text-xs"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       {p.image_url ? (
-                        <img
-                          src={p.image_url}
-                          alt={p.name || 'Product'}
-                          className="h-12 w-12 rounded-lg border border-stone-200 object-contain bg-stone-50 p-0.5"
-                        />
+                        <img src={p.image_url} alt={pTitle} className="h-12 w-12 rounded-lg object-contain bg-white border border-stone-200 p-0.5" />
                       ) : (
-                        <div className="h-12 w-12 rounded-lg bg-stone-100 flex items-center justify-center text-[10px] text-stone-400">
-                          No img
-                        </div>
+                        <div className="h-12 w-12 rounded-lg bg-stone-200 flex items-center justify-center text-[10px] text-stone-500">No img</div>
                       )}
                       <div className="min-w-0">
-                        <div className="font-semibold text-xs text-stone-900 truncate">
-                          {p.name || p.title}
-                        </div>
-                        <div className="text-[11px] text-stone-500 flex flex-wrap gap-x-2">
-                          <span>{cat?.name || 'Uncategorized'}</span>
-                          {p.size && <span>• Size: {p.size}</span>}
-                          <span>• Retail: ₦{Number(p.retail_price).toLocaleString()}</span>
-                          <span>• Wholesale: ₦{Number(p.wholesale_price).toLocaleString()}</span>
-                          {air > 0 && <span className="text-emerald-700">• Air: ₦{Number(air).toLocaleString()}</span>}
-                          {sea > 0 && <span className="text-blue-700">• Sea: ₦{Number(sea).toLocaleString()}</span>}
-                          {air <= 0 && sea > 0 && <span className="text-blue-700 font-semibold">• Sea Only</span>}
+                        <div className="font-semibold text-stone-900 truncate">{pTitle}</div>
+                        <div className="text-[11px] text-stone-500 flex flex-wrap gap-2 mt-0.5">
+                          <span>Retail: ₦{Number(p.retail_price).toLocaleString()}</span>
+                          <span className="font-medium text-amber-700">Wholesale: ₦{Number(p.wholesale_price).toLocaleString()} (MOQ: {moqVal} pcs)</span>
+                          {p.size && <span>Size: {p.size}</span>}
+                          {p.colors && p.colors.length > 0 && <span>Colors: {p.colors.join(', ')}</span>}
+                          {air <= 0 && sea > 0 ? (
+                            <span className="text-blue-700 font-medium">Sea Only (₦{sea.toLocaleString()})</span>
+                          ) : (
+                            <span>Air: ₦{air.toLocaleString()} • Sea: ₦{sea.toLocaleString()}</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1135,16 +1282,16 @@ export default function AdminPage() {
                     <button
                       type="button"
                       onClick={() => handleDeleteProduct(p.id)}
-                      className="rounded-md p-1.5 text-stone-400 hover:bg-red-50 hover:text-red-600 transition shrink-0"
-                      title="Delete product"
+                      className="ml-3 p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-white"
+                      title="Delete Product"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 );
-              })}
-            </div>
-          )}
+              })
+            )}
+          </div>
         </section>
       </main>
     </div>
