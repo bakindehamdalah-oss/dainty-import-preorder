@@ -1030,6 +1030,7 @@ export default function StorefrontPage() {
     const [matrixProduct, setMatrixProduct] = useState<Product | null>(null);
   const [loadedOrderNotice, setLoadedOrderNotice] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [activeOrderId, setActiveOrderId] = useState<string>('');
   const isInitialCartLoadRef = useRef(false);
 
   useEffect(() => {
@@ -1170,6 +1171,8 @@ export default function StorefrontPage() {
       console.warn('Failed to save cart to localStorage:', e);
     }
   }, [cart, mode, shippingMethod]);
+
+
 
   const categoryMap = useMemo(() => {
     const map = new Map<string, Category>();
@@ -1334,6 +1337,62 @@ export default function StorefrontPage() {
   // Shipping timelines: Air within 3 weeks, Sea within 3 months
   const shippingTimeline = shippingMethod === 'air' ? 'Within 3 weeks' : 'Within 3 months';
 
+  // Generate unique short order reference ID for active cart
+  useEffect(() => {
+    if (cart.length > 0 && !activeOrderId) {
+      const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+      let id = 'ORD-';
+      for (let i = 0; i < 5; i++) {
+        id += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      setActiveOrderId(id);
+    } else if (cart.length === 0 && activeOrderId) {
+      setActiveOrderId('');
+    }
+  }, [cart, activeOrderId]);
+
+  // Sync active preorder to Supabase preorders table and localStorage for short catalog link
+  useEffect(() => {
+    if (!activeOrderId || cart.length === 0) return;
+
+    const orderRecord = {
+      id: activeOrderId,
+      items: cart.map((i) => ({
+        productId: i.product.id,
+        title: i.product.name || i.product.title || 'Product',
+        price: mode === 'wholesale' ? i.product.wholesale_price : i.product.retail_price,
+        quantity: i.quantity,
+        selectedSize: i.selectedSize || null,
+        selectedColor: i.selectedColor || null,
+        selectedImage: i.selectedImage || i.product.image_url || (i.product.images && i.product.images[0]) || null,
+        estShippingAir: Number(i.product.est_shipping_fee_air || 0),
+        estShippingSea: Number(i.product.est_shipping_fee_sea || 0),
+      })),
+      total_pieces: totalCartCount,
+      total_amount: subtotal,
+      mode,
+      shipping_method: shippingMethod,
+      est_shipping_fee: estimatedShipping,
+      shipping_timeline: shippingTimeline,
+      created_at: new Date().toISOString(),
+    };
+
+    try {
+      localStorage.setItem(`dainty_order_${activeOrderId}`, JSON.stringify(orderRecord));
+    } catch (e) {
+      console.warn('LocalStorage order save error:', e);
+    }
+
+    async function syncToSupabase() {
+      try {
+        await supabase.from('preorders').upsert([orderRecord]);
+      } catch (err) {
+        console.warn('Supabase preorders notice:', err);
+      }
+    }
+    syncToSupabase();
+  }, [cart, activeOrderId, mode, shippingMethod, subtotal, totalCartCount, estimatedShipping, shippingTimeline]);
+
   // Check Wholesale MOQ requirements for Item-Level, Category-Level, and All-Products scopes
   const wholesaleMoqWarnings = useMemo(() => {
     if (mode !== 'wholesale') return [];
@@ -1424,26 +1483,8 @@ export default function StorefrontPage() {
   function buildShareableCartUrl(): string {
     if (typeof window === 'undefined') return '';
     const origin = window.location.origin;
-    const minimalCart = cart.map((i) => ({
-      p: i.product.id,
-      q: i.quantity,
-      s: i.selectedSize || undefined,
-      c: i.selectedColor || undefined,
-      img: i.selectedImage || undefined,
-    }));
-    const payload = {
-      c: minimalCart,
-      m: mode,
-      sm: shippingMethod,
-      t: Date.now(),
-    };
-    try {
-      const json = JSON.stringify(payload);
-      const b64 = btoa(encodeURIComponent(json));
-      return `${origin}/?order=${encodeURIComponent(b64)}`;
-    } catch {
-      return `${origin}/`;
-    }
+    const id = activeOrderId || 'ORD-NEW';
+    return `${origin}/order?id=${id}`;
   }
 
   function handleCopyCartLink() {
@@ -1461,6 +1502,7 @@ export default function StorefrontPage() {
 
     const lines: string[] = [
       `*🇨🇳 China Factory Preorder - Dainty Import*`,
+      activeOrderId ? `*Order Ref:* #${activeOrderId}` : '',
       '',
       `*📦 Total Items Ordered:* ${cart.length} item${cart.length === 1 ? '' : 's'}`,
       `*🔢 Total Pieces:* ${totalCartCount} pcs`,
@@ -1468,14 +1510,14 @@ export default function StorefrontPage() {
       `*🚢 Shipping Method:* ${shippingMethod.toUpperCase()} (${shippingTimeline})`,
       `*📦 Est. Shipping Fee:* ${estimatedShipping > 0 ? `₦${estimatedShipping.toLocaleString()}` : 'To be confirmed upon arrival in Nigeria'}`,
       '',
-      `*🛒 View Cart (Click link below to view full cart and all items on website):*`,
+      `*🛒 View Full Cart & Catalog (Click link below):*`,
       shareableLink,
       '',
       `*China Sourcing & Preorder Terms*`,
       `• *Initial Payment:* The initial payment covers only the cost of purchasing your item. Your order will be shipped once the purchase payment has been completed.`,
       `• *Shipping Estimate:* Shipping fees provided are estimates. The exact shipping cost will be confirmed when your order arrives in Nigeria.`,
       `• *Shipping Payment:* Shipping fees are paid separately when your order arrives in Nigeria.`
-    ];
+    ].filter(Boolean);
 
     const encoded = encodeURIComponent(lines.join('\n'));
     return cleanPhone ? `https://wa.me/${cleanPhone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
