@@ -10,7 +10,7 @@ type Category = {
   name: string;
   slug: string;
   wholesale_moq?: number;
-  moq_scope?: 'item' | 'category';
+  moq_scope?: 'all' | 'category' | 'item';
 };
 
 type Product = {
@@ -23,7 +23,7 @@ type Product = {
   size_options?: string | null;
   wholesale_moq?: number | null;
   min_order_qty?: number | null;
-  moq_scope?: 'item' | 'category' | null;
+  moq_scope?: 'all' | 'category' | 'item' | null;
   description: string | null;
   image_url: string | null;
   images?: string[] | null;
@@ -48,7 +48,7 @@ type DraftPhotoItem = {
   additionalImages: string[];
   colors: string;
   moq: string;
-  moqScope: 'item' | 'category';
+  moqScope: 'all' | 'category' | 'item';
   description: string;
 };
 
@@ -76,7 +76,10 @@ export default function AdminPage() {
   const [catName, setCatName] = useState('');
   const [catSlug, setCatSlug] = useState('');
   const [catMoq, setCatMoq] = useState('50');
-  const [catMoqScope, setCatMoqScope] = useState<'item' | 'category'>('category');
+  const [catMoqScope, setCatMoqScope] = useState<'all' | 'category' | 'item'>('category');
+  const [storewideMoq, setStorewideMoq] = useState('10');
+  const [applyingStorewideMoq, setApplyingStorewideMoq] = useState(false);
+  const [uploadingItemPhotoId, setUploadingItemPhotoId] = useState<string | null>(null);
   const [savingCat, setSavingCat] = useState(false);
   const [applyingCategoryMoq, setApplyingCategoryMoq] = useState(false);
 
@@ -87,7 +90,7 @@ export default function AdminPage() {
   const [savingBatch, setSavingBatch] = useState(false);
 
   // Upload mode: single product with multiple colors/photos OR separate products
-  const [uploadMode, setUploadMode] = useState<'separate' | 'single_product'>('separate');
+  const [uploadMode, setUploadMode] = useState<'single_product' | 'separate'>('single_product');
 
   // "Same specifications, prices and everything" batch mode
   const [sameForAll, setSameForAll] = useState(true);
@@ -97,7 +100,7 @@ export default function AdminPage() {
   const [sharedRetail, setSharedRetail] = useState('');
   const [sharedWholesale, setSharedWholesale] = useState('');
   const [sharedMoq, setSharedMoq] = useState('50');
-  const [sharedMoqScope, setSharedMoqScope] = useState<'item' | 'category'>('category');
+  const [sharedMoqScope, setSharedMoqScope] = useState<'all' | 'category' | 'item'>('all');
   const [sharedAirShipping, setSharedAirShipping] = useState('');
   const [sharedSeaShipping, setSharedSeaShipping] = useState('');
   const [sharedDescription, setSharedDescription] = useState('');
@@ -236,6 +239,138 @@ export default function AdminPage() {
       setStatusMsg(`Category "${data?.name || catName}" added with MOQ ${targetMoq} (${targetScope === 'item' ? 'Per Item' : 'Whole Category'}).`);
       await refreshData();
     }
+  }
+
+    async function applyStorewideMixAndMatchToAllProducts() {
+    const targetMoq = Number(storewideMoq || 10);
+    if (!Number.isFinite(targetMoq) || targetMoq < 1) {
+      setErrorMsg('Enter a valid store-wide minimum of at least 1 piece.');
+      return;
+    }
+
+    if (!window.confirm(`Apply a ${targetMoq}-piece minimum across ALL products in the entire store? Customers can mix & match any designs from any category to reach ${targetMoq} pieces total.`)) {
+      return;
+    }
+
+    setApplyingStorewideMoq(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+
+    // Update categories
+    await supabase
+      .from('categories')
+      .update({ wholesale_moq: targetMoq, moq_scope: 'all' })
+      .neq('id', '00000000-0000-0000-0000-000000000000');
+
+    // Update products
+    let productsUpdate = await supabase
+      .from('products')
+      .update({ wholesale_moq: targetMoq, min_order_qty: targetMoq, moq_scope: 'all' })
+      .neq('id', '00000000-0000-0000-0000-000000000000');
+
+    if (productsUpdate.error && productsUpdate.error.message?.toLowerCase().includes('schema cache')) {
+      productsUpdate = await supabase
+        .from('products')
+        .update({ wholesale_moq: targetMoq, min_order_qty: targetMoq })
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+    }
+
+    setApplyingStorewideMoq(false);
+    if (productsUpdate.error) {
+      setErrorMsg(`Failed to update store-wide MOQ: ${productsUpdate.error.message}`);
+      return;
+    }
+
+    setSharedMoq(String(targetMoq));
+    setSharedMoqScope('all');
+    setStatusMsg(`Applied store-wide mix & match: ${targetMoq} pieces minimum across all products! Customers can mix & match any items with no MOQ per design.`);
+    await refreshData();
+  }
+
+  async function handleAddPhotosToDraftItem(tempId: string, filesList: FileList | null) {
+    if (!filesList || filesList.length === 0) return;
+    const files = Array.from(filesList);
+    setUploadingItemPhotoId(tempId);
+    setErrorMsg(null);
+    setStatusMsg(`Uploading ${files.length} photo(s) to product...`);
+
+    const bucketCandidates = ['product images', 'productimages', 'product-images'];
+    const uploadedUrls: string[] = [];
+
+    for (const file of files) {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filePath = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${cleanName}`;
+      for (const bName of bucketCandidates) {
+        try {
+          const { error: upErr } = await supabase.storage.from(bName).upload(filePath, file, { cacheControl: '3600', upsert: true });
+          if (!upErr) {
+            const { data } = supabase.storage.from(bName).getPublicUrl(filePath);
+            if (data?.publicUrl) {
+              uploadedUrls.push(data.publicUrl);
+              break;
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    setUploadingItemPhotoId(null);
+    if (uploadedUrls.length > 0) {
+      setDraftItems((prev) =>
+        prev.map((item) => {
+          if (item.tempId !== tempId) return item;
+          const currentMain = item.imageUrl || uploadedUrls[0];
+          const newAdditional = item.imageUrl
+            ? [...(item.additionalImages || []), ...uploadedUrls]
+            : [...(item.additionalImages || []), ...uploadedUrls.slice(1)];
+          return {
+            ...item,
+            imageUrl: currentMain,
+            additionalImages: newAdditional,
+          };
+        })
+      );
+      setStatusMsg(`Attached ${uploadedUrls.length} picture(s) to this product.`);
+    } else {
+      setErrorMsg('Failed to upload pictures. Please check Supabase Storage bucket.');
+    }
+  }
+
+  function handleSetMainPhoto(tempId: string, targetUrl: string) {
+    setDraftItems((prev) =>
+      prev.map((item) => {
+        if (item.tempId !== tempId) return item;
+        if (item.imageUrl === targetUrl) return item;
+        const all = [item.imageUrl, ...(item.additionalImages || [])].filter(Boolean);
+        const remaining = all.filter((u) => u !== targetUrl);
+        return {
+          ...item,
+          imageUrl: targetUrl,
+          additionalImages: remaining,
+        };
+      })
+    );
+  }
+
+  function handleRemovePhoto(tempId: string, targetUrl: string) {
+    setDraftItems((prev) =>
+      prev.map((item) => {
+        if (item.tempId !== tempId) return item;
+        if (item.imageUrl === targetUrl) {
+          const nextMain = item.additionalImages[0] || '';
+          return {
+            ...item,
+            imageUrl: nextMain,
+            additionalImages: item.additionalImages.slice(1),
+          };
+        }
+        return {
+          ...item,
+          additionalImages: (item.additionalImages || []).filter((u) => u !== targetUrl),
+        };
+      })
+    );
   }
 
   async function applyCategoryMixAndMatchToExistingProducts() {
@@ -383,24 +518,44 @@ export default function AdminPage() {
       const mainPhoto = newUploadedUrls[0];
       const extraPhotos = newUploadedUrls.slice(1).map((u) => u.url);
 
-      const newItem: DraftPhotoItem = {
-        tempId: `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        name: sharedBaseName.trim() || cleanFileTitle(mainPhoto.originalName),
-        size: sameForAll ? sharedSize : '',
-        colors: sameForAll ? sharedColors : '',
-        retailPrice: sameForAll ? sharedRetail : '',
-        wholesalePrice: sameForAll ? sharedWholesale : '',
-        moq: sameForAll ? (sharedMoq || defaultMoq) : defaultMoq,
-        moqScope: sameForAll ? sharedMoqScope : defaultScope,
-        estAirShipping: sameForAll ? sharedAirShipping : '',
-        estSeaShipping: sameForAll ? sharedSeaShipping : '',
-        imageUrl: mainPhoto.url,
-        additionalImages: extraPhotos,
-        description: sameForAll ? sharedDescription : '',
-      };
+      if (draftItems.length === 1) {
+        setDraftItems((prev) =>
+          prev.map((item, idx) => {
+            if (idx === 0) {
+              const currentMain = item.imageUrl || mainPhoto.url;
+              const newAdditional = item.imageUrl
+                ? [...(item.additionalImages || []), ...newUploadedUrls.map((u) => u.url)]
+                : [...(item.additionalImages || []), ...extraPhotos];
+              return {
+                ...item,
+                imageUrl: currentMain,
+                additionalImages: newAdditional,
+              };
+            }
+            return item;
+          })
+        );
+        setStatusMsg(`Added ${newUploadedUrls.length} more photo(s) to your product draft.`);
+      } else {
+        const newItem: DraftPhotoItem = {
+          tempId: `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          name: sharedBaseName.trim() || cleanFileTitle(mainPhoto.originalName),
+          size: sameForAll ? sharedSize : '',
+          colors: sameForAll ? sharedColors : '',
+          retailPrice: sameForAll ? sharedRetail : '',
+          wholesalePrice: sameForAll ? sharedWholesale : '',
+          moq: sameForAll ? (sharedMoq || defaultMoq) : defaultMoq,
+          moqScope: sameForAll ? sharedMoqScope : defaultScope,
+          estAirShipping: sameForAll ? sharedAirShipping : '',
+          estSeaShipping: sameForAll ? sharedSeaShipping : '',
+          imageUrl: mainPhoto.url,
+          additionalImages: extraPhotos,
+          description: sameForAll ? sharedDescription : '',
+        };
 
-      setDraftItems((prev) => [...prev, newItem]);
-      setStatusMsg(`Created 1 multi-photo product with ${newUploadedUrls.length} angle(s)/color(s).`);
+        setDraftItems((prev) => [...prev, newItem]);
+        setStatusMsg(`Created 1 product draft with ${newUploadedUrls.length} photo(s). Review or add more below.`);
+      }
     } else {
       const createdDrafts: DraftPhotoItem[] = newUploadedUrls.map((item, idx) => {
         const base = sharedBaseName.trim();
@@ -538,9 +693,9 @@ export default function AdminPage() {
         descText = descText ? `${descText} • Colors: ${colorsList.join(', ')}` : `Colors: ${colorsList.join(', ')}`;
       }
       if (moqVal > 0) {
-        descText = descText ? `${descText} • Wholesale MOQ: ${moqVal} pcs (${moqScopeVal === 'category' ? 'Category' : 'Item'})` : `Wholesale MOQ: ${moqVal} pcs (${moqScopeVal === 'category' ? 'Category' : 'Item'})`;
+        descText = descText ? `${descText} • Wholesale MOQ: ${moqVal} pcs (${moqScopeVal === 'all' ? 'All Products' : (moqScopeVal === 'category' ? 'Category' : 'Item')})` : `Wholesale MOQ: ${moqVal} pcs (${moqScopeVal === 'all' ? 'All Products' : (moqScopeVal === 'category' ? 'Category' : 'Item')})`;
       }
-      descText = descText ? `${descText} • MOQ Scope: ${moqScopeVal === 'category' ? 'Category' : 'Item'}` : `MOQ Scope: ${moqScopeVal === 'category' ? 'Category' : 'Item'}`;
+      descText = descText ? `${descText} • MOQ Scope: ${moqScopeVal === 'all' ? 'All Products' : (moqScopeVal === 'category' ? 'Category' : 'Item')}` : `MOQ Scope: ${moqScopeVal === 'all' ? 'All Products' : (moqScopeVal === 'category' ? 'Category' : 'Item')}`;
       if (airFee <= 0 && seaFee > 0) {
         descText = descText ? `${descText} • Shipping: Sea Cargo Only` : `Shipping: Sea Cargo Only`;
       }
@@ -760,18 +915,53 @@ export default function AdminPage() {
             ))}
           </div>
 
+          {/* Store-Wide Mix & Match Across ALL Products */}
+          <div className="flex flex-col gap-2.5 rounded-xl border border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50/40 p-3.5 sm:flex-row sm:items-center sm:justify-between shadow-2xs">
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-[#fa9d26]" />
+                Store-Wide Mix & Match (Across All Products)
+              </span>
+              <p className="text-[11px] text-amber-900 leading-snug">
+                Customers can mix & match <strong>ANY products across the entire store</strong>. No minimum required for each individual design.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1 bg-white border border-amber-300 rounded-lg px-2 py-1 shadow-2xs">
+                <span className="text-[11px] font-medium text-stone-600">MOQ:</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={storewideMoq}
+                  onChange={(e) => setStorewideMoq(e.target.value)}
+                  className="w-12 text-xs font-bold text-stone-900 focus:outline-hidden"
+                  placeholder="10"
+                />
+                <span className="text-[11px] text-stone-500">pcs</span>
+              </div>
+              <button
+                type="button"
+                onClick={applyStorewideMixAndMatchToAllProducts}
+                disabled={applyingStorewideMoq}
+                className="rounded-lg bg-[#fa9d26] px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#e68c1d] transition disabled:opacity-50"
+              >
+                {applyingStorewideMoq ? 'Applying...' : `Set ${storewideMoq} pcs Store-Wide`}
+              </button>
+            </div>
+          </div>
+
           {selectedCategoryId && (
-            <div className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-amber-900">
-                <strong>Mix-and-match:</strong> Apply the category minimum across all products here. There is no minimum for each design.
+            <div className="flex flex-col gap-2 rounded-lg border border-stone-200 bg-stone-50/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-stone-700">
+                <strong>Category Mix-and-match:</strong> Apply minimum only across products in this category.
               </p>
               <button
                 type="button"
                 onClick={applyCategoryMixAndMatchToExistingProducts}
                 disabled={applyingCategoryMoq}
-                className="shrink-0 rounded-lg bg-amber-700 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
+                className="shrink-0 rounded-lg bg-stone-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-stone-900 disabled:opacity-50"
               >
-                {applyingCategoryMoq ? 'Applying…' : `Apply ${sharedMoq || '10'}-piece category MOQ`}
+                {applyingCategoryMoq ? 'Applying…' : `Apply ${sharedMoq || '10'}-pc Category MOQ`}
               </button>
             </div>
           )}
@@ -841,27 +1031,27 @@ export default function AdminPage() {
           <div className="flex flex-wrap gap-2 text-xs border-b border-stone-100 pb-3">
             <button
               type="button"
-              onClick={() => setUploadMode('separate')}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 font-medium transition ${
-                uploadMode === 'separate'
-                  ? 'bg-stone-900 text-white shadow-xs'
-                  : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-              }`}
-            >
-              <Layers className="h-4 w-4" />
-              Separate Products (1 item per photo)
-            </button>
-            <button
-              type="button"
               onClick={() => setUploadMode('single_product')}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 font-medium transition ${
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 font-medium transition ${
                 uploadMode === 'single_product'
-                  ? 'bg-stone-900 text-white shadow-xs'
+                  ? 'bg-[#fa9d26] text-white shadow-xs font-bold'
                   : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
               }`}
             >
               <ImageIcon className="h-4 w-4" />
-              Single Product (Multiple photos/angles/colors)
+              Single Product (Multiple photos / angles / colors)
+            </button>
+            <button
+              type="button"
+              onClick={() => setUploadMode('separate')}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 font-medium transition ${
+                uploadMode === 'separate'
+                  ? 'bg-stone-900 text-white shadow-xs font-bold'
+                  : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+              }`}
+            >
+              <Layers className="h-4 w-4" />
+              Bulk Upload (1 product per photo)
             </button>
           </div>
 
@@ -896,22 +1086,22 @@ export default function AdminPage() {
                       Target: {sharedMoq} pieces
                     </span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
                     <button
                       type="button"
-                      onClick={() => setSharedMoqScope('item')}
+                      onClick={() => setSharedMoqScope('all')}
                       className={`rounded-lg border p-2.5 text-left text-xs transition ${
-                        sharedMoqScope === 'item'
+                        sharedMoqScope === 'all'
                           ? 'border-[#fa9d26] bg-white ring-2 ring-[#fa9d26]/30 shadow-xs text-stone-900'
                           : 'border-stone-200 bg-white/60 text-stone-600 hover:bg-white'
                       }`}
                     >
                       <div className="flex items-center gap-1.5 font-bold text-stone-900">
-                        <Box className="h-3.5 w-3.5 text-[#fa9d26]" />
-                        <span>Per Item Only (Product Specific)</span>
+                        <Sparkles className="h-3.5 w-3.5 text-[#fa9d26]" />
+                        <span>Across All Products</span>
                       </div>
                       <p className="mt-1 text-[11px] text-stone-500 leading-snug">
-                        This setting is only for products that must meet their own minimum. It is not used for category mix-and-match orders.
+                        Customers can mix & match <strong>any products in entire store</strong> to reach <strong>{sharedMoq || 10} pcs</strong> total. No MOQ per design!
                       </p>
                     </button>
 
@@ -926,10 +1116,28 @@ export default function AdminPage() {
                     >
                       <div className="flex items-center gap-1.5 font-bold text-stone-900">
                         <FolderPlus className="h-3.5 w-3.5 text-blue-600" />
-                        <span>Whole Category (Mix & Match)</span>
+                        <span>Whole Category</span>
                       </div>
                       <p className="mt-1 text-[11px] text-stone-500 leading-snug">
-                        Customers can mix designs, sizes, and colors across this category to reach <strong>{sharedMoq || 10} pieces total</strong>. There is <strong>no MOQ for each design</strong>.
+                        Customers can mix designs across this category to reach <strong>{sharedMoq || 10} pcs</strong> total.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSharedMoqScope('item')}
+                      className={`rounded-lg border p-2.5 text-left text-xs transition ${
+                        sharedMoqScope === 'item'
+                          ? 'border-[#fa9d26] bg-white ring-2 ring-[#fa9d26]/30 shadow-xs text-stone-900'
+                          : 'border-stone-200 bg-white/60 text-stone-600 hover:bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-stone-900">
+                        <Box className="h-3.5 w-3.5 text-stone-700" />
+                        <span>Per Item Only</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-stone-500 leading-snug">
+                        Must buy at least <strong>{sharedMoq || 5} pcs</strong> of this exact product.
                       </p>
                     </button>
                   </div>
@@ -1098,17 +1306,24 @@ export default function AdminPage() {
               <span className="text-sm font-semibold text-stone-800">
                 {uploadingPhotos
                   ? uploadProgress || 'Uploading photos...'
+                  : uploadMode === 'single_product'
+                  ? 'Tap or click to select product photos from gallery'
                   : 'Tap or click to select China product photos from gallery'}
               </span>
               <span className="text-xs text-stone-500">
-                Select multiple pictures at once — JPG, PNG, WEBP. Sizes and colors are optional!
+                {uploadMode === 'single_product'
+                  ? 'Select multiple pictures at once (JPG, PNG, WEBP, HEIC). You can also add more angles anytime below!'
+                  : 'Select multiple pictures at once — each photo will become a separate product.'}
               </span>
               <input
                 type="file"
-                accept="image/*"
+                accept="image/*,image/jpeg,image/png,image/webp,image/heic"
                 multiple
                 disabled={uploadingPhotos || savingBatch}
-                onChange={handleGalleryFilesChange}
+                onChange={(e) => {
+                  handleGalleryFilesChange(e);
+                  e.target.value = '';
+                }}
                 className="sr-only"
               />
             </label>
@@ -1200,12 +1415,13 @@ export default function AdminPage() {
                             className="w-14 rounded-md border border-amber-300 bg-amber-50/50 px-1.5 py-1 text-xs font-semibold"
                           />
                           <select
-                            value={item.moqScope || 'category'}
+                            value={item.moqScope || 'all'}
                             onChange={(e) => updateDraftItem(item.tempId, 'moqScope', e.target.value as any)}
                             className="text-[10px] rounded border border-stone-300 px-1 py-1 bg-white font-medium"
                           >
-                            <option value="item">Item</option>
-                            <option value="category">Category total (mix & match)</option>
+                            <option value="all">Across all products</option>
+                            <option value="category">Category total</option>
+                            <option value="item">Item only</option>
                           </select>
                         </div>
                       </div>
@@ -1273,6 +1489,91 @@ export default function AdminPage() {
                         >
                           <Trash2 className="h-3.5 w-3.5" /> Remove
                         </button>
+                      </div>
+                    </div>
+
+                    {/* Photo Gallery with multi-picture display, thumbnails, set main photo, and + Add More Photos */}
+                    <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <ImageIcon className="h-3.5 w-3.5 text-stone-700" />
+                          <span className="text-xs font-bold text-stone-800">
+                            Product Photos ({1 + (item.additionalImages?.length || 0)})
+                          </span>
+                          <span className="text-[10px] text-stone-500">
+                            • Tap any photo to make it the Main photo
+                          </span>
+                        </div>
+                        {uploadingItemPhotoId === item.tempId && (
+                          <span className="text-[11px] font-semibold text-[#fa9d26] animate-pulse">
+                            Uploading photos...
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                        {/* Main Photo Card */}
+                        {item.imageUrl && (
+                          <div className="relative group shrink-0">
+                            <img
+                              src={item.imageUrl}
+                              alt={item.name}
+                              className="h-16 w-16 rounded-lg border-2 border-[#fa9d26] object-contain bg-white p-1 shadow-2xs"
+                            />
+                            <span className="absolute -top-1.5 -left-1.5 rounded-full bg-[#fa9d26] px-1.5 py-0.5 text-[9px] font-bold text-white shadow-xs">
+                              Main
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePhoto(item.tempId, item.imageUrl)}
+                              className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-red-600 text-white flex items-center justify-center text-[10px] font-bold hover:bg-red-700 shadow-xs"
+                              title="Remove photo"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Additional Angle Photos */}
+                        {(item.additionalImages || []).map((imgUrl, iIdx) => (
+                          <div key={iIdx} className="relative group shrink-0">
+                            <img
+                              src={imgUrl}
+                              alt={`Angle ${iIdx + 1}`}
+                              onClick={() => handleSetMainPhoto(item.tempId, imgUrl)}
+                              className="h-16 w-16 rounded-lg border border-stone-300 object-contain bg-white p-1 cursor-pointer hover:border-[#fa9d26] hover:scale-105 transition shadow-2xs"
+                              title="Click to set as Main photo"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePhoto(item.tempId, imgUrl)}
+                              className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-red-600 text-white flex items-center justify-center text-[10px] font-bold hover:bg-red-700 shadow-xs"
+                              title="Remove photo"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+
+                        {/* + Add More Photos Button for this single product */}
+                        <label className="flex h-16 w-24 shrink-0 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-stone-300 bg-white hover:border-[#fa9d26] hover:bg-amber-50/40 transition text-center p-1 shadow-2xs">
+                          <Plus className="h-4 w-4 text-stone-700" />
+                          <span className="text-[10px] font-bold text-stone-800 leading-tight mt-0.5">
+                            + Add Photos
+                          </span>
+                          <span className="text-[8px] text-stone-500 leading-tight">Pick 1 or more</span>
+                          <input
+                            type="file"
+                            accept="image/*,image/jpeg,image/png,image/webp,image/heic"
+                            multiple
+                            disabled={uploadingItemPhotoId === item.tempId || savingBatch}
+                            onChange={(e) => {
+                              handleAddPhotosToDraftItem(item.tempId, e.target.files);
+                              e.target.value = '';
+                            }}
+                            className="sr-only"
+                          />
+                        </label>
                       </div>
                     </div>
                   </div>
