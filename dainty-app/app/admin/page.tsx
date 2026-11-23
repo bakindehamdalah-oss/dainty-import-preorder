@@ -3,7 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Session } from '@supabase/supabase-js';
-import { Upload, Trash2, Plus, LogOut, Check, FolderPlus, RefreshCw, X, ShieldAlert, Sparkles, Layers, Image as ImageIcon, Ship, Plane, Tag, Box, Info } from 'lucide-react';
+import { Upload, Trash2, Plus, LogOut, Check, FolderPlus, RefreshCw, X, ShieldAlert, Sparkles, Layers, Image as ImageIcon, Ship, Plane, Tag, Box, Info, Pencil, Save, Settings, Phone, Search, Sliders, Edit2, CheckSquare } from 'lucide-react';
 
 type Category = {
   id: string;
@@ -34,6 +34,31 @@ type Product = {
   est_shipping_fee: number | null;
   est_shipping_fee_air?: number | null;
   est_shipping_fee_sea?: number | null;
+};
+
+
+type EditProductState = {
+  id: string;
+  name: string;
+  categoryId: string;
+  retailPrice: string;
+  wholesalePrice: string;
+  moq: string;
+  moqScope: 'all' | 'category' | 'item';
+  estAirShipping: string;
+  estSeaShipping: string;
+  size: string;
+  colors: string;
+  description: string;
+  imageUrl: string;
+  images: string[];
+};
+
+type EditCategoryState = {
+  id: string;
+  name: string;
+  wholesale_moq: string;
+  moq_scope: 'all' | 'category' | 'item';
 };
 
 type DraftPhotoItem = {
@@ -119,6 +144,26 @@ export default function AdminPage() {
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Editing published products
+  const [editingProduct, setEditingProduct] = useState<EditProductState | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [uploadingEditPhoto, setUploadingEditPhoto] = useState(false);
+
+  // Editing categories
+  const [editingCategory, setEditingCategory] = useState<EditCategoryState | null>(null);
+  const [savingCategoryEdit, setSavingCategoryEdit] = useState(false);
+  const [managingCategories, setManagingCategories] = useState(false);
+
+  // Store WhatsApp settings
+  const [storeWhatsapp, setStoreWhatsapp] = useState('');
+  const [savingWhatsapp, setSavingWhatsapp] = useState(false);
+  const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
+
+  // Search & filter in published products
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [catalogCategoryFilter, setCatalogCategoryFilter] = useState('all');
+
+
   const [catName, setCatName] = useState('');
   const [catSlug, setCatSlug] = useState('');
   const [catMoq, setCatMoq] = useState('50');
@@ -165,10 +210,15 @@ export default function AdminPage() {
 
   async function refreshData() {
     setErrorMsg(null);
-    const [catsRes, prodsRes] = await Promise.all([
+    const [catsRes, prodsRes, settingsRes] = await Promise.all([
       supabase.from('categories').select('*').order('name', { ascending: true }),
       supabase.from('products').select('*').order('created_at', { ascending: false }),
+      supabase.from('store_settings').select('*').eq('id', 1).maybeSingle(),
     ]);
+
+    if (settingsRes.data?.whatsapp_number) {
+      setStoreWhatsapp(settingsRes.data.whatsapp_number);
+    }
 
     if (catsRes.error || prodsRes.error) {
       setErrorMsg(
@@ -935,6 +985,258 @@ export default function AdminPage() {
     }
   }
 
+  
+  // ==========================================
+  // EDIT PUBLISHED PRODUCT HANDLERS
+  // ==========================================
+  function startEditingProduct(p: Product) {
+    const air = p.est_shipping_fee_air ?? (p.est_shipping_fee && p.est_shipping_fee > 0 ? p.est_shipping_fee : null);
+    const sea = p.est_shipping_fee_sea ?? (p.est_shipping_fee && p.est_shipping_fee > 0 ? p.est_shipping_fee : null);
+    const allImages = getProductAllImages(p);
+    const cleanDesc = (p.description || '').replace(/<!--dainty_images:.*?-->/g, '').trim();
+
+    setEditingProduct({
+      id: p.id,
+      name: p.name || p.title || '',
+      categoryId: p.category_id || '',
+      retailPrice: String(p.retail_price ?? 0),
+      wholesalePrice: String(p.wholesale_price ?? 0),
+      moq: String(p.wholesale_moq || p.min_order_qty || 5),
+      moqScope: (p.moq_scope as 'all' | 'category' | 'item') || 'category',
+      estAirShipping: air !== null && air !== undefined && air > 0 ? String(air) : '',
+      estSeaShipping: sea !== null && sea !== undefined && sea > 0 ? String(sea) : '',
+      size: p.size || (Array.isArray(p.sizes) ? p.sizes.join(', ') : '') || p.size_options || '',
+      colors: (Array.isArray(p.colors) ? p.colors.join(', ') : '') || p.color_options || '',
+      description: cleanDesc,
+      imageUrl: p.image_url || allImages[0] || '',
+      images: allImages,
+    });
+  }
+
+  async function handleSaveEditedProduct(e: FormEvent) {
+    e.preventDefault();
+    if (!editingProduct) return;
+
+    setSavingEdit(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+
+    const cleanName = editingProduct.name.trim();
+    const retail = Number(editingProduct.retailPrice) || 0;
+    const wholesale = Number(editingProduct.wholesalePrice) || 0;
+    const moqVal = Number(editingProduct.moq) || 1;
+    const airFee = editingProduct.estAirShipping ? Number(editingProduct.estAirShipping) : 0;
+    const seaFee = editingProduct.estSeaShipping ? Number(editingProduct.estSeaShipping) : 0;
+
+    const sizesList = editingProduct.size
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const colorsList = editingProduct.colors
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean);
+
+    let descText = editingProduct.description.trim();
+    if (editingProduct.images.length > 0) {
+      descText = descText
+        ? `${descText}
+<!--dainty_images:${JSON.stringify(editingProduct.images)}-->`
+        : `<!--dainty_images:${JSON.stringify(editingProduct.images)}-->`;
+    }
+
+    const payload: any = {
+      name: cleanName,
+      title: cleanName,
+      category_id: editingProduct.categoryId || null,
+      size: editingProduct.size.trim() || null,
+      sizes: sizesList.length > 0 ? sizesList : null,
+      size_options: editingProduct.size.trim() || null,
+      wholesale_moq: moqVal,
+      min_order_qty: moqVal,
+      moq_scope: editingProduct.moqScope,
+      retail_price: retail,
+      wholesale_price: wholesale,
+      est_shipping_fee: airFee || seaFee || 0,
+      est_shipping_fee_air: airFee > 0 ? airFee : null,
+      est_shipping_fee_sea: seaFee > 0 ? seaFee : null,
+      image_url: editingProduct.imageUrl || editingProduct.images[0] || null,
+      images: editingProduct.images,
+      colors: colorsList.length > 0 ? colorsList : null,
+      color_options: colorsList.length > 0 ? colorsList.join(', ') : null,
+      description: descText || null,
+    };
+
+    let updateRes = await supabase.from('products').update(payload).eq('id', editingProduct.id);
+
+    if (updateRes.error && updateRes.error.message?.toLowerCase().includes('schema cache')) {
+      const { moq_scope, ...fallback1 } = payload;
+      updateRes = await supabase.from('products').update(fallback1).eq('id', editingProduct.id);
+
+      if (updateRes.error && updateRes.error.message?.toLowerCase().includes('schema cache')) {
+        const { moq_scope: _m, sizes: _s, size_options: _so, wholesale_moq: _w, min_order_qty: _mo, ...fallback2 } = payload;
+        updateRes = await supabase.from('products').update(fallback2).eq('id', editingProduct.id);
+
+        if (updateRes.error && updateRes.error.message?.toLowerCase().includes('schema cache')) {
+          const { moq_scope: _m2, images: _img, colors: _col, color_options: _co, sizes: _s2, size_options: _so2, wholesale_moq: _w2, min_order_qty: _mo2, ...minimal } = payload;
+          updateRes = await supabase.from('products').update(minimal).eq('id', editingProduct.id);
+        }
+      }
+    }
+
+    setSavingEdit(false);
+    if (updateRes.error) {
+      setErrorMsg(`Failed to save changes: ${updateRes.error.message}`);
+    } else {
+      setStatusMsg(`Updated "${cleanName}" successfully!`);
+      setEditingProduct(null);
+      await refreshData();
+    }
+  }
+
+  async function handleUploadPhotoToEditingProduct(filesList: FileList | null) {
+    if (!filesList || filesList.length === 0 || !editingProduct) return;
+    const files = Array.from(filesList);
+    setUploadingEditPhoto(true);
+
+    const bucketCandidates = ['product images', 'productimages', 'product-images'];
+    const uploadedUrls: string[] = [];
+
+    for (const file of files) {
+      const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filePath = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${cleanName}`;
+      for (const bName of bucketCandidates) {
+        try {
+          const { error: upErr } = await supabase.storage.from(bName).upload(filePath, file, { cacheControl: '3600', upsert: true });
+          if (!upErr) {
+            const { data } = supabase.storage.from(bName).getPublicUrl(filePath);
+            if (data?.publicUrl) {
+              uploadedUrls.push(data.publicUrl);
+              break;
+            }
+          }
+        } catch {}
+      }
+    }
+
+    setUploadingEditPhoto(false);
+    if (uploadedUrls.length > 0) {
+      const newImages = [...editingProduct.images, ...uploadedUrls];
+      setEditingProduct({
+        ...editingProduct,
+        imageUrl: editingProduct.imageUrl || newImages[0],
+        images: newImages,
+      });
+      setStatusMsg(`Uploaded ${uploadedUrls.length} new photo(s) to draft edit.`);
+    }
+  }
+
+  function handleSetMainPhotoInEditingProduct(targetUrl: string) {
+    if (!editingProduct) return;
+    const reordered = [targetUrl, ...editingProduct.images.filter((u) => u !== targetUrl)];
+    setEditingProduct({
+      ...editingProduct,
+      imageUrl: targetUrl,
+      images: reordered,
+    });
+  }
+
+  function handleRemovePhotoFromEditingProduct(targetUrl: string) {
+    if (!editingProduct) return;
+    const filtered = editingProduct.images.filter((u) => u !== targetUrl);
+    setEditingProduct({
+      ...editingProduct,
+      imageUrl: editingProduct.imageUrl === targetUrl ? (filtered[0] || '') : editingProduct.imageUrl,
+      images: filtered,
+    });
+  }
+
+  // ==========================================
+  // EDIT PUBLISHED CATEGORY HANDLERS
+  // ==========================================
+  function startEditingCategory(c: Category) {
+    setEditingCategory({
+      id: c.id,
+      name: c.name,
+      wholesale_moq: String(c.wholesale_moq || 5),
+      moq_scope: c.moq_scope || 'category',
+    });
+  }
+
+  async function handleSaveEditedCategory(e: FormEvent) {
+    e.preventDefault();
+    if (!editingCategory) return;
+    setSavingCategoryEdit(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+
+    const cleanName = editingCategory.name.trim();
+    const moqVal = Number(editingCategory.wholesale_moq) || 1;
+
+    let updateRes = await supabase.from('categories').update({
+      name: cleanName,
+      wholesale_moq: moqVal,
+      moq_scope: editingCategory.moq_scope,
+    }).eq('id', editingCategory.id);
+
+    if (updateRes.error && updateRes.error.message?.toLowerCase().includes('schema cache')) {
+      updateRes = await supabase.from('categories').update({
+        name: cleanName,
+        wholesale_moq: moqVal,
+      }).eq('id', editingCategory.id);
+    }
+
+    setSavingCategoryEdit(false);
+    if (updateRes.error) {
+      setErrorMsg(`Failed to update category: ${updateRes.error.message}`);
+    } else {
+      setStatusMsg(`Category "${cleanName}" updated!`);
+      setEditingCategory(null);
+      await refreshData();
+    }
+  }
+
+  async function handleDeleteCategory(catId: string, catName: string) {
+    if (!window.confirm(`Are you sure you want to delete category "${catName}"? Products in this category will become uncategorized.`)) {
+      return;
+    }
+    setErrorMsg(null);
+    setStatusMsg(null);
+
+    const { error } = await supabase.from('categories').delete().eq('id', catId);
+    if (error) {
+      setErrorMsg(`Failed to delete category: ${error.message}`);
+    } else {
+      setStatusMsg(`Category "${catName}" removed.`);
+      if (selectedCategoryId === catId) setSelectedCategoryId('');
+      await refreshData();
+    }
+  }
+
+  // ==========================================
+  // STORE SETTINGS HANDLER (WHATSAPP NUMBER)
+  // ==========================================
+  async function handleSaveStoreWhatsapp(e: FormEvent) {
+    e.preventDefault();
+    setSavingWhatsapp(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+
+    const cleanNum = storeWhatsapp.replace(/[^0-9]/g, '');
+    const { error } = await supabase.from('store_settings').upsert({
+      id: 1,
+      whatsapp_number: cleanNum,
+    });
+
+    setSavingWhatsapp(false);
+    if (error) {
+      setErrorMsg(`Failed to save WhatsApp number: ${error.message}`);
+    } else {
+      setStatusMsg(`WhatsApp preorder number updated to +${cleanNum}!`);
+      setShowSettingsDrawer(false);
+    }
+  }
+
   async function handleDeleteProduct(id: string) {
     setErrorMsg(null);
     setStatusMsg(null);
@@ -1079,23 +1381,112 @@ export default function AdminPage() {
             </button>
           </div>
 
-          {/* Category Chips */}
-          <div className="flex flex-wrap gap-2">
+          {/* Category Chips with Edit Option */}
+          <div className="flex flex-wrap items-center gap-2">
             {categories.map((c) => (
-              <button
+              <div
                 key={c.id}
-                type="button"
-                onClick={() => setSelectedCategoryId(c.id)}
-                className={`rounded-full px-4 py-1.5 text-xs font-medium transition ${
+                className={`inline-flex items-center rounded-full border text-xs font-medium transition shadow-2xs ${
                   selectedCategoryId === c.id
-                    ? 'bg-stone-900 text-white shadow-xs'
-                    : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                    ? 'border-stone-900 bg-stone-900 text-white'
+                    : 'border-stone-200 bg-stone-100 text-stone-700 hover:bg-stone-200'
                 }`}
               >
-                {c.name} {c.wholesale_moq ? `(${c.wholesale_moq} pcs ${c.moq_scope === 'category' ? 'total, mix & match' : 'per item'})` : ''}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategoryId(c.id)}
+                  className="px-3.5 py-1.5 focus:outline-hidden"
+                >
+                  {c.name} {c.wholesale_moq ? `(${c.wholesale_moq} pcs ${c.moq_scope === 'category' ? 'mix & match' : 'per item'})` : ''}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startEditingCategory(c);
+                  }}
+                  className={`pr-2.5 pl-1 py-1 hover:opacity-75 transition ${
+                    selectedCategoryId === c.id ? 'text-amber-300' : 'text-stone-500'
+                  }`}
+                  title={`Edit Category: ${c.name}`}
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              </div>
             ))}
           </div>
+
+          {/* Quick Category Editor (when active) */}
+          {editingCategory && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50/60 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                  <Pencil className="h-3.5 w-3.5 text-[#fa9d26]" />
+                  Edit Published Category
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setEditingCategory(null)}
+                  className="text-stone-400 hover:text-stone-700 text-xs"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <form onSubmit={handleSaveEditedCategory} className="flex flex-wrap items-center gap-2.5 text-xs">
+                <div className="flex-1 min-w-[180px]">
+                  <label className="text-[10px] font-bold text-stone-600 block mb-1">Category Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingCategory.name}
+                    onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
+                    className="w-full rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs focus:border-stone-900 focus:outline-hidden"
+                  />
+                </div>
+                <div className="w-24">
+                  <label className="text-[10px] font-bold text-stone-600 block mb-1">Wholesale MOQ</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={editingCategory.wholesale_moq}
+                    onChange={(e) => setEditingCategory({ ...editingCategory, wholesale_moq: e.target.value })}
+                    className="w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs focus:border-stone-900 focus:outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-stone-600 block mb-1">MOQ Scope</label>
+                  <select
+                    value={editingCategory.moq_scope}
+                    onChange={(e) => setEditingCategory({ ...editingCategory, moq_scope: e.target.value as any })}
+                    className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs focus:border-stone-900 focus:outline-hidden"
+                  >
+                    <option value="category">Whole Category (Mix & Match)</option>
+                    <option value="item">Per Item (Single design MOQ)</option>
+                    <option value="all">Store-Wide Mix & Match</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2 mt-4 sm:mt-5">
+                  <button
+                    type="submit"
+                    disabled={savingCategoryEdit}
+                    className="inline-flex items-center gap-1 rounded-lg bg-stone-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-stone-800 transition disabled:opacity-50"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    {savingCategoryEdit ? 'Saving...' : 'Save Category'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCategory(editingCategory.id, editingCategory.name)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 transition"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
 
           {/* Store-Wide Mix & Match Across ALL Products */}
           <div className="flex flex-col gap-2.5 rounded-xl border border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50/40 p-3.5 sm:flex-row sm:items-center sm:justify-between shadow-2xs">
@@ -1778,18 +2169,56 @@ export default function AdminPage() {
 
         {/* Existing Products List */}
         <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <h2 className="text-sm font-bold text-stone-900">3. Current Store Products ({products.length})</h2>
-              <p className="text-xs text-stone-500">Live products in your store catalog.</p>
+              <h2 className="text-sm font-bold text-stone-900 flex items-center gap-2">
+                <span>3. Current Store Products ({products.length})</span>
+                <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                  All Editable
+                </span>
+              </h2>
+              <p className="text-xs text-stone-500">Click &ldquo;Edit&rdquo; on any product to update prices, MOQ, shipping, variants, description, or photos.</p>
+            </div>
+
+            {/* Catalog search and category filter */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative">
+                <Search className="h-3.5 w-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={catalogSearch}
+                  onChange={(e) => setCatalogSearch(e.target.value)}
+                  className="rounded-lg border border-stone-200 bg-stone-50 pl-8 pr-3 py-1 text-xs focus:bg-white focus:border-stone-900 focus:outline-hidden w-40 sm:w-48"
+                />
+              </div>
+              <select
+                value={catalogCategoryFilter}
+                onChange={(e) => setCatalogCategoryFilter(e.target.value)}
+                className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs focus:bg-white focus:border-stone-900 focus:outline-hidden"
+              >
+                <option value="all">All Categories</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 
-          <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
+          <div className="max-h-[700px] space-y-2.5 overflow-y-auto pr-1">
             {products.length === 0 ? (
               <p className="text-xs text-stone-400 py-4 text-center">No products published yet.</p>
             ) : (
-              products.map((p) => {
+              products
+              .filter((p) => {
+                const matchCat = catalogCategoryFilter === 'all' || p.category_id === catalogCategoryFilter;
+                const pTitle = (p.name || p.title || '').toLowerCase();
+                const pDesc = (p.description || '').toLowerCase();
+                const q = catalogSearch.toLowerCase().trim();
+                const matchSearch = !q || pTitle.includes(q) || pDesc.includes(q);
+                return matchCat && matchSearch;
+              })
+              .map((p) => {
                 const air = Number(p.est_shipping_fee_air ?? p.est_shipping_fee ?? 0);
                 const sea = Number(p.est_shipping_fee_sea ?? p.est_shipping_fee ?? 0);
                 const pTitle = p.name || p.title || 'Untitled';
@@ -1840,6 +2269,17 @@ export default function AdminPage() {
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
+                        {/* EDIT PRODUCT BUTTON */}
+                        <button
+                          type="button"
+                          onClick={() => startEditingProduct(p)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-bold text-stone-900 shadow-2xs hover:bg-stone-50 hover:border-stone-900 transition"
+                          title="Edit product details, prices, shipping, variants, and description"
+                        >
+                          <Pencil className="h-3.5 w-3.5 text-[#fa9d26]" />
+                          <span>Edit</span>
+                        </button>
+
                         {/* Manage Photos Button */}
                         <button
                           type="button"
@@ -1982,6 +2422,323 @@ export default function AdminPage() {
             )}
           </div>
         </section>
+
+        {/* ========================================================= */}
+        {/* EDIT PUBLISHED PRODUCT MODAL                              */}
+        {/* ========================================================= */}
+        {editingProduct && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-stone-950/60 backdrop-blur-xs overflow-y-auto">
+            <div className="relative w-full max-w-2xl rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xl max-h-[92vh] overflow-y-auto space-y-5">
+              
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-amber-100 flex items-center justify-center text-[#fa9d26]">
+                    <Pencil className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-stone-900">Edit Published Product</h3>
+                    <p className="text-[11px] text-stone-500">Update any details for this live product.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingProduct(null)}
+                  className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-700 transition"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Edit Form */}
+              <form onSubmit={handleSaveEditedProduct} className="space-y-4">
+                
+                {/* Product Name & Category */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-stone-700">Product Title / Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editingProduct.name}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                      placeholder="e.g. iPhone 15 Liquid Silicone Case"
+                      className="w-full rounded-lg border border-stone-300 px-3 py-2 text-xs font-medium focus:border-stone-900 focus:outline-hidden"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-stone-700">Category</label>
+                    <select
+                      value={editingProduct.categoryId}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, categoryId: e.target.value })}
+                      className="w-full rounded-lg border border-stone-300 px-3 py-2 text-xs focus:border-stone-900 focus:outline-hidden bg-white"
+                    >
+                      <option value="">(No Category / General)</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Pricing & MOQ Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 rounded-xl border border-stone-200 bg-stone-50/60 p-3.5">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-stone-700">Retail Price (₦) *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={editingProduct.retailPrice}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, retailPrice: e.target.value })}
+                      className="w-full rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs font-bold text-stone-900 focus:border-stone-900 focus:outline-hidden"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-amber-900">Wholesale Price (₦) *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={editingProduct.wholesalePrice}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, wholesalePrice: e.target.value })}
+                      className="w-full rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-bold text-amber-950 focus:border-stone-900 focus:outline-hidden"
+                    />
+                  </div>
+
+                  <div className="space-y-1 col-span-2 sm:col-span-1">
+                    <label className="text-xs font-bold text-stone-700">Wholesale MOQ (pcs) *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={editingProduct.moq}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, moq: e.target.value })}
+                      className="w-full rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs font-bold text-stone-900 focus:border-stone-900 focus:outline-hidden"
+                    />
+                  </div>
+
+                  {/* MOQ Scope Selector */}
+                  <div className="col-span-2 sm:col-span-3 pt-2 border-t border-stone-200/80">
+                    <label className="text-[11px] font-bold text-stone-700 block mb-1.5">Wholesale MOQ Rule:</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingProduct({ ...editingProduct, moqScope: 'category' })}
+                        className={`rounded-lg border p-2 text-left text-xs transition ${
+                          editingProduct.moqScope === 'category'
+                            ? 'border-[#fa9d26] bg-amber-50 text-amber-950 font-bold'
+                            : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'
+                        }`}
+                      >
+                        <span className="block font-semibold">Mix & Match Category</span>
+                        <span className="text-[10px] text-stone-500 font-normal">Customer mixes any designs in this category</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setEditingProduct({ ...editingProduct, moqScope: 'item' })}
+                        className={`rounded-lg border p-2 text-left text-xs transition ${
+                          editingProduct.moqScope === 'item'
+                            ? 'border-[#fa9d26] bg-amber-50 text-amber-950 font-bold'
+                            : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'
+                        }`}
+                      >
+                        <span className="block font-semibold">Per Design / Item</span>
+                        <span className="text-[10px] text-stone-500 font-normal">Must buy this exact item to reach MOQ</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setEditingProduct({ ...editingProduct, moqScope: 'all' })}
+                        className={`rounded-lg border p-2 text-left text-xs transition ${
+                          editingProduct.moqScope === 'all'
+                            ? 'border-[#fa9d26] bg-amber-50 text-amber-950 font-bold'
+                            : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'
+                        }`}
+                      >
+                        <span className="block font-semibold">Store-Wide Mix</span>
+                        <span className="text-[10px] text-stone-500 font-normal">Mix any products across the whole store</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Estimated Shipping Fees */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-stone-200 bg-stone-50/60 p-3.5">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
+                      <Plane className="h-3.5 w-3.5 text-sky-600" />
+                      Est. Air Shipping Fee (₦)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingProduct.estAirShipping}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, estAirShipping: e.target.value })}
+                      placeholder="e.g. 3500 (blank if Sea Only)"
+                      className="w-full rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs focus:border-stone-900 focus:outline-hidden"
+                    />
+                    <p className="text-[10px] text-stone-500">Air delivery within 3 weeks. Leave 0 or blank if item can only ship by sea.</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
+                      <Ship className="h-3.5 w-3.5 text-blue-600" />
+                      Est. Sea Shipping Fee (₦)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingProduct.estSeaShipping}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, estSeaShipping: e.target.value })}
+                      placeholder="e.g. 1500 (blank if Air Only)"
+                      className="w-full rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs focus:border-stone-900 focus:outline-hidden"
+                    />
+                    <p className="text-[10px] text-stone-500">Sea cargo delivery within 3 months. Leave 0 or blank if item can only ship by air.</p>
+                  </div>
+                </div>
+
+                {/* Sizes & Colors */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-stone-700">Available Sizes (optional)</label>
+                    <input
+                      type="text"
+                      value={editingProduct.size}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, size: e.target.value })}
+                      placeholder="e.g. iPhone 13, iPhone 14, iPhone 15 Pro Max (or S, M, L)"
+                      className="w-full rounded-lg border border-stone-300 px-3 py-2 text-xs focus:border-stone-900 focus:outline-hidden"
+                    />
+                    <p className="text-[10px] text-stone-400">Separate by commas. Leave empty for items without size variants.</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-stone-700">Available Colors (optional)</label>
+                    <input
+                      type="text"
+                      value={editingProduct.colors}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, colors: e.target.value })}
+                      placeholder="e.g. Black, White, Baby Pink, Lavender"
+                      className="w-full rounded-lg border border-stone-300 px-3 py-2 text-xs focus:border-stone-900 focus:outline-hidden"
+                    />
+                    <p className="text-[10px] text-stone-400">Separate by commas. Leave empty for items without colors.</p>
+                  </div>
+                </div>
+
+                {/* Description / Notes */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-stone-700">Description / Specifications / Notes</label>
+                  <textarea
+                    rows={3}
+                    value={editingProduct.description}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
+                    placeholder="Material, features, packaging details, or private notes..."
+                    className="w-full rounded-lg border border-stone-300 px-3 py-2 text-xs focus:border-stone-900 focus:outline-hidden"
+                  />
+                </div>
+
+                {/* Manage Photos in Edit Modal */}
+                <div className="space-y-2 rounded-xl border border-stone-200 bg-stone-50/70 p-3.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                        <ImageIcon className="h-3.5 w-3.5 text-[#fa9d26]" />
+                        Product Photos ({editingProduct.images.length})
+                      </span>
+                      <p className="text-[10px] text-stone-500">Click &ldquo;Main&rdquo; to set primary photo, or upload additional angles.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                    {editingProduct.images.map((img, idx) => {
+                      const isMain = img === editingProduct.imageUrl || (idx === 0 && !editingProduct.imageUrl);
+                      return (
+                        <div key={idx} className="relative group shrink-0">
+                          <img
+                            src={img}
+                            alt={`Photo ${idx + 1}`}
+                            onClick={() => handleSetMainPhotoInEditingProduct(img)}
+                            className={`h-16 w-16 rounded-lg object-contain bg-white p-1 cursor-pointer transition ${
+                              isMain
+                                ? 'border-2 border-[#fa9d26] shadow-2xs'
+                                : 'border border-stone-300 hover:border-[#fa9d26]'
+                            }`}
+                          />
+                          {isMain ? (
+                            <span className="absolute -top-1.5 -left-1.5 rounded-full bg-[#fa9d26] px-1.5 py-0.2 text-[9px] font-bold text-white shadow-2xs">
+                              Main
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleSetMainPhotoInEditingProduct(img)}
+                              className="absolute bottom-1 left-1 right-1 rounded bg-stone-900/80 px-1 py-0.5 text-[8px] font-bold text-white opacity-0 group-hover:opacity-100 transition text-center"
+                            >
+                              Make Main
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePhotoFromEditingProduct(img)}
+                            className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-red-600 text-white flex items-center justify-center text-[10px] font-bold hover:bg-red-700 shadow-2xs"
+                            title="Remove photo"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    {/* Upload new photo directly into edit modal */}
+                    <label className="flex h-16 w-24 shrink-0 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-amber-300 bg-white hover:border-[#fa9d26] hover:bg-amber-100/50 transition text-center p-1">
+                      <Plus className="h-4 w-4 text-stone-700" />
+                      <span className="text-[10px] font-bold text-stone-800 leading-tight mt-0.5">
+                        {uploadingEditPhoto ? 'Uploading…' : '+ Add Photo'}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*,image/jpeg,image/png,image/webp,image/heic"
+                        multiple
+                        disabled={uploadingEditPhoto}
+                        onChange={(e) => {
+                          handleUploadPhotoToEditingProduct(e.target.files);
+                          e.target.value = '';
+                        }}
+                        className="sr-only"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Modal Action Buttons */}
+                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-stone-100">
+                  <button
+                    type="button"
+                    onClick={() => setEditingProduct(null)}
+                    disabled={savingEdit}
+                    className="rounded-lg border border-stone-300 px-4 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingEdit}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#fa9d26] px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#e68c1d] transition disabled:opacity-50"
+                  >
+                    <Check className="h-4 w-4" />
+                    {savingEdit ? 'Saving Changes...' : 'Save Changes'}
+                  </button>
+                </div>
+
+              </form>
+            </div>
+          </div>
+        )}
+
       </main>
     </div>
   );
