@@ -397,8 +397,8 @@ export default function OrderCatalogPage() {
               {orderId ? `#${orderId}` : 'Preorder Sheet'}
             </span>
 
-            {/* Admin Edit / Lock toggle */}
-            {isAdminUnlocked ? (
+            {/* Admin Edit / Lock toggle: only visible when explicitly unlocked from admin dashboard */}
+            {isAdminUnlocked && (
               <button
                 type="button"
                 onClick={() => setIsAdminUnlocked(false)}
@@ -407,16 +407,6 @@ export default function OrderCatalogPage() {
               >
                 <Unlock className="h-3.5 w-3.5 text-amber-700" />
                 <span>Admin Editing</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowPinModal(true)}
-                className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs font-semibold text-stone-600 hover:bg-stone-100 transition"
-                title="Admin Edit"
-              >
-                <Lock className="h-3.5 w-3.5 text-stone-400" />
-                <span>Admin</span>
               </button>
             )}
 
