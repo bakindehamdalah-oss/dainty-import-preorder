@@ -22,7 +22,8 @@ import {
   Sparkles,
   ShieldCheck,
   Clock,
-  ArrowRight
+  ArrowRight,
+  ChevronRight
 } from 'lucide-react';
 
 type StoreSettings = {
@@ -933,6 +934,9 @@ export default function StorefrontPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+
+  const totalCartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [matrixProduct, setMatrixProduct] = useState<Product | null>(null);
 
@@ -1034,6 +1038,7 @@ export default function StorefrontPage() {
     selectedImage: string | null,
     quantityToAdd: number
   ) {
+    setIsCartOpen(true);
     setCart((prev) => {
       const matchItem = (item: CartItem) =>
         item.product.id === product.id &&
@@ -1331,6 +1336,22 @@ export default function StorefrontPage() {
             </div>
           </div>
 
+          {/* Mobile Cart Trigger on Top Header */}
+          <button
+            type="button"
+            onClick={() => setIsCartOpen((prev) => !prev)}
+            className="sm:hidden relative inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-800 shadow-2xs hover:border-[#fa9d26] transition active:scale-95 ml-auto"
+            aria-label="Open Cart"
+          >
+            <ShoppingBag className="h-4 w-4 text-[#fa9d26]" />
+            <span>Cart</span>
+            {totalCartCount > 0 && (
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#fa9d26] px-1 text-[9px] font-bold text-white shadow-xs">
+                {totalCartCount}
+              </span>
+            )}
+          </button>
+
           {/* Desktop Search Bar */}
           <div className="relative flex-1 max-w-md hidden md:block">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-stone-400" />
@@ -1411,6 +1432,22 @@ export default function StorefrontPage() {
                 Sea (3 mos)
               </button>
             </div>
+
+            {/* Desktop Cart Button */}
+            <button
+              type="button"
+              onClick={() => setIsCartOpen((prev) => !prev)}
+              className="relative inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-1.5 font-semibold text-stone-800 shadow-2xs hover:border-[#fa9d26] hover:bg-amber-50/40 transition active:scale-95"
+              aria-label="View Cart"
+            >
+              <ShoppingBag className="h-4 w-4 text-[#fa9d26]" />
+              <span>Cart</span>
+              {totalCartCount > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#fa9d26] px-1 text-[10px] font-bold text-white shadow-xs">
+                  {totalCartCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
@@ -1642,40 +1679,109 @@ export default function StorefrontPage() {
         )}
       </main>
 
-      {/* Cart Drawer / Bottom Sheet */}
-      {cart.length > 0 && (
-        <aside className="fixed bottom-0 left-0 right-0 z-40 w-full border-t border-stone-200 bg-white p-3.5 sm:p-4 shadow-xl sm:left-auto sm:bottom-6 sm:right-6 sm:w-96 sm:rounded-2xl sm:border max-h-[85vh] overflow-y-auto">
-          <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-            <div className="flex items-center gap-2 font-bold text-sm">
-              <ShoppingBag className="h-4 w-4" />
-              Preorder Cart ({cart.reduce((s, i) => s + i.quantity, 0)})
+      {/* Floating Cart Trigger Pill on Mobile & Desktop */}
+      {totalCartCount > 0 && !isCartOpen && (
+        <button
+          type="button"
+          onClick={() => setIsCartOpen(true)}
+          className="fixed bottom-5 right-5 z-40 flex items-center gap-3 rounded-full bg-stone-900 px-4 py-3 text-white shadow-2xl hover:bg-stone-800 transition transform active:scale-95 border-2 border-[#fa9d26] animate-in fade-in slide-in-from-bottom-2"
+          aria-label="Open Preorder Cart"
+        >
+          <div className="relative">
+            <ShoppingBag className="h-5 w-5 text-[#fa9d26]" />
+            <span className="absolute -top-2 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#fa9d26] px-1 text-[9px] font-bold text-white shadow-xs">
+              {totalCartCount}
+            </span>
+          </div>
+          <div className="text-left leading-tight">
+            <div className="text-[10px] font-bold text-[#fa9d26] uppercase tracking-wider">
+              Preorder Cart ({totalCartCount})
             </div>
-            <button
-              type="button"
-              onClick={() => setCart([])}
-              className="text-xs text-stone-400 hover:text-stone-600"
-            >
-              Clear
-            </button>
+            <div className="text-xs font-extrabold text-white">
+              ₦{subtotal.toLocaleString()}
+            </div>
+          </div>
+          <ChevronRight className="h-4 w-4 text-stone-400 ml-0.5" />
+        </button>
+      )}
+
+      {/* Backdrop for Collapsible Side Drawer */}
+      {isCartOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-2xs transition-opacity duration-300"
+          onClick={() => setIsCartOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Collapsible Slide-Over Cart Drawer by the Side (Mobile & Desktop) */}
+      <aside
+        className={`fixed inset-y-0 right-0 z-50 flex h-full w-[88vw] max-w-[400px] sm:w-[420px] sm:max-w-[420px] flex-col bg-white shadow-2xl border-l border-stone-200 transition-transform duration-300 ease-in-out ${
+          isCartOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'
+        }`}
+        aria-label="Preorder Cart Drawer"
+      >
+        {/* Drawer Header */}
+        <div className="flex items-center justify-between border-b border-stone-200 bg-stone-50 px-4 py-3.5">
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <ShoppingBag className="h-5 w-5 text-[#fa9d26]" />
+              {totalCartCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#fa9d26] px-0.5 text-[8px] font-bold text-white">
+                  {totalCartCount}
+                </span>
+              )}
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-stone-900 leading-tight">Preorder Cart</h2>
+              <span className="text-[11px] text-stone-500">{totalCartCount} item{totalCartCount === 1 ? '' : 's'} selected</span>
+            </div>
           </div>
 
+          <div className="flex items-center gap-2">
+            {cart.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCart([]);
+                  setIsCartOpen(false);
+                }}
+                className="text-xs text-stone-500 hover:text-red-600 transition px-1.5 py-1"
+              >
+                Clear
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsCartOpen(false)}
+              className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-white px-2.5 py-1 text-xs font-semibold text-stone-700 hover:bg-stone-100 hover:text-stone-900 transition shadow-2xs"
+              title="Collapse Cart"
+            >
+              <span>Collapse</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Drawer Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
           {/* Cargo Routing Notices */}
           {cartHasSeaOnlyItems && (
-            <div className="mt-2 rounded-lg bg-blue-50 border border-blue-200 p-2 text-[11px] text-blue-800 flex items-start gap-1.5">
-              <Ship className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              <span>Some items in your cart can only be shipped via Sea Cargo. Shipping is set to Sea Cargo (within 3 months).</span>
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-2.5 text-[11px] text-blue-900 flex items-start gap-2">
+              <Ship className="h-4 w-4 mt-0.5 shrink-0 text-blue-600" />
+              <span>Some items in your cart can only be shipped via Sea Cargo. Shipping is set to <strong>Sea Cargo (within 3 months)</strong>.</span>
             </div>
           )}
           {cartHasAirOnlyItems && (
-            <div className="mt-2 rounded-lg bg-emerald-50 border border-emerald-200 p-2 text-[11px] text-emerald-800 flex items-start gap-1.5">
-              <Plane className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              <span>Some items in your cart can only be shipped via Air Cargo. Shipping is set to Air Cargo (within 3 weeks).</span>
+            <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2.5 text-[11px] text-emerald-900 flex items-start gap-2">
+              <Plane className="h-4 w-4 mt-0.5 shrink-0 text-emerald-600" />
+              <span>Some items in your cart can only be shipped via Air Cargo. Shipping is set to <strong>Air Cargo (within 3 weeks)</strong>.</span>
             </div>
           )}
 
-          {/* Wholesale Warnings for Item and Category Scopes */}
+          {/* Wholesale Warnings */}
           {wholesaleMoqWarnings.length > 0 && (
-            <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-[11px] text-amber-900 space-y-1">
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-[11px] text-amber-900 space-y-1">
               <div className="font-bold flex items-center gap-1 text-amber-800">
                 <AlertCircle className="h-3.5 w-3.5" />
                 Wholesale Minimum Notice:
@@ -1688,84 +1794,117 @@ export default function StorefrontPage() {
             </div>
           )}
 
-          <div className="max-h-56 space-y-2.5 overflow-y-auto py-3 text-xs">
-            {cart.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  {item.selectedImage && (
-                    <img
-                      src={item.selectedImage}
-                      alt={item.product.name || 'Item'}
-                      className="h-10 w-10 shrink-0 rounded-md border border-stone-200 object-contain bg-stone-50"
-                    />
-                  )}
-                  <div className="min-w-0">
-                    <div className="font-medium truncate text-stone-900">
-                      {item.product.name || item.product.title || 'Product'}
+          {/* Cart Items List */}
+          {cart.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center text-stone-500 space-y-2">
+              <ShoppingBag className="h-10 w-10 text-stone-300" />
+              <p className="text-sm font-semibold text-stone-700">Your cart is empty</p>
+              <p className="text-xs text-stone-400 max-w-[220px]">
+                Browse our China factory products and add items to your preorder sheet.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsCartOpen(false)}
+                className="mt-2 rounded-lg bg-[#fa9d26] px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-[#e68c1d] transition"
+              >
+                Browse Products
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {cart.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50/50 p-2.5 shadow-2xs hover:bg-stone-50 transition"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    {item.selectedImage ? (
+                      <img
+                        src={item.selectedImage}
+                        alt={item.product.name || 'Item'}
+                        className="h-12 w-12 shrink-0 rounded-lg border border-stone-200 object-contain bg-white p-0.5"
+                      />
+                    ) : (
+                      <div className="h-12 w-12 shrink-0 rounded-lg border border-stone-200 bg-white flex items-center justify-center text-stone-400">
+                        <ShoppingBag className="h-5 w-5" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold truncate text-xs text-stone-900">
+                        {item.product.name || item.product.title || 'Product'}
+                      </div>
+                      <div className="text-[11px] text-stone-500">
+                        {item.selectedColor && <span>Color: {item.selectedColor} </span>}
+                        {item.selectedSize && <span>Model: {item.selectedSize}</span>}
+                      </div>
+                      <div className="font-bold text-xs text-stone-900 mt-0.5">
+                        ₦{((mode === 'wholesale' ? item.product.wholesale_price : item.product.retail_price) * item.quantity).toLocaleString()}
+                        <span className="text-[10px] font-normal text-stone-400 ml-1">
+                          (₦{Number(mode === 'wholesale' ? item.product.wholesale_price : item.product.retail_price).toLocaleString()} ea)
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-[11px] text-stone-500">
-                      {item.selectedColor && <span>Color: {item.selectedColor} </span>}
-                      {item.selectedSize && <span>Model: {item.selectedSize}</span>}
-                    </div>
-                    <div className="font-semibold text-stone-900">
-                      ₦{((mode === 'wholesale' ? item.product.wholesale_price : item.product.retail_price) * item.quantity).toLocaleString()}
+                  </div>
+
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => removeItem(item.product.id, item.selectedColor, item.selectedSize)}
+                      className="p-1 text-stone-400 hover:text-red-600 transition"
+                      title="Remove item"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+
+                    <div className="flex items-center rounded-lg border border-stone-300 bg-white shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(item.product.id, item.selectedColor, item.selectedSize, -1)}
+                        className="p-1 hover:bg-stone-100 text-stone-700"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <span className="px-2 font-bold text-xs text-stone-900">{item.quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(item.product.id, item.selectedColor, item.selectedSize, 1)}
+                        className="p-1 hover:bg-stone-100 text-stone-700"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
                     </div>
                   </div>
                 </div>
+              ))}
+            </div>
+          )}
+        </div>
 
-                <div className="flex items-center gap-1">
-                  <div className="flex items-center rounded border border-stone-200 bg-stone-50">
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(item.product.id, item.selectedColor, item.selectedSize, -1)}
-                      className="p-1 hover:bg-stone-200"
-                    >
-                      <Minus className="h-3 w-3" />
-                    </button>
-                    <span className="px-1.5 font-bold text-xs">{item.quantity}</span>
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(item.product.id, item.selectedColor, item.selectedSize, 1)}
-                      className="p-1 hover:bg-stone-200"
-                    >
-                      <Plus className="h-3 w-3" />
-                    </button>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => removeItem(item.product.id, item.selectedColor, item.selectedSize)}
-                    className="p-1 text-stone-400 hover:text-red-600"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Pricing & Checkout */}
-          <div className="border-t border-stone-100 pt-3 space-y-2">
+        {/* Drawer Sticky Footer Checkout */}
+        {cart.length > 0 && (
+          <div className="border-t border-stone-200 bg-stone-50 p-4 space-y-2.5">
             <div className="flex items-center justify-between text-xs">
               <span className="text-stone-600">Product Total (To Pay Now):</span>
-              <span className="font-bold text-base text-stone-900">₦{subtotal.toLocaleString()}</span>
+              <span className="font-extrabold text-base text-stone-900">₦{subtotal.toLocaleString()}</span>
             </div>
 
             <div className="flex items-center justify-between text-[11px] text-stone-500">
               <span>Est. Shipping ({shippingMethod.toUpperCase()} Cargo):</span>
-              <span>{estimatedShipping > 0 ? `₦${estimatedShipping.toLocaleString()}` : 'Payable upon arrival'}</span>
+              <span className="font-medium text-stone-700">
+                {estimatedShipping > 0 ? `₦${estimatedShipping.toLocaleString()}` : 'Payable upon arrival'}
+              </span>
             </div>
 
             <div className="flex items-center justify-between text-[11px] text-stone-500">
               <span>Est. Timeline:</span>
-              <span className="font-medium text-stone-800">{shippingTimeline}</span>
+              <span className="font-semibold text-stone-800">{shippingTimeline}</span>
             </div>
 
             <a
               href={buildWhatsAppLink()}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white shadow-md hover:bg-emerald-700 transition active:scale-98"
+              className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white shadow-md hover:bg-emerald-700 transition active:scale-98"
             >
               <MessageCircle className="h-4 w-4" />
               Send Preorder on WhatsApp
@@ -1775,8 +1914,8 @@ export default function StorefrontPage() {
               Pre-order payment covers product sourcing upfront. Shipping fee is billed when your package arrives safely in Nigeria.
             </p>
           </div>
-        </aside>
-      )}
+        )}
+      </aside>
     </div>
   );
 }
