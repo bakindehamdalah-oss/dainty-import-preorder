@@ -52,6 +52,52 @@ type DraftPhotoItem = {
   description: string;
 };
 
+
+export function getProductAllImages(product: Product | null | undefined): string[] {
+  if (!product) return [];
+  const list: string[] = [];
+
+  const add = (url: any) => {
+    if (typeof url === 'string') {
+      const clean = url.trim();
+      if (clean && !list.includes(clean)) list.push(clean);
+    }
+  };
+
+  add(product.image_url);
+
+  if (Array.isArray(product.images)) {
+    for (const img of product.images) add(img);
+  } else if (typeof product.images === 'string') {
+    try {
+      const parsed = JSON.parse(product.images);
+      if (Array.isArray(parsed)) {
+        for (const img of parsed) add(img);
+      } else {
+        add(product.images);
+      }
+    } catch {
+      for (const part of (product.images as string).split(',')) {
+        add(part);
+      }
+    }
+  }
+
+  if (product.description && product.description.includes('<!--dainty_images:')) {
+    try {
+      const match = product.description.match(/<!--dainty_images:(.*?)-->/);
+      if (match && match[1]) {
+        const parsed = JSON.parse(match[1]);
+        if (Array.isArray(parsed)) {
+          for (const img of parsed) add(img);
+        }
+      }
+    } catch {}
+  }
+
+  return list;
+}
+
 function cleanFileTitle(filename: string): string {
   return filename
     .replace(/\.[^/.]+$/, '')
@@ -80,6 +126,8 @@ export default function AdminPage() {
   const [storewideMoq, setStorewideMoq] = useState('10');
   const [applyingStorewideMoq, setApplyingStorewideMoq] = useState(false);
   const [uploadingItemPhotoId, setUploadingItemPhotoId] = useState<string | null>(null);
+  const [managingPhotosProductId, setManagingPhotosProductId] = useState<string | null>(null);
+  const [uploadingExistingPhotoId, setUploadingExistingPhotoId] = useState<string | null>(null);
   const [savingCat, setSavingCat] = useState(false);
   const [applyingCategoryMoq, setApplyingCategoryMoq] = useState(false);
 
@@ -654,6 +702,135 @@ export default function AdminPage() {
     setDraftItems((prev) => prev.filter((item) => item.tempId !== tempId));
   }
 
+
+  async function handleAddPhotosToExistingProduct(productId: string, filesList: FileList | null) {
+    if (!filesList || filesList.length === 0) return;
+    const files = Array.from(filesList);
+    setUploadingExistingPhotoId(productId);
+    setErrorMsg(null);
+    setStatusMsg(`Uploading ${files.length} photo(s)...`);
+
+    const bucketCandidates = ['product images', 'productimages', 'product-images'];
+    const uploadedUrls: string[] = [];
+
+    for (const file of files) {
+      const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filePath = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${cleanName}`;
+      for (const bName of bucketCandidates) {
+        try {
+          const { error: upErr } = await supabase.storage.from(bName).upload(filePath, file, { cacheControl: '3600', upsert: true });
+          if (!upErr) {
+            const { data } = supabase.storage.from(bName).getPublicUrl(filePath);
+            if (data?.publicUrl) {
+              uploadedUrls.push(data.publicUrl);
+              break;
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    setUploadingExistingPhotoId(null);
+    if (uploadedUrls.length === 0) {
+      setErrorMsg('Failed to upload pictures. Please check Supabase Storage.');
+      return;
+    }
+
+    const currentProd = products.find((p) => p.id === productId);
+    if (!currentProd) return;
+
+    const existingImages = getProductAllImages(currentProd);
+    const updatedImages = [...existingImages, ...uploadedUrls];
+    const newMain = currentProd.image_url || updatedImages[0];
+
+    let updatedDesc = (currentProd.description || '').replace(/<!--dainty_images:.*?-->/g, '').trim();
+    updatedDesc = updatedDesc ? `${updatedDesc}\n<!--dainty_images:${JSON.stringify(updatedImages)}-->` : `<!--dainty_images:${JSON.stringify(updatedImages)}-->`;
+
+    let updateRes = await supabase.from('products').update({
+      images: updatedImages,
+      image_url: newMain,
+      description: updatedDesc,
+    }).eq('id', productId);
+
+    if (updateRes.error && updateRes.error.message?.toLowerCase().includes('schema cache')) {
+      updateRes = await supabase.from('products').update({
+        image_url: newMain,
+        description: updatedDesc,
+      }).eq('id', productId);
+    }
+
+    if (updateRes.error) {
+      setErrorMsg(`Failed to save photos: ${updateRes.error.message}`);
+    } else {
+      setStatusMsg(`Added ${uploadedUrls.length} photo(s) to "${currentProd.name || currentProd.title}".`);
+      await refreshData();
+    }
+  }
+
+  async function handleSetMainPhotoForExistingProduct(productId: string, targetUrl: string) {
+    const currentProd = products.find((p) => p.id === productId);
+    if (!currentProd) return;
+
+    const all = getProductAllImages(currentProd);
+    const reordered = [targetUrl, ...all.filter((u) => u !== targetUrl)];
+
+    let updatedDesc = (currentProd.description || '').replace(/<!--dainty_images:.*?-->/g, '').trim();
+    updatedDesc = updatedDesc ? `${updatedDesc}\n<!--dainty_images:${JSON.stringify(reordered)}-->` : `<!--dainty_images:${JSON.stringify(reordered)}-->`;
+
+    let updateRes = await supabase.from('products').update({
+      image_url: targetUrl,
+      images: reordered,
+      description: updatedDesc,
+    }).eq('id', productId);
+
+    if (updateRes.error && updateRes.error.message?.toLowerCase().includes('schema cache')) {
+      updateRes = await supabase.from('products').update({
+        image_url: targetUrl,
+        description: updatedDesc,
+      }).eq('id', productId);
+    }
+
+    if (updateRes.error) {
+      setErrorMsg(updateRes.error.message);
+    } else {
+      setStatusMsg('Main photo updated!');
+      await refreshData();
+    }
+  }
+
+  async function handleDeletePhotoFromExistingProduct(productId: string, targetUrl: string) {
+    const currentProd = products.find((p) => p.id === productId);
+    if (!currentProd) return;
+
+    const all = getProductAllImages(currentProd).filter((u) => u !== targetUrl);
+    const newMain = all[0] || null;
+
+    let updatedDesc = (currentProd.description || '').replace(/<!--dainty_images:.*?-->/g, '').trim();
+    if (all.length > 0) {
+      updatedDesc = updatedDesc ? `${updatedDesc}\n<!--dainty_images:${JSON.stringify(all)}-->` : `<!--dainty_images:${JSON.stringify(all)}-->`;
+    }
+
+    let updateRes = await supabase.from('products').update({
+      image_url: newMain,
+      images: all,
+      description: updatedDesc,
+    }).eq('id', productId);
+
+    if (updateRes.error && updateRes.error.message?.toLowerCase().includes('schema cache')) {
+      updateRes = await supabase.from('products').update({
+        image_url: newMain,
+        description: updatedDesc,
+      }).eq('id', productId);
+    }
+
+    if (updateRes.error) {
+      setErrorMsg(updateRes.error.message);
+    } else {
+      setStatusMsg('Photo removed.');
+      await refreshData();
+    }
+  }
+
   async function handleSaveAllDraftProducts(e: FormEvent) {
     e.preventDefault();
     if (draftItems.length === 0) return;
@@ -698,6 +875,11 @@ export default function AdminPage() {
       descText = descText ? `${descText} • MOQ Scope: ${moqScopeVal === 'all' ? 'All Products' : (moqScopeVal === 'category' ? 'Category' : 'Item')}` : `MOQ Scope: ${moqScopeVal === 'all' ? 'All Products' : (moqScopeVal === 'category' ? 'Category' : 'Item')}`;
       if (airFee <= 0 && seaFee > 0) {
         descText = descText ? `${descText} • Shipping: Sea Cargo Only` : `Shipping: Sea Cargo Only`;
+      }
+
+      // Safe multi-photo backup embedded in description
+      if (allImages.length > 0) {
+        descText = descText ? `${descText}\n<!--dainty_images:${JSON.stringify(allImages)}-->` : `<!--dainty_images:${JSON.stringify(allImages)}-->`;
       }
 
       return {
@@ -1612,42 +1794,188 @@ export default function AdminPage() {
                 const sea = Number(p.est_shipping_fee_sea ?? p.est_shipping_fee ?? 0);
                 const pTitle = p.name || p.title || 'Untitled';
                 const moqVal = p.wholesale_moq || p.min_order_qty || 5;
+                const pImages = getProductAllImages(p);
+                const isManagingPhotos = managingPhotosProductId === p.id;
+                const isUploadingPhotos = uploadingExistingPhotoId === p.id;
 
                 return (
                   <div
                     key={p.id}
-                    className="flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50/50 p-3 text-xs"
+                    className="flex flex-col gap-2 rounded-xl border border-stone-200 bg-white p-3.5 text-xs shadow-2xs hover:border-stone-300 transition"
                   >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      {p.image_url ? (
-                        <img src={p.image_url} alt={pTitle} className="h-12 w-12 rounded-lg object-contain bg-white border border-stone-200 p-0.5" />
-                      ) : (
-                        <div className="h-12 w-12 rounded-lg bg-stone-200 flex items-center justify-center text-[10px] text-stone-500">No img</div>
-                      )}
-                      <div className="min-w-0">
-                        <div className="font-semibold text-stone-900 truncate">{pTitle}</div>
-                        <div className="text-[11px] text-stone-500 flex flex-wrap gap-2 mt-0.5">
-                          <span>Retail: ₦{Number(p.retail_price).toLocaleString()}</span>
-                          <span className="font-medium text-amber-700">Wholesale: ₦{Number(p.wholesale_price).toLocaleString()} ({p.moq_scope === 'category' ? `Category total: ${moqVal} pcs, mix & match` : `This item MOQ: ${moqVal} pcs`})</span>
-                          {p.size && <span>Size: {p.size}</span>}
-                          {p.colors && p.colors.length > 0 && <span>Colors: {p.colors.join(', ')}</span>}
-                          {air <= 0 && sea > 0 ? (
-                            <span className="text-blue-700 font-medium">Sea Only (₦{sea.toLocaleString()})</span>
-                          ) : (
-                            <span>Air: ₦{air.toLocaleString()} • Sea: ₦{sea.toLocaleString()}</span>
-                          )}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        {p.image_url ? (
+                          <div className="relative shrink-0">
+                            <img src={p.image_url} alt={pTitle} className="h-14 w-14 rounded-lg object-contain bg-stone-50 border border-stone-200 p-0.5" />
+                            {pImages.length > 1 && (
+                              <span className="absolute -bottom-1 -right-1 rounded-full bg-stone-900 px-1.5 py-0.2 text-[9px] font-bold text-white shadow-xs">
+                                {pImages.length}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="h-14 w-14 rounded-lg bg-stone-100 flex items-center justify-center text-[10px] text-stone-400 border border-stone-200">No img</div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-sm text-stone-900">{pTitle}</span>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
+                              <ImageIcon className="h-3 w-3 text-[#fa9d26]" />
+                              {pImages.length} photo{pImages.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-stone-500 flex flex-wrap gap-2 mt-1">
+                            <span>Retail: <strong className="text-stone-800">₦{Number(p.retail_price).toLocaleString()}</strong></span>
+                            <span className="text-amber-800">Wholesale: <strong className="text-amber-900">₦{Number(p.wholesale_price).toLocaleString()}</strong> ({p.moq_scope === 'category' ? `Cat. total ${moqVal} pcs` : `MOQ ${moqVal} pcs`})</span>
+                            {p.size && <span>Size: {p.size}</span>}
+                            {p.colors && p.colors.length > 0 && <span>Colors: {p.colors.join(', ')}</span>}
+                            {air <= 0 && sea > 0 ? (
+                              <span className="text-blue-700 font-semibold">Sea Only (₦{sea.toLocaleString()})</span>
+                            ) : (
+                              <span>Air: ₦{air.toLocaleString()} • Sea: ₦{sea.toLocaleString()}</span>
+                            )}
+                          </div>
                         </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Manage Photos Button */}
+                        <button
+                          type="button"
+                          onClick={() => setManagingPhotosProductId(isManagingPhotos ? null : p.id)}
+                          className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition ${
+                            isManagingPhotos
+                              ? 'border-[#fa9d26] bg-amber-50 text-amber-950 shadow-2xs'
+                              : 'border-stone-200 text-stone-700 hover:bg-stone-50'
+                          }`}
+                          title="View and edit all pictures for this product"
+                        >
+                          <ImageIcon className="h-3.5 w-3.5 text-[#fa9d26]" />
+                          {isManagingPhotos ? 'Close Photos' : 'Photos'}
+                        </button>
+
+                        {/* Quick Add Photo */}
+                        <label className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-50 hover:border-stone-300 transition cursor-pointer">
+                          <Plus className="h-3.5 w-3.5 text-[#fa9d26]" />
+                          <span className="hidden sm:inline">Add Photo</span>
+                          <input
+                            type="file"
+                            accept="image/*,image/jpeg,image/png,image/webp,image/heic"
+                            multiple
+                            disabled={isUploadingPhotos}
+                            onChange={(e) => {
+                              handleAddPhotosToExistingProduct(p.id, e.target.files);
+                              e.target.value = '';
+                            }}
+                            className="sr-only"
+                          />
+                        </label>
+
+                        {/* Delete Product */}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteProduct(p.id)}
+                          className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition"
+                          title="Delete Product"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteProduct(p.id)}
-                      className="ml-3 p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-white"
-                      title="Delete Product"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {/* Quick photo preview thumbnails row */}
+                    {pImages.length > 1 && !isManagingPhotos && (
+                      <div className="flex items-center gap-1.5 pt-1 overflow-x-auto border-t border-stone-100">
+                        <span className="text-[10px] text-stone-400 font-medium shrink-0">All angles:</span>
+                        {pImages.map((img, i) => (
+                          <img
+                            key={i}
+                            src={img}
+                            alt={`${pTitle} photo ${i + 1}`}
+                            className={`h-8 w-8 rounded-md object-contain bg-stone-50 border p-0.5 shrink-0 ${
+                              img === p.image_url ? 'border-[#fa9d26] ring-1 ring-[#fa9d26]' : 'border-stone-200'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Manage Photos Tray (when expanded) */}
+                    {isManagingPhotos && (
+                      <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-amber-950">
+                            Manage Pictures ({pImages.length})
+                          </span>
+                          <span className="text-[11px] text-stone-500">
+                            • Click any photo to make it the Main photo
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          {pImages.map((img, idx) => {
+                            const isMain = img === p.image_url;
+                            return (
+                              <div key={idx} className="relative group shrink-0">
+                                <img
+                                  src={img}
+                                  alt={`Angle ${idx + 1}`}
+                                  onClick={() => handleSetMainPhotoForExistingProduct(p.id, img)}
+                                  className={`h-16 w-16 rounded-lg object-contain bg-white p-1 cursor-pointer transition ${
+                                    isMain
+                                      ? 'border-2 border-[#fa9d26] shadow-2xs'
+                                      : 'border border-stone-300 hover:border-[#fa9d26] hover:scale-105'
+                                  }`}
+                                  title={isMain ? 'Main photo' : 'Click to make this the Main photo'}
+                                />
+                                {isMain ? (
+                                  <span className="absolute -top-1.5 -left-1.5 rounded-full bg-[#fa9d26] px-1.5 py-0.2 text-[9px] font-bold text-white shadow-2xs">
+                                    Main
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetMainPhotoForExistingProduct(p.id, img)}
+                                    className="absolute bottom-1 left-1 right-1 rounded bg-stone-900/80 px-1 py-0.5 text-[8px] font-bold text-white opacity-0 group-hover:opacity-100 transition text-center"
+                                  >
+                                    Make Main
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePhotoFromExistingProduct(p.id, img)}
+                                  className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-red-600 text-white flex items-center justify-center text-[10px] font-bold hover:bg-red-700 shadow-2xs"
+                                  title="Delete photo"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            );
+                          })}
+
+                          {/* Add more photos button */}
+                          <label className="flex h-16 w-24 shrink-0 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-amber-300 bg-white hover:border-[#fa9d26] hover:bg-amber-100/50 transition text-center p-1">
+                            <Plus className="h-4 w-4 text-stone-700" />
+                            <span className="text-[10px] font-bold text-stone-800 leading-tight mt-0.5">
+                              + Add Photo
+                            </span>
+                            <span className="text-[8px] text-stone-500">Pick 1 or more</span>
+                            <input
+                              type="file"
+                              accept="image/*,image/jpeg,image/png,image/webp,image/heic"
+                              multiple
+                              disabled={isUploadingPhotos}
+                              onChange={(e) => {
+                                handleAddPhotosToExistingProduct(p.id, e.target.files);
+                                e.target.value = '';
+                              }}
+                              className="sr-only"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })
