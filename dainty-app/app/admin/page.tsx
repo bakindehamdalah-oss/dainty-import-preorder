@@ -717,7 +717,7 @@ export default function AdminPage() {
               value={catName}
               onChange={(e) => setCatName(e.target.value)}
               placeholder="New category name (e.g. iPhone Cases)"
-              className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs focus:border-stone-900 focus:outline-hidden min-w-[200px]"
+              className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs focus:border-stone-900 focus:outline-hidden min-w-0 flex-1 sm:min-w-[200px]"
             />
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] text-stone-500">MOQ:</span>
@@ -998,7 +998,7 @@ export default function AdminPage() {
                 </div>
 
                 <div className="flex flex-wrap items-end gap-3 pt-1">
-                  <div className="min-w-[220px] flex-1">
+                  <div className="min-w-0 flex-1 sm:min-w-[220px] flex-1">
                     <label className="block text-[11px] font-medium text-stone-600">
                       Notes / Specifications (shared by all)
                     </label>

@@ -268,9 +268,9 @@ function MatrixOrderModal({
   const displayedSizes = sizes.length > 0 ? sizes : [null];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 sm:p-5 backdrop-blur-xs">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 p-0 sm:p-5 backdrop-blur-xs">
       <div
-        className="relative flex flex-col max-h-[92vh] w-full max-w-2xl rounded-2xl bg-white shadow-2xl overflow-hidden"
+        className="relative flex flex-col max-h-[92vh] w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -1223,7 +1223,7 @@ export default function StorefrontPage() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-stone-50 text-stone-900 flex flex-col">
       {/* Lightbox / Zoom modal */}
       {zoomedImage && (
         <div
@@ -1263,28 +1263,29 @@ export default function StorefrontPage() {
       )}
 
       {/* China Sourcing Announcement Strip */}
-      <div className="bg-[#fa9d26] text-white text-[11px] font-semibold py-1.5 px-4 text-center tracking-wide">
+      <div className="bg-[#fa9d26] text-white text-[10px] sm:text-[11px] font-semibold py-1.5 px-3 sm:px-4 text-center tracking-wide leading-tight w-full">
         🇨🇳 China Factory Direct Sourcing • Direct Factory Prices in Naira • Air Cargo ~3 Weeks • Sea Cargo ~3 Months • WhatsApp Order Confirmation
       </div>
 
       {/* Main Sticky Header */}
-      <header className="sticky top-0 z-40 border-b border-stone-200 bg-white/95 backdrop-blur-xs">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 gap-3">
+      <header className="sticky top-0 z-40 w-full border-b border-stone-200 bg-white/95 backdrop-blur-xs">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-3.5 py-2.5 sm:px-6 sm:py-3 gap-2">
+          {/* Logo & Brand Title */}
           <div className="flex items-center gap-2.5 shrink-0">
             <img
               src="/logo.png"
               alt="Dainty Import"
-              className="h-9 w-auto rounded-md object-contain shadow-xs border border-[#fa9d26]/20"
+              className="h-8 w-auto sm:h-9 rounded-md object-contain shadow-xs border border-[#fa9d26]/20"
             />
             <div>
-              <h1 className="text-base font-bold tracking-tight text-stone-900 leading-tight">Dainty Import</h1>
-              <p className="text-[10px] sm:text-[11px] font-semibold text-[#fa9d26] uppercase tracking-wider">
+              <h1 className="text-sm sm:text-base font-bold tracking-tight text-stone-900 leading-tight">Dainty Import</h1>
+              <p className="text-[9px] sm:text-[11px] font-semibold text-[#fa9d26] uppercase tracking-wider">
                 China Direct Pre-orders
               </p>
             </div>
           </div>
 
-          {/* Search Bar */}
+          {/* Desktop Search Bar */}
           <div className="relative flex-1 max-w-md hidden md:block">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-stone-400" />
             <input
@@ -1305,7 +1306,8 @@ export default function StorefrontPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-2 text-xs">
+          {/* Desktop Mode & Shipping Switch */}
+          <div className="hidden sm:flex items-center gap-2 text-xs">
             {/* Mode switch */}
             <div className="flex rounded-lg border border-stone-200 bg-stone-100 p-0.5">
               <button
@@ -1366,23 +1368,90 @@ export default function StorefrontPage() {
           </div>
         </div>
 
-        {/* Mobile Search Input */}
-        <div className="p-2 border-t border-stone-100 md:hidden px-4">
+        {/* Mobile Header Sub-Bar: Responsive Controls on Mobile */}
+        <div className="sm:hidden border-t border-stone-100 px-3 py-2 bg-stone-50/90 flex flex-col gap-2">
+          {/* Mobile Mode & Shipping Switches */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="flex rounded-lg border border-stone-200 bg-stone-100 p-0.5">
+              <button
+                type="button"
+                onClick={() => setMode('retail')}
+                className={`flex-1 rounded-md py-1 text-center font-medium text-[11px] transition ${
+                  mode === 'retail' ? 'bg-white text-stone-900 shadow-xs font-semibold' : 'text-stone-600'
+                }`}
+              >
+                Retail
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('wholesale')}
+                className={`flex-1 rounded-md py-1 text-center font-bold text-[11px] transition ${
+                  mode === 'wholesale' ? 'bg-[#fa9d26] text-white shadow-xs' : 'text-stone-600'
+                }`}
+              >
+                Wholesale (MOQ)
+              </button>
+            </div>
+
+            <div className="flex rounded-lg border border-stone-200 bg-stone-100 p-0.5">
+              <button
+                type="button"
+                disabled={cartHasSeaOnlyItems}
+                onClick={() => setShippingMethod('air')}
+                className={`flex-1 inline-flex items-center justify-center gap-1 rounded-md py-1 text-center text-[11px] font-medium transition ${
+                  cartHasSeaOnlyItems
+                    ? 'opacity-40 cursor-not-allowed text-stone-400'
+                    : shippingMethod === 'air'
+                    ? 'bg-white text-stone-900 shadow-xs font-semibold'
+                    : 'text-stone-600'
+                }`}
+              >
+                <Plane className="h-3 w-3 text-emerald-600" />
+                Air (3 wks)
+              </button>
+              <button
+                type="button"
+                disabled={cartHasAirOnlyItems}
+                onClick={() => setShippingMethod('sea')}
+                className={`flex-1 inline-flex items-center justify-center gap-1 rounded-md py-1 text-center text-[11px] font-medium transition ${
+                  cartHasAirOnlyItems
+                    ? 'opacity-40 cursor-not-allowed text-stone-400'
+                    : shippingMethod === 'sea'
+                    ? 'bg-white text-stone-900 shadow-xs font-semibold'
+                    : 'text-stone-600'
+                }`}
+              >
+                <Ship className="h-3 w-3 text-blue-600" />
+                Sea (3 mos)
+              </button>
+            </div>
+          </div>
+
+          {/* Mobile Search Input */}
           <div className="relative w-full">
-            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-stone-400" />
+            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-stone-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search products, models, colors..."
-              className="w-full rounded-full border border-stone-200 bg-stone-50 pl-8 pr-4 py-1.5 text-xs text-stone-800 placeholder:text-stone-400 focus:border-[#fa9d26] focus:bg-white focus:outline-hidden"
+              placeholder="Search products, models, categories..."
+              className="w-full rounded-full border border-stone-200 bg-white pl-8 pr-4 py-1 text-xs text-stone-800 placeholder:text-stone-400 focus:border-[#fa9d26] focus:outline-hidden shadow-2xs"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1.5 text-stone-400 hover:text-stone-600 p-0.5"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
       </header>
 
       {/* Main Content Area */}
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8 sm:px-6">
+      <main className="mx-auto w-full max-w-6xl px-3.5 py-5 sm:px-6 sm:py-8 flex-1">
         {/* How China Pre-orders Work Banner */}
         <section className="mb-8 overflow-hidden rounded-2xl border border-[#fa9d26]/30 bg-gradient-to-br from-[#fce7cc]/90 via-[#fff8f0] to-white p-5 sm:p-7 shadow-xs">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[#fa9d26]/20 pb-5">
@@ -1529,7 +1598,7 @@ export default function StorefrontPage() {
 
       {/* Cart Drawer / Bottom Sheet */}
       {cart.length > 0 && (
-        <aside className="fixed bottom-0 right-0 z-40 w-full border-t border-stone-200 bg-white p-4 shadow-xl sm:bottom-6 sm:right-6 sm:w-96 sm:rounded-2xl sm:border">
+        <aside className="fixed bottom-0 left-0 right-0 z-40 w-full border-t border-stone-200 bg-white p-3.5 sm:p-4 shadow-xl sm:left-auto sm:bottom-6 sm:right-6 sm:w-96 sm:rounded-2xl sm:border max-h-[85vh] overflow-y-auto">
           <div className="flex items-center justify-between pb-3 border-b border-stone-100">
             <div className="flex items-center gap-2 font-bold text-sm">
               <ShoppingBag className="h-4 w-4" />
