@@ -78,8 +78,24 @@ type CartItem = {
   selectedImage?: string | null;
 };
 
+function isIphoneCaseItem(product?: Product | null, category?: Category | null): boolean {
+  const catName = (category?.name || category?.slug || '').toLowerCase();
+  const prodText = ((product?.name || product?.title || '') + ' ' + (product?.description || '')).toLowerCase();
+  return (
+    catName.includes('iphone') ||
+    catName.includes('case') ||
+    prodText.includes('iphone') ||
+    prodText.includes('phone case')
+  );
+}
+
 // Extract wholesale MOQ
 function getProductWholesaleMOQ(product: Product, category?: Category | null): number {
+  // iPhone cases have a strict wholesale MOQ of 50 pieces
+  if (isIphoneCaseItem(product, category)) {
+    return 50;
+  }
+
   if (product.wholesale_moq && Number(product.wholesale_moq) > 0) {
     return Number(product.wholesale_moq);
   }
@@ -101,6 +117,11 @@ function getProductWholesaleMOQ(product: Product, category?: Category | null): n
 
 // Extract whether wholesale MOQ is across all products, whole category, or per-item
 function getProductMOQScope(product: Product, category?: Category | null): 'all' | 'category' | 'item' {
+  // iPhone cases are category bulk (customers mix & match designs in the category to reach 50 pieces)
+  if (isIphoneCaseItem(product, category)) {
+    return 'category';
+  }
+
   if (product.moq_scope === 'all') return 'all';
   if (product.moq_scope === 'category') return 'category';
   if (product.moq_scope === 'item') return 'item';
@@ -117,7 +138,6 @@ function getProductMOQScope(product: Product, category?: Category | null): 'all'
   if (category?.moq_scope === 'all' || category?.moq_scope === 'category' || category?.moq_scope === 'item') {
     return category.moq_scope;
   }
-  // Default to all-products store-wide mix & match
   return 'all';
 }
 
@@ -1053,7 +1073,15 @@ export default function StorefrontPage() {
         );
       } else {
         setSettings(settingsRes.data);
-        setCategories(categoriesRes.data || []);
+        const fetchedCats: Category[] = categoriesRes.data || [];
+        const normalizedCats = fetchedCats.map((cat) => {
+          const n = (cat.name || cat.slug || '').toLowerCase();
+          if (n.includes('case') || n.includes('iphone')) {
+            return { ...cat, wholesale_moq: 50, moq_scope: 'category' as const };
+          }
+          return cat;
+        });
+        setCategories(normalizedCats);
         setProducts(productsRes.data || []);
       }
       setLoading(false);

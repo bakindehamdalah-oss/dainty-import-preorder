@@ -288,10 +288,32 @@ export default function AdminPage() {
         catsRes.error?.message || prodsRes.error?.message || 'Failed to load store data.'
       );
     } else {
-      setCategories(catsRes.data || []);
+      const loadedCats: Category[] = catsRes.data || [];
+      const iphoneCat = loadedCats.find((c) => {
+        const n = (c.name || '').toLowerCase();
+        return n.includes('iphone') || n.includes('case');
+      });
+
+      if (iphoneCat && (Number(iphoneCat.wholesale_moq) !== 50 || iphoneCat.moq_scope !== 'category')) {
+        // Auto-repair iPhone case category & products in Supabase
+        supabase
+          .from('categories')
+          .update({ wholesale_moq: 50, moq_scope: 'category' })
+          .eq('id', iphoneCat.id)
+          .then(() => {
+            supabase
+              .from('products')
+              .update({ wholesale_moq: 50, min_order_qty: 50, moq_scope: 'category' })
+              .eq('category_id', iphoneCat.id);
+          });
+        iphoneCat.wholesale_moq = 50;
+        iphoneCat.moq_scope = 'category';
+      }
+
+      setCategories(loadedCats);
       setProducts(prodsRes.data || []);
-      if (!selectedCategoryId && catsRes.data && catsRes.data.length > 0) {
-        setSelectedCategoryId(catsRes.data[0].id);
+      if (!selectedCategoryId && loadedCats.length > 0) {
+        setSelectedCategoryId(loadedCats[0].id);
       }
     }
   }
@@ -638,9 +660,57 @@ export default function AdminPage() {
       return;
     }
 
+    // Restore iPhone cases category & products back to 50 pcs MOQ
+    const iphoneCat = categories.find((c) => {
+      const n = (c.name || '').toLowerCase();
+      return n.includes('iphone') || n.includes('case');
+    });
+    if (iphoneCat) {
+      await supabase
+        .from('categories')
+        .update({ wholesale_moq: 50, moq_scope: 'category' })
+        .eq('id', iphoneCat.id);
+      await supabase
+        .from('products')
+        .update({ wholesale_moq: 50, min_order_qty: 50, moq_scope: 'category' })
+        .eq('category_id', iphoneCat.id);
+    }
+
     setSharedMoq(String(targetMoq));
     setSharedMoqScope('all');
-    setStatusMsg(`Applied store-wide mix & match: ${targetMoq} pieces minimum across all products! Customers can mix & match any items with no MOQ per design.`);
+    setStatusMsg(`Applied store-wide MOQ: ${targetMoq} pieces (iPhone Cases preserved at 50 pcs MOQ).`);
+    await refreshData();
+  }
+
+  async function handleResetIphoneCaseMoq50() {
+    setErrorMsg(null);
+    setStatusMsg(null);
+    const targetCat = categories.find((c) => {
+      const n = (c.name || '').toLowerCase();
+      return n.includes('iphone') || n.includes('case');
+    });
+
+    if (!targetCat) {
+      setErrorMsg('No category matching "iPhone" or "Case" found.');
+      return;
+    }
+
+    const { error: catErr } = await supabase
+      .from('categories')
+      .update({ wholesale_moq: 50, moq_scope: 'category' })
+      .eq('id', targetCat.id);
+
+    if (catErr) {
+      setErrorMsg(`Failed to update category: ${catErr.message}`);
+      return;
+    }
+
+    await supabase
+      .from('products')
+      .update({ wholesale_moq: 50, min_order_qty: 50, moq_scope: 'category' })
+      .eq('category_id', targetCat.id);
+
+    setStatusMsg(`Restored "${targetCat.name}" wholesale MOQ to 50 pieces (category bulk)!`);
     await refreshData();
   }
 
@@ -1846,10 +1916,28 @@ export default function AdminPage() {
             </div>
           </div>
 
+          <div className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3 sm:flex-row sm:items-center sm:justify-between shadow-2xs">
+            <div className="space-y-0.5">
+              <p className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                <span>📱</span> iPhone Cases Wholesale Minimum (50 pcs)
+              </p>
+              <p className="text-[11px] text-amber-900 leading-snug">
+                Enforce a 50-piece minimum across all iPhone cases (category bulk: customers can pick any iPhone case designs to reach 50 pcs).
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleResetIphoneCaseMoq50}
+              className="shrink-0 rounded-lg bg-amber-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-amber-800 transition shadow-2xs"
+            >
+              Reset iPhone Cases to 50 pcs MOQ
+            </button>
+          </div>
+
           {selectedCategoryId && (
             <div className="flex flex-col gap-2 rounded-lg border border-stone-200 bg-stone-50/70 p-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-stone-700">
-                <strong>Category Mix-and-match:</strong> Apply minimum only across products in this category.
+                <strong>Category Bulk:</strong> Apply minimum only across products in this category.
               </p>
               <button
                 type="button"
