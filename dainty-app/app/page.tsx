@@ -1025,7 +1025,9 @@ export default function StorefrontPage() {
 
   const totalCartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-  const [matrixProduct, setMatrixProduct] = useState<Product | null>(null);
+    const [matrixProduct, setMatrixProduct] = useState<Product | null>(null);
+  const [loadedOrderNotice, setLoadedOrderNotice] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
     async function loadStoreData() {
@@ -1055,6 +1057,52 @@ export default function StorefrontPage() {
 
     loadStoreData();
   }, []);
+
+
+  // Restore cart from URL (?order=... or ?cart=...) so admin or customer can view order anytime
+  useEffect(() => {
+    if (products.length === 0 || typeof window === 'undefined') return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const orderParam = urlParams.get('order') || urlParams.get('cart');
+    if (!orderParam) return;
+
+    try {
+      const decoded = decodeURIComponent(orderParam);
+      const json = decodeURIComponent(atob(decoded));
+      const data = JSON.parse(json);
+
+      if (data && Array.isArray(data.c)) {
+        const restoredCart: CartItem[] = [];
+        for (const item of data.c) {
+          const prod = products.find((p) => p.id === item.p);
+          if (prod) {
+            restoredCart.push({
+              product: prod,
+              quantity: Number(item.q) || 1,
+              selectedSize: item.s || null,
+              selectedColor: item.c || null,
+              selectedImage: item.img || null,
+            });
+          }
+        }
+
+        if (restoredCart.length > 0) {
+          setCart(restoredCart);
+          if (data.m === 'wholesale' || data.m === 'retail') {
+            setMode(data.m);
+          }
+          if (data.sm === 'air' || data.sm === 'sea') {
+            setShippingMethod(data.sm);
+          }
+          setIsCartOpen(true);
+          setLoadedOrderNotice(`Viewing shared order (${restoredCart.length} item${restoredCart.length > 1 ? 's' : ''})`);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to parse shared cart parameter:', err);
+    }
+  }, [products]);
 
   const categoryMap = useMemo(() => {
     const map = new Map<string, Category>();
@@ -1305,15 +1353,60 @@ export default function StorefrontPage() {
     return warnings;
   }, [cart, mode, categoryMap]);
 
+
+  function buildShareableCartUrl(): string {
+    if (typeof window === 'undefined') return '';
+    const origin = window.location.origin;
+    const minimalCart = cart.map((i) => ({
+      p: i.product.id,
+      q: i.quantity,
+      s: i.selectedSize || undefined,
+      c: i.selectedColor || undefined,
+      img: i.selectedImage || undefined,
+    }));
+    const payload = {
+      c: minimalCart,
+      m: mode,
+      sm: shippingMethod,
+      t: Date.now(),
+    };
+    try {
+      const json = JSON.stringify(payload);
+      const b64 = btoa(encodeURIComponent(json));
+      return `${origin}/?order=${encodeURIComponent(b64)}`;
+    } catch {
+      return `${origin}/`;
+    }
+  }
+
+  function handleCopyCartLink() {
+    const url = buildShareableCartUrl();
+    if (url && typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(url);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    }
+  }
+
   function buildWhatsAppLink() {
     const cleanPhone = (settings?.whatsapp_number || '').replace(/[^0-9]/g, '');
+    const shareableLink = buildShareableCartUrl();
     const lines: string[] = [
       `*🇨🇳 China Factory Preorder Sourcing Sheet (${mode.toUpperCase()})*`,
       `*Store:* Dainty Import`,
       `*Shipping Cargo:* ${shippingMethod.toUpperCase()} (${shippingTimeline})`,
+    ];
+
+    if (shareableLink) {
+      lines.push(
+        `*🛒 View & Track Order Online:*\n${shareableLink}`
+      );
+    }
+
+    lines.push(
       '',
       '*📦 Ordered Items (Specifications & Photos):*'
-    ];
+    );
 
     cart.forEach((item, idx) => {
       const price =
@@ -1347,7 +1440,17 @@ export default function StorefrontPage() {
       '',
       `*💳 Total Product Cost (Payable Now):* ₦${subtotal.toLocaleString()}`,
       `*🚢 Est. Shipping (${shippingMethod.toUpperCase()} Cargo):* ${estimatedShipping > 0 ? `₦${estimatedShipping.toLocaleString()}` : 'Billed upon arrival in Nigeria'}`,
-      `*⏱️ Est. Delivery Timeline:* ${shippingTimeline}`,
+      `*⏱️ Est. Delivery Timeline:* ${shippingTimeline}`
+    );
+
+    if (shareableLink) {
+      lines.push(
+        '',
+        `*🔗 Direct Cart Link (Click to view full order on website):*\n${shareableLink}`
+      );
+    }
+
+    lines.push(
       '',
       '📌 *China Sourcing Pre-order Terms:*',
       '1. Initial payment covers product cost only to lock factory prices and production in China.',
@@ -1359,6 +1462,7 @@ export default function StorefrontPage() {
     const encoded = encodeURIComponent(lines.join('\n\n'));
     return cleanPhone ? `https://wa.me/${cleanPhone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
   }
+
 
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-stone-50 text-stone-900 flex flex-col">
@@ -1825,18 +1929,28 @@ export default function StorefrontPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {cart.length > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setCart([]);
-                  setIsCartOpen(false);
-                }}
-                className="text-xs text-stone-500 hover:text-red-600 transition px-1.5 py-1"
-              >
-                Clear
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleCopyCartLink}
+                  className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50/70 px-2.5 py-1 text-xs font-semibold text-amber-950 hover:bg-amber-100 hover:border-amber-300 shadow-2xs transition"
+                  title="Copy direct shareable cart link"
+                >
+                  <span>{copiedLink ? '✓ Copied' : '🔗 Share Cart'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCart([]);
+                    setIsCartOpen(false);
+                  }}
+                  className="text-xs text-stone-500 hover:text-red-600 transition px-1.5 py-1"
+                >
+                  Clear
+                </button>
+              </>
             )}
             <button
               type="button"
@@ -1849,6 +1963,23 @@ export default function StorefrontPage() {
             </button>
           </div>
         </div>
+
+        {/* Shared Order Notice Banner */}
+        {loadedOrderNotice && (
+          <div className="flex items-center justify-between bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-xs text-amber-950 font-medium">
+            <span className="flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-[#fa9d26] shrink-0" />
+              {loadedOrderNotice}
+            </span>
+            <button
+              type="button"
+              onClick={() => setLoadedOrderNotice(null)}
+              className="text-stone-400 hover:text-stone-700 p-0.5"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Drawer Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
