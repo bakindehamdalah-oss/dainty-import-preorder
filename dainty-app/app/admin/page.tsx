@@ -3,7 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Session } from '@supabase/supabase-js';
-import { Upload, Trash2, Plus, LogOut, Check, FolderPlus, RefreshCw, X, ShieldAlert, Sparkles, Layers, Image as ImageIcon, Ship, Plane, Tag, Box, Info, Pencil, Save, Settings, Phone, Search, Sliders, Edit2, CheckSquare } from 'lucide-react';
+import { Upload, Trash2, Plus, LogOut, Check, FolderPlus, RefreshCw, X, ShieldAlert, Sparkles, Layers, Image as ImageIcon, Ship, Plane, Tag, Box, Info, Pencil, Save, Settings, Phone, Search, Sliders, Edit2, CheckSquare, ExternalLink } from 'lucide-react';
 
 type Category = {
   id: string;
@@ -151,6 +151,7 @@ export default function AdminPage() {
 
   // Editing categories
   const [editingCategory, setEditingCategory] = useState<EditCategoryState | null>(null);
+  const [preorders, setPreorders] = useState<any[]>([]);
   const [savingCategoryEdit, setSavingCategoryEdit] = useState(false);
   const [managingCategories, setManagingCategories] = useState(false);
 
@@ -218,6 +219,19 @@ export default function AdminPage() {
 
     if (settingsRes.data?.whatsapp_number) {
       setStoreWhatsapp(settingsRes.data.whatsapp_number);
+    }
+
+    try {
+      const preordersRes = await supabase
+        .from('preorders')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (preordersRes.data) {
+        setPreorders(preordersRes.data);
+      }
+    } catch (err) {
+      console.warn('Could not load preorders in admin:', err);
     }
 
     if (catsRes.error || prodsRes.error) {
@@ -2425,6 +2439,62 @@ export default function AdminPage() {
 
         {/* ========================================================= */}
         {/* EDIT PUBLISHED PRODUCT MODAL                              */}
+                {/* Section 4: Customer Preorders & Catalog Sheets */}
+        <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-xs sm:p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-bold text-stone-900 flex items-center gap-2">
+                <span>4. Customer Preorders & Catalog Sheets</span>
+                {preorders.length > 0 && (
+                  <span className="rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                    {preorders.length} orders
+                  </span>
+                )}
+              </h2>
+              <p className="text-xs text-stone-500">
+                Click &ldquo;View & Edit Catalog&rdquo; on any order to open its dedicated catalog view with full admin editing controls.
+              </p>
+            </div>
+          </div>
+
+          {preorders.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50/50 p-6 text-center text-xs text-stone-400">
+              No preorders received yet. When customers click Send on WhatsApp, their orders appear here automatically.
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {preorders.map((po) => (
+                <div key={po.id} className="rounded-xl border border-stone-200 bg-stone-50/50 p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-bold text-stone-900">#{po.id}</span>
+                    <span className="text-[10px] uppercase font-bold text-stone-500">
+                      {po.mode || 'Wholesale'} • {po.shipping_method || 'Air'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-stone-600">
+                    <span>{po.total_pieces || (po.items?.length || 0)} pieces</span>
+                    <span className="font-extrabold text-[#b86200]">₦{Number(po.total_amount || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="pt-2 border-t border-stone-200 flex items-center justify-between">
+                    <span className="text-[10px] text-stone-400">
+                      {po.created_at ? new Date(po.created_at).toLocaleDateString() : ''}
+                    </span>
+                    <a
+                      href={`/order?id=${po.id}&admin=1234`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded-lg bg-[#fa9d26] px-2.5 py-1 text-[11px] font-bold text-white hover:bg-[#e68c1d] shadow-2xs transition"
+                    >
+                      <span>View & Edit Catalog</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
         {/* ========================================================= */}
         {editingProduct && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-stone-950/60 backdrop-blur-xs overflow-y-auto">
