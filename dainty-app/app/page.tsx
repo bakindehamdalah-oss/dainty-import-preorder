@@ -89,25 +89,11 @@ function getProductWholesaleMOQ(product: Product, category?: Category | null): n
       return parseInt(moqMatch[1], 10);
     }
   }
-  const prodName = (product.name || product.title || '').toLowerCase();
-  const catName = (category?.name || '').toLowerCase();
-
-  // For iPhone cases & phone cases, wholesale minimum is 50 pieces
-  if (
-    catName.includes('case') ||
-    catName.includes('iphone') ||
-    prodName.includes('iphone case') ||
-    prodName.includes('phone case') ||
-    prodName.includes('case')
-  ) {
-    return 50;
-  }
-
   if (category?.wholesale_moq && Number(category.wholesale_moq) > 0) {
     return Number(category.wholesale_moq);
   }
 
-  return 5;
+  return 50;
 }
 
 // Extract whether wholesale MOQ is per-item or whole category
@@ -121,36 +107,25 @@ function getProductMOQScope(product: Product, category?: Category | null): 'item
       return scopeMatch[1].toLowerCase() === 'category' ? 'category' : 'item';
     }
   }
-  const prodName = (product.name || product.title || '').toLowerCase();
-  const catName = (category?.name || '').toLowerCase();
-
-  // iPhone cases strictly require 50 pcs per item model
-  if (
-    catName.includes('case') ||
-    catName.includes('iphone') ||
-    prodName.includes('iphone case') ||
-    prodName.includes('phone case')
-  ) {
-    return 'item';
-  }
-
   if (category?.moq_scope) {
     return category.moq_scope;
   }
-
-  return 'item';
+  // Default to category mix-and-match so buyers can pick different designs from the category
+  return 'category';
 }
 
-// 1688 Specification Matrix Modal (1688 规格批量选款)
+// Wholesale Specification Matrix Modal
 function MatrixOrderModal({
   product,
   category,
+  categoryQtyInCart = 0,
   onClose,
   onAddBatchToCart,
   onZoomImage,
 }: {
   product: Product;
   category?: Category | null;
+  categoryQtyInCart?: number;
   onClose: () => void;
   onAddBatchToCart: (
     items: { color: string | null; size: string | null; quantity: number }[]
@@ -255,7 +230,7 @@ function MatrixOrderModal({
       for (const c of targetColors) {
         for (const s of targetSizes) {
           const k = getKey(c, s);
-          next[k] = (next[k] || 0) + delta;
+          next[k] = Math.max(0, (next[k] || 0) + delta);
         }
       }
       return next;
@@ -266,8 +241,10 @@ function MatrixOrderModal({
     return Object.values(quantities).reduce((sum, q) => sum + (q || 0), 0);
   }, [quantities]);
 
-  const progressPercent = Math.min(100, Math.round((totalSelected / moq) * 100));
-  const isMoqMet = totalSelected >= moq;
+  const totalTowardsCategory = categoryQtyInCart + totalSelected;
+  const progressPercent = moqScope === 'category'
+    ? Math.min(100, Math.round((totalTowardsCategory / moq) * 100))
+    : Math.min(100, Math.round((totalSelected / moq) * 100));
 
   function handleConfirm() {
     if (totalSelected === 0) return;
@@ -304,149 +281,166 @@ function MatrixOrderModal({
                 src={product.image_url}
                 alt={productTitle}
                 onClick={() => onZoomImage(product.image_url!)}
-                className="h-12 w-12 shrink-0 rounded-lg border border-stone-200 bg-white object-contain p-1 cursor-pointer hover:scale-105 transition"
+                className="h-11 w-11 shrink-0 rounded-lg border border-stone-200 bg-white object-contain cursor-pointer"
               />
             ) : null}
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="rounded bg-[#fa9d26] px-1.5 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
-                  1688 Wholesale Spec Matrix
+                <span className="rounded-md bg-[#fa9d26] px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
+                  Wholesale Variant Order Sheet
                 </span>
-                <span className="text-[11px] font-semibold text-stone-500">
-                  {moqScope === 'item' ? `MOQ: ${moq} pcs (Per Item)` : `MOQ: ${moq} pcs (Category Mix)`}
+                <span className="text-xs text-stone-500 font-medium">
+                  ₦{Number(product.wholesale_price).toLocaleString()} / pc
                 </span>
               </div>
-              <h3 className="text-sm font-bold text-stone-900 truncate mt-0.5">{productTitle}</h3>
-              <div className="text-xs text-[#d97706] font-bold">
-                ₦{Number(product.wholesale_price).toLocaleString()} <span className="font-normal text-stone-500">/ piece</span>
-              </div>
+              <h2 className="text-sm sm:text-base font-bold text-stone-900 truncate mt-0.5">
+                {productTitle}
+              </h2>
             </div>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-1.5 text-stone-400 hover:bg-stone-200 hover:text-stone-700 transition"
+            className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-200 hover:text-stone-700 transition"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
+        {/* Scope Notice Banner */}
+        <div className="border-b border-amber-200/80 bg-amber-50/70 px-4 py-2 text-xs text-amber-900">
+          {moqScope === 'category' ? (
+            <div className="flex items-start gap-1.5">
+              <Sparkles className="h-4 w-4 text-[#fa9d26] shrink-0 mt-0.5" />
+              <div>
+                <strong>Category Mix & Match:</strong> Wholesale minimum is <strong>{moq} pieces total</strong> across items in this category. You can choose any number of pieces for this design and mix with other designs to reach the minimum in your cart.
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start gap-1.5">
+              <Box className="h-4 w-4 text-[#fa9d26] shrink-0 mt-0.5" />
+              <div>
+                <strong>Product-Specific Minimum:</strong> Minimum order for this item is <strong>{moq} pieces</strong>. You can mix and match any sizes and colors below to hit the {moq} pcs target.
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Color Tabs if colors exist */}
         {colors.length > 1 && (
-          <div className="flex items-center gap-1.5 border-b border-stone-100 bg-white px-4 py-2 overflow-x-auto text-xs">
-            <span className="text-[11px] font-medium text-stone-500 mr-1 shrink-0">Filter Color:</span>
+          <div className="flex items-center gap-2 border-b border-stone-200 bg-stone-100/60 px-4 py-2 overflow-x-auto">
+            <span className="text-[11px] font-semibold text-stone-500 shrink-0">Filter Color:</span>
             <button
               type="button"
               onClick={() => setActiveColorTab('All')}
-              className={`rounded-lg px-2.5 py-1 font-medium transition shrink-0 ${
+              className={`rounded-full px-3 py-1 text-xs font-medium transition shrink-0 ${
                 activeColorTab === 'All'
-                  ? 'bg-stone-900 text-white shadow-xs font-semibold'
-                  : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                  ? 'bg-stone-900 text-white font-bold shadow-2xs'
+                  : 'bg-white text-stone-700 border border-stone-200 hover:bg-stone-50'
               }`}
             >
-              All Colors
+              All Colors ({colors.length})
             </button>
-            {colors.map((c) => {
-              // Count selected pieces for this color
-              let colorCount = 0;
-              for (const [k, q] of Object.entries(quantities)) {
-                if (k.startsWith(`${c}:::`)) colorCount += q;
-              }
-              return (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setActiveColorTab(c)}
-                  className={`rounded-lg px-2.5 py-1 font-medium transition shrink-0 flex items-center gap-1.5 ${
-                    activeColorTab === c
-                      ? 'bg-[#fa9d26] text-white shadow-xs font-semibold'
-                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-                  }`}
-                >
-                  <span>{c}</span>
-                  {colorCount > 0 && (
-                    <span className="rounded-full bg-white/30 px-1.5 py-0.2 text-[10px] font-bold">
-                      {colorCount}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+            {colors.map((col) => (
+              <button
+                key={col}
+                type="button"
+                onClick={() => setActiveColorTab(col)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition shrink-0 ${
+                  activeColorTab === col
+                    ? 'bg-[#fa9d26] text-white font-bold shadow-2xs'
+                    : 'bg-white text-stone-700 border border-stone-200 hover:bg-stone-50'
+                }`}
+              >
+                {col}
+              </button>
+            ))}
           </div>
         )}
 
-        {/* Quick Batch Increment Bar */}
-        <div className="flex items-center justify-between bg-stone-50/80 px-4 py-2 border-b border-stone-100 text-xs">
-          <span className="text-[11px] text-stone-500">
-            Quick fill displayed variants:
+        {/* Quick Batch Buttons Bar */}
+        <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 px-4 py-2 text-xs">
+          <span className="text-stone-500 text-[11px]">
+            Quick fill for visible view ({displayedColors.length * displayedSizes.length} variant{displayedColors.length * displayedSizes.length > 1 ? 's' : ''}):
           </span>
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => quickFillActive(5)}
-              className="rounded-md border border-stone-200 bg-white px-2 py-0.5 text-[11px] font-medium text-stone-700 hover:bg-stone-100 shadow-2xs"
+              onClick={() => quickFillActive(1)}
+              className="rounded bg-white border border-stone-200 px-2 py-0.5 text-[11px] font-medium text-stone-700 hover:bg-stone-100 shadow-2xs"
             >
-              +5 to all
+              +1 each
+            </button>
+            <button
+              type="button"
+              onClick={() => quickFillActive(5)}
+              className="rounded bg-white border border-stone-200 px-2 py-0.5 text-[11px] font-medium text-stone-700 hover:bg-stone-100 shadow-2xs"
+            >
+              +5 each
             </button>
             <button
               type="button"
               onClick={() => quickFillActive(10)}
-              className="rounded-md border border-stone-200 bg-white px-2 py-0.5 text-[11px] font-medium text-stone-700 hover:bg-stone-100 shadow-2xs"
+              className="rounded bg-white border border-stone-200 px-2 py-0.5 text-[11px] font-medium text-stone-700 hover:bg-stone-100 shadow-2xs"
             >
-              +10 to all
+              +10 each
             </button>
-            <button
-              type="button"
-              onClick={() => setQuantities({})}
-              className="text-[11px] text-stone-400 hover:text-red-600 ml-1"
-            >
-              Clear
-            </button>
+            {totalSelected > 0 && (
+              <button
+                type="button"
+                onClick={() => setQuantities({})}
+                className="text-[11px] text-red-600 hover:underline ml-1"
+              >
+                Reset
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Matrix Variant Table / Rows */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-2">
-          {displayedColors.map((color) => (
-            <div key={color || 'no-color'} className="space-y-1.5">
-              {color && (
-                <div className="flex items-center gap-2 pt-2 pb-1">
-                  <span className="h-2 w-2 rounded-full bg-[#fa9d26]" />
-                  <span className="text-xs font-bold text-stone-800">Color: {color}</span>
-                </div>
-              )}
+        {/* Variant Quantity Selection Table */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3">
+          <div className="divide-y divide-stone-100 rounded-xl border border-stone-200 bg-white">
+            {displayedColors.map((color) => {
+              return displayedSizes.map((size) => {
+                const qty = getQty(color, size);
+                const unitPrice = Number(product.wholesale_price) || 0;
+                const rowTotal = qty * unitPrice;
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {displayedSizes.map((size) => {
-                  const qty = getQty(color, size);
-                  const label = size || (color ? 'Standard Spec' : 'Standard Item');
-
-                  return (
-                    <div
-                      key={size || 'no-size'}
-                      className={`flex items-center justify-between rounded-xl border p-2.5 transition ${
-                        qty > 0
-                          ? 'border-[#fa9d26] bg-[#fffaf5] ring-1 ring-[#fa9d26]/20'
-                          : 'border-stone-200 bg-white hover:border-stone-300'
-                      }`}
-                    >
-                      <div className="min-w-0 flex-1 pr-2">
-                        <span className="text-xs font-semibold text-stone-900 block truncate">
-                          {label}
+                return (
+                  <div
+                    key={getKey(color, size)}
+                    className={`flex items-center justify-between gap-3 p-3 transition ${
+                      qty > 0 ? 'bg-amber-50/40' : 'hover:bg-stone-50/60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      {color && (
+                        <span className="inline-flex items-center rounded-md bg-stone-100 px-2 py-0.5 text-xs font-semibold text-stone-800 border border-stone-200">
+                          {color}
                         </span>
-                        <span className="text-[11px] text-stone-500">
-                          ₦{Number(product.wholesale_price).toLocaleString()}
+                      )}
+                      {size && (
+                        <span className="text-xs font-bold text-stone-900 truncate">
+                          {size}
                         </span>
-                      </div>
+                      )}
+                      {!color && !size && (
+                        <span className="text-xs font-medium text-stone-700">Standard Spec</span>
+                      )}
+                      <span className="text-[11px] text-stone-400">
+                        • ₦{unitPrice.toLocaleString()}/pc
+                      </span>
+                    </div>
 
-                      {/* Stepper with direct quantity input */}
-                      <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-3 shrink-0">
+                      {/* Quantity Stepper */}
+                      <div className="flex items-center rounded-lg border border-stone-300 bg-white shadow-2xs">
                         <button
                           type="button"
                           onClick={() => adjustQty(color, size, -1)}
                           disabled={qty <= 0}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-700 hover:bg-stone-100 disabled:opacity-40"
+                          className="h-7 w-7 flex items-center justify-center rounded-l text-stone-600 hover:bg-stone-100 disabled:opacity-30"
                         >
                           <Minus className="h-3 w-3" />
                         </button>
@@ -454,55 +448,55 @@ function MatrixOrderModal({
                           type="number"
                           min="0"
                           value={qty === 0 ? '' : qty}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value, 10);
-                            setQty(color, size, isNaN(val) ? 0 : val);
-                          }}
                           placeholder="0"
-                          className="h-7 w-12 rounded-lg border border-stone-200 bg-white text-center text-xs font-bold text-stone-900 focus:border-[#fa9d26] focus:outline-hidden"
+                          onChange={(e) => setQty(color, size, parseInt(e.target.value, 10) || 0)}
+                          className="h-7 w-12 text-center text-xs font-bold text-stone-900 border-x border-stone-200 focus:outline-hidden"
                         />
                         <button
                           type="button"
                           onClick={() => adjustQty(color, size, 1)}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-700 hover:bg-stone-100"
+                          className="h-7 w-7 flex items-center justify-center rounded-r text-stone-600 hover:bg-stone-100"
                         >
                           <Plus className="h-3 w-3" />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => adjustQty(color, size, 5)}
-                          className="rounded-lg bg-stone-100 px-1.5 py-1 text-[10px] font-semibold text-stone-600 hover:bg-stone-200"
-                          title="Add 5"
-                        >
-                          +5
-                        </button>
+                      </div>
+
+                      {/* Row Total */}
+                      <div className="w-20 text-right text-xs font-semibold text-stone-900">
+                        {qty > 0 ? `₦${rowTotal.toLocaleString()}` : <span className="text-stone-300">₦0</span>}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+                  </div>
+                );
+              });
+            })}
+          </div>
         </div>
 
-        {/* Sticky 1688 Footer with Progress Bar */}
+        {/* Sticky Footer with Progress & Add Button */}
         <div className="border-t border-stone-200 bg-stone-50 p-4 space-y-3">
           {/* Progress bar towards MOQ */}
           <div>
             <div className="flex items-center justify-between text-xs mb-1.5">
               <span className="font-semibold text-stone-700">
-                Selected: <strong className="text-stone-900">{totalSelected}</strong> / {moq} pcs
+                Selected for this design: <strong className="text-stone-900">{totalSelected}</strong> pcs
               </span>
-              <span className={`text-[11px] font-bold ${isMoqMet ? 'text-emerald-700' : 'text-[#d97706]'}`}>
-                {isMoqMet
-                  ? '✅ Wholesale MOQ Reached!'
-                  : `Need ${moq - totalSelected} more pieces to reach ${moq} pcs MOQ`}
-              </span>
+              {moqScope === 'category' ? (
+                <span className="text-[11px] font-bold text-stone-700">
+                  Cart Category Total: <strong>{totalTowardsCategory}</strong> / {moq} pcs
+                </span>
+              ) : (
+                <span className={`text-[11px] font-bold ${totalSelected >= moq ? 'text-emerald-700' : 'text-[#d97706]'}`}>
+                  {totalSelected >= moq
+                    ? '✅ Wholesale MOQ Reached!'
+                    : `Need ${moq - totalSelected} more pieces to reach ${moq} pcs MOQ`}
+                </span>
+              )}
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-stone-200">
               <div
                 className={`h-full transition-all duration-300 ${
-                  isMoqMet ? 'bg-emerald-600' : 'bg-[#fa9d26]'
+                  progressPercent >= 100 ? 'bg-emerald-600' : 'bg-[#fa9d26]'
                 }`}
                 style={{ width: `${progressPercent}%` }}
               />
@@ -521,12 +515,10 @@ function MatrixOrderModal({
               type="button"
               disabled={totalSelected === 0}
               onClick={handleConfirm}
-              className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold text-white shadow-md transition disabled:opacity-40 ${
-                isMoqMet ? 'bg-[#fa9d26] hover:bg-[#e68c1d]' : 'bg-stone-900 hover:bg-stone-800'
-              }`}
+              className="flex items-center gap-2 rounded-xl bg-[#fa9d26] px-5 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-[#e68c1d] disabled:opacity-40"
             >
               <Check className="h-4 w-4" />
-              Add All {totalSelected} Pieces to Preorder
+              Add {totalSelected} Pieces to Preorder Cart
             </button>
           </div>
         </div>
@@ -535,7 +527,7 @@ function MatrixOrderModal({
   );
 }
 
-// 1688 Product Card Component
+
 function ProductCard({
   product,
   mode,
@@ -653,7 +645,11 @@ function ProductCard({
   const [activeImage, setActiveImage] = useState<string>(allImages[0] || '');
   const [selectedColor, setSelectedColor] = useState<string | null>(allColors[0] || null);
   const [selectedSize, setSelectedSize] = useState<string | null>(allSizes[0] || product.size || null);
-  const [orderQty, setOrderQty] = useState<number>(mode === 'wholesale' ? moq : 1);
+
+  // For wholesale category mix-and-match, start at 1 piece so buyers can freely pick small quantities per design
+  // For wholesale per-item MOQ, start at 1 if matrix/variants exist, or moq if no variants
+  const defaultQty = mode === 'wholesale' ? (moqScope === 'category' ? 1 : (hasVariants ? 1 : moq)) : 1;
+  const [orderQty, setOrderQty] = useState<number>(defaultQty);
 
   useEffect(() => {
     if (allImages.length > 0 && !allImages.includes(activeImage)) {
@@ -662,8 +658,8 @@ function ProductCard({
   }, [allImages, activeImage]);
 
   useEffect(() => {
-    setOrderQty(mode === 'wholesale' ? moq : 1);
-  }, [mode, moq]);
+    setOrderQty(mode === 'wholesale' ? (moqScope === 'category' ? 1 : (hasVariants ? 1 : moq)) : 1);
+  }, [mode, moq, moqScope, hasVariants]);
 
   function handleSelectColor(colorName: string, index?: number) {
     setSelectedColor(colorName);
@@ -680,7 +676,7 @@ function ProductCard({
   return (
     <div className="flex flex-col justify-between overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xs transition hover:shadow-md">
       <div>
-        {/* Crisp product image container with 1688 Zoom */}
+        {/* Crisp product image container with Zoom */}
         <div className="relative aspect-square w-full overflow-hidden bg-stone-50 flex items-center justify-center p-3 group">
           {activeImage ? (
             <img
@@ -711,16 +707,23 @@ function ProductCard({
             </button>
           )}
 
-          {/* 1688 Badges */}
+          {/* Product Badges */}
           <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 items-start">
             {mode === 'wholesale' && (
               <span className="rounded-md bg-[#fa9d26] px-2 py-0.5 text-[10px] font-bold text-white shadow-xs tracking-wide">
-                MOQ: {moq} pcs ({moqScope === 'item' ? 'Item' : 'Category'})
+                {moqScope === 'category'
+                  ? `Category Mix & Match (Min ${moq} pcs total)`
+                  : `MOQ: ${moq} pcs (This Item)`}
               </span>
             )}
             {!hasAir && hasSea && (
               <span className="rounded-md bg-blue-600/95 px-2 py-0.5 text-[10px] font-semibold text-white shadow-xs">
                 Sea Cargo Only
+              </span>
+            )}
+            {hasAir && !hasSea && (
+              <span className="rounded-md bg-emerald-700/95 px-2 py-0.5 text-[10px] font-semibold text-white shadow-xs">
+                Air Cargo Only
               </span>
             )}
           </div>
@@ -753,7 +756,9 @@ function ProductCard({
             {cat && <span className="text-xs font-medium text-stone-500">{cat.name}</span>}
             {mode === 'wholesale' && (
               <span className="text-[10px] font-semibold text-amber-900 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                {moqScope === 'item' ? `Per-Item MOQ: ${moq} pcs` : `Category MOQ: ${moq} pcs`}
+                {moqScope === 'category'
+                  ? `Category MOQ: ${moq} pcs total • Mix & match`
+                  : `Item MOQ: ${moq} pcs`}
               </span>
             )}
           </div>
@@ -842,22 +847,22 @@ function ProductCard({
             </div>
           </div>
 
-          {/* Quantity Stepper for Single Add */}
+          {/* Quantity Stepper for Single Add - 1 piece steps */}
           <div className="flex items-center rounded-lg border border-stone-200 bg-white p-0.5">
             <button
               type="button"
-              onClick={() => setOrderQty((q) => Math.max(1, q - (mode === 'wholesale' ? 5 : 1)))}
+              onClick={() => setOrderQty((q) => Math.max(1, q - 1))}
               className="h-6 w-6 flex items-center justify-center rounded text-stone-600 hover:bg-stone-100"
               title="Decrease quantity"
             >
               <Minus className="h-3 w-3" />
             </button>
-            <span className="text-xs font-bold text-stone-900 px-1.5 min-w-[28px] text-center">
+            <span className="text-xs font-bold text-stone-900 px-2 min-w-[30px] text-center">
               {orderQty}
             </span>
             <button
               type="button"
-              onClick={() => setOrderQty((q) => q + (mode === 'wholesale' ? 5 : 1))}
+              onClick={() => setOrderQty((q) => q + 1)}
               className="h-6 w-6 flex items-center justify-center rounded text-stone-600 hover:bg-stone-100"
               title="Increase quantity"
             >
@@ -866,7 +871,7 @@ function ProductCard({
           </div>
         </div>
 
-        {/* 1688 Multi-Variant Batch Order button if item has variants in wholesale */}
+        {/* Multi-Variant Batch Order button if item has variants in wholesale */}
         {mode === 'wholesale' && hasVariants && (
           <button
             type="button"
@@ -874,7 +879,7 @@ function ProductCard({
             className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-[#fa9d26] py-2 text-xs font-bold text-white hover:bg-[#e68c1d] transition shadow-xs active:scale-98"
           >
             <Layers className="h-3.5 w-3.5" />
-            1688 Batch Order (Pick Sizes, Colors & Qty)
+            Batch Order (Pick Sizes, Colors & Qty)
           </button>
         )}
 
@@ -895,6 +900,7 @@ function ProductCard({
     </div>
   );
 }
+
 
 export default function StorefrontPage() {
   const [settings, setSettings] = useState<StoreSettings | null>(null);
@@ -965,6 +971,16 @@ export default function StorefrontPage() {
     });
   }, [products, selectedCategory, searchQuery]);
 
+  // Group quantities by category to support Category-level MOQ mix & match
+  const categoryQtyMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of cart) {
+      const cId = item.product.category_id || 'uncategorized';
+      map.set(cId, (map.get(cId) || 0) + item.quantity);
+    }
+    return map;
+  }, [cart]);
+
   // Check if cart contains any item that cannot be shipped by Air (Sea Only)
   const cartHasSeaOnlyItems = useMemo(() => {
     return cart.some((item) => {
@@ -974,12 +990,23 @@ export default function StorefrontPage() {
     });
   }, [cart]);
 
-  // If cart contains sea-only items, automatically switch shipping to Sea
+  // Check if cart contains any item that cannot be shipped by Sea (Air Only)
+  const cartHasAirOnlyItems = useMemo(() => {
+    return cart.some((item) => {
+      const airFee = Number(item.product.est_shipping_fee_air ?? 0);
+      const seaFee = Number(item.product.est_shipping_fee_sea ?? 0);
+      return seaFee <= 0 && airFee > 0;
+    });
+  }, [cart]);
+
+  // Automatically adjust shipping method if cart constraints require it
   useEffect(() => {
     if (cartHasSeaOnlyItems && shippingMethod === 'air') {
       setShippingMethod('sea');
+    } else if (cartHasAirOnlyItems && shippingMethod === 'sea') {
+      setShippingMethod('air');
     }
-  }, [cartHasSeaOnlyItems, shippingMethod]);
+  }, [cartHasSeaOnlyItems, cartHasAirOnlyItems, shippingMethod]);
 
   function addToCart(
     product: Product,
@@ -1142,12 +1169,12 @@ export default function StorefrontPage() {
 
   function buildWhatsAppLink() {
     const cleanPhone = (settings?.whatsapp_number || '').replace(/[^0-9]/g, '');
-    const lines = [
-      `*1688 Factory Preorder Sourcing Sheet (${mode.toUpperCase()})*`,
-      `*Origin:* China Direct Factory`,
+    const lines: string[] = [
+      `*🇨🇳 China Factory Preorder Sourcing Sheet (${mode.toUpperCase()})*`,
+      `*Store:* Dainty Import`,
       `*Shipping Cargo:* ${shippingMethod.toUpperCase()} (${shippingTimeline})`,
       '',
-      '*Items Ordered (Specifications & Quantities):*'
+      '*📦 Ordered Items (Specifications & Photos):*'
     ];
 
     cart.forEach((item, idx) => {
@@ -1156,26 +1183,42 @@ export default function StorefrontPage() {
       const airFee = Number(item.product.est_shipping_fee_air ?? 0);
       const seaFee = Number(item.product.est_shipping_fee_sea ?? 0);
       const fee = (shippingMethod === 'air' ? airFee : seaFee) * item.quantity;
-      const colorInfo = item.selectedColor ? ` [Color: ${item.selectedColor}]` : '';
-      const sizeInfo = item.selectedSize ? ` [Size/Model: ${item.selectedSize}]` : '';
-      const shipNote = fee > 0 ? ` | Est. Ship: ₦${fee.toLocaleString()}` : '';
+      
       const title = item.product.name || item.product.title || 'Product';
-      lines.push(`${idx + 1}. ${title}${colorInfo}${sizeInfo} x${item.quantity} - ₦${(price * item.quantity).toLocaleString()}${shipNote}`);
+      const colorPart = item.selectedColor ? `\n   🎨 Color: ${item.selectedColor}` : '';
+      const sizePart = item.selectedSize ? `\n   📏 Size/Model: ${item.selectedSize}` : '';
+      
+      const photoUrl = item.selectedImage || item.product.image_url || (item.product.images && item.product.images[0]) || '';
+      const photoPart = photoUrl ? `\n   📸 Photo: ${photoUrl}` : '';
+      
+      const shipNote = fee > 0 ? `\n   🚢 Est. Shipping: ₦${fee.toLocaleString()}` : '';
+
+      lines.push(
+        `${idx + 1}. *${title}*` +
+        `\n   🔢 Quantity: ${item.quantity} pcs` +
+        `\n   💰 Unit Price: ₦${Number(price).toLocaleString()}` +
+        `\n   💵 Item Subtotal: ₦${(price * item.quantity).toLocaleString()}` +
+        colorPart +
+        sizePart +
+        photoPart +
+        shipNote
+      );
     });
 
     lines.push(
       '',
-      `*Total Product Cost (Payable Now):* ₦${subtotal.toLocaleString()}`,
-      `*Est. Shipping (${shippingMethod.toUpperCase()} Cargo):* ${estimatedShipping > 0 ? `₦${estimatedShipping.toLocaleString()}` : 'Billed upon arrival in Nigeria'}`,
-      `*Est. Delivery Timeline:* ${shippingTimeline}`,
+      `*💳 Total Product Cost (Payable Now):* ₦${subtotal.toLocaleString()}`,
+      `*🚢 Est. Shipping (${shippingMethod.toUpperCase()} Cargo):* ${estimatedShipping > 0 ? `₦${estimatedShipping.toLocaleString()}` : 'Billed upon arrival in Nigeria'}`,
+      `*⏱️ Est. Delivery Timeline:* ${shippingTimeline}`,
       '',
-      '📌 *1688 Sourcing Pre-order Terms:* ',
+      '📌 *China Sourcing Pre-order Terms:*',
       '1. Initial payment covers product cost only to lock factory prices and production in China.',
       '2. Shipping fee is an estimate and is payable when your package arrives safely in Nigeria.',
-      '3. Inspection, photos, and delivery updates provided via WhatsApp.'
+      '3. Some items can only be shipped via air and some items can only be shipped via sea.',
+      '4. Estimated timelines: Air Cargo (~3 weeks) | Sea Cargo (~3 months).'
     );
 
-    const encoded = encodeURIComponent(lines.join('\n'));
+    const encoded = encodeURIComponent(lines.join('\n\n'));
     return cleanPhone ? `https://wa.me/${cleanPhone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
   }
 
@@ -1207,20 +1250,21 @@ export default function StorefrontPage() {
         </div>
       )}
 
-      {/* 1688 Specification Order Matrix Modal */}
+      {/* Wholesale Variant Order Sheet Modal */}
       {matrixProduct && (
         <MatrixOrderModal
           product={matrixProduct}
           category={matrixProduct.category_id ? categoryMap.get(matrixProduct.category_id) : null}
+          categoryQtyInCart={matrixProduct.category_id ? (categoryQtyMap.get(matrixProduct.category_id) || 0) : 0}
           onClose={() => setMatrixProduct(null)}
           onAddBatchToCart={(items) => handleAddBatchToCart(matrixProduct, items)}
           onZoomImage={(url) => setZoomedImage(url)}
         />
       )}
 
-      {/* 1688 Announcement Strip */}
+      {/* China Sourcing Announcement Strip */}
       <div className="bg-[#fa9d26] text-white text-[11px] font-semibold py-1.5 px-4 text-center tracking-wide">
-        🇨🇳 China Factory Direct Sourcing (1688) • Direct Factory Prices in Naira • Air Cargo ~3 Weeks • Sea Cargo ~3 Months • WhatsApp Order Confirmation
+        🇨🇳 China Factory Direct Sourcing • Direct Factory Prices in Naira • Air Cargo ~3 Weeks • Sea Cargo ~3 Months • WhatsApp Order Confirmation
       </div>
 
       {/* Main Sticky Header */}
@@ -1235,7 +1279,7 @@ export default function StorefrontPage() {
             <div>
               <h1 className="text-base font-bold tracking-tight text-stone-900 leading-tight">Dainty Import</h1>
               <p className="text-[10px] sm:text-[11px] font-semibold text-[#fa9d26] uppercase tracking-wider">
-                1688 China Pre-orders
+                China Direct Pre-orders
               </p>
             </div>
           </div>
@@ -1247,7 +1291,7 @@ export default function StorefrontPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search 1688 products, models (e.g. iPhone 15, case, bag)..."
+              placeholder="Search China products, models, categories (e.g. cases, bags, accessories)..."
               className="w-full rounded-full border border-stone-200 bg-stone-50 pl-9 pr-4 py-1.5 text-xs text-stone-800 placeholder:text-stone-400 focus:border-[#fa9d26] focus:bg-white focus:outline-hidden"
             />
             {searchQuery && (
@@ -1280,7 +1324,7 @@ export default function StorefrontPage() {
                   mode === 'wholesale' ? 'bg-[#fa9d26] text-white font-bold shadow-xs' : 'text-stone-600'
                 }`}
               >
-                1688 Wholesale
+                Wholesale (MOQ)
               </button>
             </div>
 
@@ -1290,7 +1334,7 @@ export default function StorefrontPage() {
                 type="button"
                 disabled={cartHasSeaOnlyItems}
                 onClick={() => setShippingMethod('air')}
-                title={cartHasSeaOnlyItems ? 'Cart contains Sea Cargo only items' : 'Air cargo delivery within 3 weeks'}
+                title={cartHasSeaOnlyItems ? 'Some items in your cart can only be shipped via Sea Cargo' : 'Air cargo delivery within 3 weeks'}
                 className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition ${
                   cartHasSeaOnlyItems
                     ? 'opacity-40 cursor-not-allowed text-stone-400'
@@ -1304,10 +1348,15 @@ export default function StorefrontPage() {
               </button>
               <button
                 type="button"
+                disabled={cartHasAirOnlyItems}
                 onClick={() => setShippingMethod('sea')}
-                title="Sea cargo delivery within 3 months"
+                title={cartHasAirOnlyItems ? 'Some items in your cart can only be shipped via Air Cargo' : 'Sea cargo delivery within 3 months'}
                 className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition ${
-                  shippingMethod === 'sea' ? 'bg-white text-stone-900 shadow-xs font-semibold' : 'text-stone-600'
+                  cartHasAirOnlyItems
+                    ? 'opacity-40 cursor-not-allowed text-stone-400'
+                    : shippingMethod === 'sea'
+                    ? 'bg-white text-stone-900 shadow-xs font-semibold'
+                    : 'text-stone-600'
                 }`}
               >
                 <Ship className="h-4 w-4 text-blue-600" />
@@ -1334,7 +1383,7 @@ export default function StorefrontPage() {
 
       {/* Main Content Area */}
       <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8 sm:px-6">
-        {/* 1688 How Pre-orders Work Banner */}
+        {/* How China Pre-orders Work Banner */}
         <section className="mb-8 overflow-hidden rounded-2xl border border-[#fa9d26]/30 bg-gradient-to-br from-[#fce7cc]/90 via-[#fff8f0] to-white p-5 sm:p-7 shadow-xs">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[#fa9d26]/20 pb-5">
             <div className="flex items-center gap-3.5">
@@ -1345,13 +1394,13 @@ export default function StorefrontPage() {
               />
               <div>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fa9d26] px-2.5 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider shadow-2xs">
-                  1688 Factory Direct Portal
+                  China Factory Direct Portal
                 </span>
                 <h2 className="mt-1 text-lg sm:text-2xl font-bold tracking-tight text-stone-900">
-                  How 1688 China Pre-Orders Work
+                  How China Pre-Orders Work
                 </h2>
                 <p className="text-xs sm:text-sm text-stone-600 max-w-xl">
-                  Source direct from 1688 China suppliers in Naira. Mix sizes & colors with our wholesale specification matrix, and send directly to WhatsApp.
+                  Source direct from verified China suppliers and factories in Naira. Choose wholesale or retail, pick your exact specifications, and submit your order directly to WhatsApp.
                 </p>
               </div>
             </div>
@@ -1374,17 +1423,17 @@ export default function StorefrontPage() {
                 <span>Wholesale & Retail</span>
               </div>
               <p className="mt-1.5 text-[11px] text-stone-600 leading-relaxed">
-                Choose <strong>Wholesale</strong> for 1688 factory pricing or <strong>Retail</strong>. Minimum for iPhone cases is 50 pieces per item.
+                Choose <strong>Wholesale</strong> for factory pricing or <strong>Retail</strong>. Note: There is a minimum order you can order for each item or category for wholesale.
               </p>
             </div>
 
             <div className="rounded-xl border border-stone-200/80 bg-white/90 p-3.5 shadow-2xs">
               <div className="flex items-center gap-2 text-stone-900 font-bold text-xs">
                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#fa9d26] text-white text-[11px]">2</span>
-                <span>1688 Spec Matrix</span>
+                <span>Batch Order Spec Matrix</span>
               </div>
               <p className="mt-1.5 text-[11px] text-stone-600 leading-relaxed">
-                Click <strong>1688 Batch Order</strong> to mix and match sizes, models, and colors in one table to hit the wholesale MOQ.
+                Click <strong>Batch Order</strong> to easily select sizes, colors, and quantities. You can mix and match designs where category MOQ applies.
               </p>
             </div>
 
@@ -1394,17 +1443,17 @@ export default function StorefrontPage() {
                 <span>Select Shipping Cargo</span>
               </div>
               <p className="mt-1.5 text-[11px] text-stone-600 leading-relaxed">
-                Pick <strong>Air Cargo (3 weeks)</strong> or <strong>Sea Cargo (3 months)</strong>. Heavy/restricted goods automatically use Sea.
+                Pick <strong>Air Cargo (3 weeks)</strong> or <strong>Sea Cargo (3 months)</strong>. Note: Some items can only be shipped via air and some items can only be shipped via sea.
               </p>
             </div>
 
             <div className="rounded-xl border border-stone-200/80 bg-white/90 p-3.5 shadow-2xs">
               <div className="flex items-center gap-2 text-stone-900 font-bold text-xs">
                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#fa9d26] text-white text-[11px]">4</span>
-                <span>Two-Step Payment</span>
+                <span>WhatsApp Pre-order Sheet</span>
               </div>
               <p className="mt-1.5 text-[11px] text-stone-600 leading-relaxed">
-                <strong>Pay product cost upfront</strong> to lock in China factory order. <strong>Shipping fee is paid upon arrival</strong> in Nigeria.
+                Send your order with full pictures and specifications to WhatsApp. Pay product cost now to lock factory orders; shipping fee is paid on arrival in Nigeria.
               </p>
             </div>
           </div>
@@ -1495,11 +1544,17 @@ export default function StorefrontPage() {
             </button>
           </div>
 
-          {/* Sea Only Cart Notice if applicable */}
+          {/* Cargo Routing Notices */}
           {cartHasSeaOnlyItems && (
             <div className="mt-2 rounded-lg bg-blue-50 border border-blue-200 p-2 text-[11px] text-blue-800 flex items-start gap-1.5">
               <Ship className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              <span>Some items in your cart can only be shipped by Sea Cargo. Shipping is set to Sea Cargo (within 3 months).</span>
+              <span>Some items in your cart can only be shipped via Sea Cargo. Shipping is set to Sea Cargo (within 3 months).</span>
+            </div>
+          )}
+          {cartHasAirOnlyItems && (
+            <div className="mt-2 rounded-lg bg-emerald-50 border border-emerald-200 p-2 text-[11px] text-emerald-800 flex items-start gap-1.5">
+              <Plane className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>Some items in your cart can only be shipped via Air Cargo. Shipping is set to Air Cargo (within 3 weeks).</span>
             </div>
           )}
 

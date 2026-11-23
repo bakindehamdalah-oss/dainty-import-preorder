@@ -76,7 +76,7 @@ export default function AdminPage() {
   const [catName, setCatName] = useState('');
   const [catSlug, setCatSlug] = useState('');
   const [catMoq, setCatMoq] = useState('50');
-  const [catMoqScope, setCatMoqScope] = useState<'item' | 'category'>('item');
+  const [catMoqScope, setCatMoqScope] = useState<'item' | 'category'>('category');
   const [savingCat, setSavingCat] = useState(false);
 
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
@@ -96,19 +96,15 @@ export default function AdminPage() {
   const [sharedRetail, setSharedRetail] = useState('');
   const [sharedWholesale, setSharedWholesale] = useState('');
   const [sharedMoq, setSharedMoq] = useState('50');
-  const [sharedMoqScope, setSharedMoqScope] = useState<'item' | 'category'>('item');
+  const [sharedMoqScope, setSharedMoqScope] = useState<'item' | 'category'>('category');
   const [sharedAirShipping, setSharedAirShipping] = useState('');
   const [sharedSeaShipping, setSharedSeaShipping] = useState('');
   const [sharedDescription, setSharedDescription] = useState('');
 
-  // Auto-detect iPhone Case category to default MOQ to 50 and scope to item
+  // Auto-sync MOQ and scope from selected category
   useEffect(() => {
     const selCat = categories.find((c) => c.id === selectedCategoryId);
-    const catNameLower = (selCat?.name || '').toLowerCase();
-    if (catNameLower.includes('case') || catNameLower.includes('iphone')) {
-      setSharedMoq('50');
-      setSharedMoqScope('item');
-    } else if (selCat) {
+    if (selCat) {
       if (selCat.wholesale_moq) setSharedMoq(String(selCat.wholesale_moq));
       if (selCat.moq_scope) setSharedMoqScope(selCat.moq_scope);
       else setSharedMoqScope('category');
@@ -186,9 +182,8 @@ export default function AdminPage() {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '');
 
-    const isCase = computedSlug.includes('case') || computedSlug.includes('iphone');
-    const targetMoq = Number(catMoq) || (isCase ? 50 : 5);
-    const targetScope = catMoqScope || (isCase ? 'item' : 'category');
+    const targetMoq = Number(catMoq) || 50;
+    const targetScope = catMoqScope || 'category';
 
     // Try inserting with wholesale_moq & moq_scope, fallback if columns not yet present
     let { data, error } = await supabase
@@ -330,10 +325,8 @@ export default function AdminPage() {
     }
 
     const selCat = categories.find((c) => c.id === selectedCategoryId);
-    const catNameLower = (selCat?.name || '').toLowerCase();
-    const isIphone = catNameLower.includes('case') || catNameLower.includes('iphone');
-    const defaultMoq = isIphone ? '50' : (sharedMoq || '5');
-    const defaultScope = isIphone ? 'item' : sharedMoqScope;
+    const defaultMoq = sharedMoq || (selCat?.wholesale_moq ? String(selCat.wholesale_moq) : '50');
+    const defaultScope = sharedMoqScope || (selCat?.moq_scope ? selCat.moq_scope : 'category');
 
     if (uploadMode === 'single_product') {
       const mainPhoto = newUploadedUrls[0];
@@ -587,7 +580,7 @@ export default function AdminPage() {
           </div>
 
           <p className="text-xs text-stone-500 mb-4">
-            Sign in with your Supabase credentials to manage categories and bulk publish 1688 products.
+            Sign in with your Supabase credentials to manage categories and bulk publish China sourcing products.
           </p>
 
           {errorMsg && (
