@@ -78,6 +78,7 @@ export default function AdminPage() {
   const [catMoq, setCatMoq] = useState('50');
   const [catMoqScope, setCatMoqScope] = useState<'item' | 'category'>('category');
   const [savingCat, setSavingCat] = useState(false);
+  const [applyingCategoryMoq, setApplyingCategoryMoq] = useState(false);
 
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [draftItems, setDraftItems] = useState<DraftPhotoItem[]>([]);
@@ -235,6 +236,56 @@ export default function AdminPage() {
       setStatusMsg(`Category "${data?.name || catName}" added with MOQ ${targetMoq} (${targetScope === 'item' ? 'Per Item' : 'Whole Category'}).`);
       await refreshData();
     }
+  }
+
+  async function applyCategoryMixAndMatchToExistingProducts() {
+    if (!selectedCategoryId) {
+      setErrorMsg('Select a category first.');
+      return;
+    }
+
+    const category = categories.find((item) => item.id === selectedCategoryId);
+    const categoryName = category?.name || 'selected category';
+    const categoryMoq = Number(sharedMoq || category?.wholesale_moq || 10);
+    if (!Number.isFinite(categoryMoq) || categoryMoq < 1) {
+      setErrorMsg('Enter a valid category minimum of at least 1 piece.');
+      return;
+    }
+
+    if (!window.confirm(`Apply a ${categoryMoq}-piece minimum to the whole ${categoryName} category? Customers can mix designs, and no individual design will have its own MOQ.`)) {
+      return;
+    }
+
+    setApplyingCategoryMoq(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+
+    const categoryUpdate = await supabase
+      .from('categories')
+      .update({ wholesale_moq: categoryMoq, moq_scope: 'category' })
+      .eq('id', selectedCategoryId);
+
+    if (categoryUpdate.error) {
+      setApplyingCategoryMoq(false);
+      setErrorMsg(`Could not update the category MOQ: ${categoryUpdate.error.message}`);
+      return;
+    }
+
+    const productsUpdate = await supabase
+      .from('products')
+      .update({ wholesale_moq: categoryMoq, min_order_qty: categoryMoq, moq_scope: 'category' })
+      .eq('category_id', selectedCategoryId);
+
+    setApplyingCategoryMoq(false);
+    if (productsUpdate.error) {
+      setErrorMsg(`Category settings were saved, but existing products were not updated: ${productsUpdate.error.message}`);
+      return;
+    }
+
+    setSharedMoq(String(categoryMoq));
+    setSharedMoqScope('category');
+    setStatusMsg(`Applied ${categoryMoq} pieces total across ${categoryName}. Customers can mix designs with no MOQ per design.`);
+    await refreshData();
   }
 
   function applySharedSpecsToList(items: DraftPhotoItem[]): DraftPhotoItem[] {
@@ -704,10 +755,26 @@ export default function AdminPage() {
                     : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
                 }`}
               >
-                {c.name} {c.wholesale_moq ? `(${c.wholesale_moq} pcs ${c.moq_scope === 'category' ? 'Cat' : 'Item'})` : ''}
+                {c.name} {c.wholesale_moq ? `(${c.wholesale_moq} pcs ${c.moq_scope === 'category' ? 'total, mix & match' : 'per item'})` : ''}
               </button>
             ))}
           </div>
+
+          {selectedCategoryId && (
+            <div className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-amber-900">
+                <strong>Mix-and-match:</strong> Apply the category minimum across all products here. There is no minimum for each design.
+              </p>
+              <button
+                type="button"
+                onClick={applyCategoryMixAndMatchToExistingProducts}
+                disabled={applyingCategoryMoq}
+                className="shrink-0 rounded-lg bg-amber-700 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
+              >
+                {applyingCategoryMoq ? 'Applying…' : `Apply ${sharedMoq || '10'}-piece category MOQ`}
+              </button>
+            </div>
+          )}
 
           {/* Add Category Form with MOQ & Scope */}
           <form onSubmit={handleAddCategory} className="flex flex-wrap items-center gap-2 pt-3 border-t border-stone-100 text-xs">
@@ -844,7 +911,7 @@ export default function AdminPage() {
                         <span>Per Item Only (Product Specific)</span>
                       </div>
                       <p className="mt-1 text-[11px] text-stone-500 leading-snug">
-                        Customers must buy at least <strong>{sharedMoq || 50} pcs</strong> of <em>this exact item</em>. They can mix sizes and colors toward the {sharedMoq || 50} pcs minimum. (Recommended for iPhone cases).
+                        This setting is only for products that must meet their own minimum. It is not used for category mix-and-match orders.
                       </p>
                     </button>
 
@@ -862,7 +929,7 @@ export default function AdminPage() {
                         <span>Whole Category (Mix & Match)</span>
                       </div>
                       <p className="mt-1 text-[11px] text-stone-500 leading-snug">
-                        Customers can mix and match <em>any different products</em> in this category to hit the <strong>{sharedMoq || 5} pcs</strong> wholesale minimum in their cart.
+                        Customers can mix designs, sizes, and colors across this category to reach <strong>{sharedMoq || 10} pieces total</strong>. There is <strong>no MOQ for each design</strong>.
                       </p>
                     </button>
                   </div>
@@ -1133,12 +1200,12 @@ export default function AdminPage() {
                             className="w-14 rounded-md border border-amber-300 bg-amber-50/50 px-1.5 py-1 text-xs font-semibold"
                           />
                           <select
-                            value={item.moqScope || 'item'}
+                            value={item.moqScope || 'category'}
                             onChange={(e) => updateDraftItem(item.tempId, 'moqScope', e.target.value as any)}
                             className="text-[10px] rounded border border-stone-300 px-1 py-1 bg-white font-medium"
                           >
                             <option value="item">Item</option>
-                            <option value="category">Category</option>
+                            <option value="category">Category total (mix & match)</option>
                           </select>
                         </div>
                       </div>
@@ -1260,7 +1327,7 @@ export default function AdminPage() {
                         <div className="font-semibold text-stone-900 truncate">{pTitle}</div>
                         <div className="text-[11px] text-stone-500 flex flex-wrap gap-2 mt-0.5">
                           <span>Retail: ₦{Number(p.retail_price).toLocaleString()}</span>
-                          <span className="font-medium text-amber-700">Wholesale: ₦{Number(p.wholesale_price).toLocaleString()} (MOQ: {moqVal} pcs)</span>
+                          <span className="font-medium text-amber-700">Wholesale: ₦{Number(p.wholesale_price).toLocaleString()} ({p.moq_scope === 'category' ? `Category total: ${moqVal} pcs, mix & match` : `This item MOQ: ${moqVal} pcs`})</span>
                           {p.size && <span>Size: {p.size}</span>}
                           {p.colors && p.colors.length > 0 && <span>Colors: {p.colors.join(', ')}</span>}
                           {air <= 0 && sea > 0 ? (

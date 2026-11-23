@@ -314,7 +314,7 @@ function MatrixOrderModal({
             <div className="flex items-start gap-1.5">
               <Sparkles className="h-4 w-4 text-[#fa9d26] shrink-0 mt-0.5" />
               <div>
-                <strong>Category Mix & Match:</strong> Wholesale minimum is <strong>{moq} pieces total</strong> across items in this category. You can choose any number of pieces for this design and mix with other designs to reach the minimum in your cart.
+                <strong>Category Mix & Match:</strong> Wholesale minimum is <strong>{moq} pieces total</strong> across this category. There is <strong>no minimum for each design</strong>; choose any quantity of this design and mix it with other designs to reach the category total.
               </div>
             </div>
           ) : (
@@ -479,11 +479,11 @@ function MatrixOrderModal({
           <div>
             <div className="flex items-center justify-between text-xs mb-1.5">
               <span className="font-semibold text-stone-700">
-                Selected for this design: <strong className="text-stone-900">{totalSelected}</strong> pcs
+                {moqScope === 'category' ? 'Selected from this design (no design MOQ)' : 'Selected for this design'}: <strong className="text-stone-900">{totalSelected}</strong> pcs
               </span>
               {moqScope === 'category' ? (
                 <span className="text-[11px] font-bold text-stone-700">
-                  Cart Category Total: <strong>{totalTowardsCategory}</strong> / {moq} pcs
+                  Category total across all designs: <strong>{totalTowardsCategory}</strong> / {moq} pcs
                 </span>
               ) : (
                 <span className={`text-[11px] font-bold ${totalSelected >= moq ? 'text-emerald-700' : 'text-[#d97706]'}`}>
@@ -712,7 +712,7 @@ function ProductCard({
             {mode === 'wholesale' && (
               <span className="rounded-md bg-[#fa9d26] px-2 py-0.5 text-[10px] font-bold text-white shadow-xs tracking-wide">
                 {moqScope === 'category'
-                  ? `Category Mix & Match (Min ${moq} pcs total)`
+                  ? `Mix & Match: ${moq} pcs total per category`
                   : `MOQ: ${moq} pcs (This Item)`}
               </span>
             )}
@@ -757,7 +757,7 @@ function ProductCard({
             {mode === 'wholesale' && (
               <span className="text-[10px] font-semibold text-amber-900 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
                 {moqScope === 'category'
-                  ? `Category MOQ: ${moq} pcs total • Mix & match`
+                  ? `Category total: ${moq} pcs • No MOQ per design`
                   : `Item MOQ: ${moq} pcs`}
               </span>
             )}
