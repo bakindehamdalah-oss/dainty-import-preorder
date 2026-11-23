@@ -165,6 +165,7 @@ export default function AdminPage() {
   const [editingCategory, setEditingCategory] = useState<EditCategoryState | null>(null);
   const [preorders, setPreorders] = useState<any[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [adminActiveTab, setAdminActiveTab] = useState<'upload' | 'published' | 'inventory'>('upload');
   const [adminActiveSubTab, setAdminActiveSubTab] = useState<'pipeline' | 'customers'>('pipeline');
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
   const [orderCustomerFilter, setOrderCustomerFilter] = useState<string>('all');
@@ -294,6 +295,15 @@ export default function AdminPage() {
       }
     }
   }
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const tabParam = new URLSearchParams(window.location.search).get('tab');
+      if (tabParam === 'upload' || tabParam === 'published' || tabParam === 'inventory') {
+        setAdminActiveTab(tabParam);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -1608,28 +1618,78 @@ export default function AdminPage() {
           </div>
         )}
         {statusMsg && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800 flex items-center justify-between">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800 flex items-center justify-between gap-2">
             <span>{statusMsg}</span>
-            <button onClick={() => setStatusMsg(null)}><X className="h-4 w-4" /></button>
+            <div className="flex items-center gap-2">
+              {adminActiveTab === 'upload' && statusMsg.includes('Published') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdminActiveTab('published');
+                    if (typeof window !== 'undefined') {
+                      const url = new URL(window.location.href);
+                      url.searchParams.set('tab', 'published');
+                      window.history.replaceState(null, '', url.toString());
+                    }
+                  }}
+                  className="rounded-lg bg-emerald-700 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-800 transition"
+                >
+                  View Published Products →
+                </button>
+              )}
+              <button onClick={() => setStatusMsg(null)}><X className="h-4 w-4" /></button>
+            </div>
           </div>
         )}
 
-        {/* Admin Quick Navigation */}
-        <nav aria-label="Admin sections" className="sticky top-[57px] z-20 -mx-4 flex gap-2 overflow-x-auto border-b border-stone-200 bg-stone-100/95 px-4 py-2 backdrop-blur sm:top-[61px] sm:mx-0 sm:rounded-xl sm:border sm:bg-white sm:px-3">
+        {/* Admin Navigation: 3 Distinct Pages / Tabs */}
+        <nav aria-label="Admin views" className="sticky top-[57px] z-20 -mx-4 flex gap-2 border-b border-stone-200 bg-stone-100/95 p-2 backdrop-blur sm:top-[61px] sm:mx-0 sm:rounded-2xl sm:border sm:bg-white sm:p-2 sm:shadow-xs">
           {[
-            { id: 'upload-form', label: 'Upload', icon: Upload },
-            { id: 'published', label: 'Published Products', icon: CheckSquare },
-            { id: 'inventory', label: 'Inventory & Orders', icon: Package },
+            { id: 'upload', label: 'Upload Products', icon: Upload, count: null },
+            { id: 'published', label: 'Published Products', icon: CheckSquare, count: products.length },
+            { id: 'inventory', label: 'Inventory & Orders', icon: Package, count: preorders.length },
           ].map((item) => {
             const Icon = item.icon;
-            return <a key={item.id} href={`#${item.id}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-bold text-stone-700 shadow-2xs transition hover:border-[#fa9d26] hover:text-[#b86200]">
-              <Icon className="h-3.5 w-3.5" />{item.label}
-            </a>;
+            const isActive = adminActiveTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setAdminActiveTab(item.id as 'upload' | 'published' | 'inventory');
+                  if (typeof window !== 'undefined') {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('tab', item.id);
+                    window.history.replaceState(null, '', url.toString());
+                  }
+                }}
+                className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl px-2.5 py-2.5 text-xs font-bold transition ${
+                  isActive
+                    ? 'bg-[#fa9d26] text-white shadow-xs'
+                    : 'bg-white sm:bg-stone-50 text-stone-700 hover:bg-stone-100 hover:text-stone-900 border border-stone-200/70'
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{item.label}</span>
+                {item.count !== null && (
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                      isActive ? 'bg-white/25 text-white' : 'bg-stone-200 text-stone-700'
+                    }`}
+                  >
+                    {item.count}
+                  </span>
+                )}
+              </button>
+            );
           })}
         </nav>
 
-        {/* Categories Section */}
-        <section id="upload" className="scroll-mt-28 rounded-2xl border border-stone-200 bg-white p-5 shadow-xs space-y-4">
+        {/* TAB 1: UPLOAD PRODUCTS */}
+        {adminActiveTab === 'upload' && (
+          <div className="space-y-6">
+            {/* Categories Section */}
+            <section id="upload" className="rounded-2xl border border-stone-200 bg-white p-5 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-sm font-bold text-stone-900">1. Select or Create Category</h2>
@@ -2429,9 +2489,14 @@ export default function AdminPage() {
             </div>
           )}
         </section>
+          </div>
+        )}
 
-        {/* Existing Products List */}
-        <section id="published" className="scroll-mt-28 rounded-2xl border border-stone-200 bg-white p-5 shadow-xs space-y-4">
+        {/* TAB 2: PUBLISHED PRODUCTS */}
+        {adminActiveTab === 'published' && (
+          <div className="space-y-6">
+            {/* Existing Products List */}
+            <section id="published" className="rounded-2xl border border-stone-200 bg-white p-5 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h2 className="text-sm font-bold text-stone-900 flex items-center gap-2">
@@ -2470,7 +2535,24 @@ export default function AdminPage() {
 
           <div className="max-h-[700px] space-y-2.5 overflow-y-auto pr-1">
             {products.length === 0 ? (
-              <p className="text-xs text-stone-400 py-4 text-center">No products published yet.</p>
+              <div className="py-12 text-center space-y-3">
+                <p className="text-sm font-semibold text-stone-600">No products published yet.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdminActiveTab('upload');
+                    if (typeof window !== 'undefined') {
+                      const url = new URL(window.location.href);
+                      url.searchParams.set('tab', 'upload');
+                      window.history.replaceState(null, '', url.toString());
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#fa9d26] px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#e68c1d] transition"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span>Go to Upload Products</span>
+                </button>
+              </div>
             ) : (
               products
               .filter((p) => {
@@ -2685,11 +2767,14 @@ export default function AdminPage() {
             )}
           </div>
         </section>
+          </div>
+        )}
 
-        {/* ========================================================= */}
-        {/* EDIT PUBLISHED PRODUCT MODAL                              */}
-                {/* Section 4: Customer Preorders, CRM & Inventory Pipeline */}
-        <section id="inventory" className="scroll-mt-28 rounded-2xl border border-stone-200 bg-white p-5 shadow-xs sm:p-6 space-y-5">
+        {/* TAB 3: INVENTORY & ORDERS */}
+        {adminActiveTab === 'inventory' && (
+          <div className="space-y-6">
+            {/* Section 4: Customer Preorders, CRM & Inventory Pipeline */}
+            <section id="inventory" className="rounded-2xl border border-stone-200 bg-white p-5 shadow-xs sm:p-6 space-y-5">
           {/* Section Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-stone-100 pb-4">
             <div>
@@ -3338,6 +3423,8 @@ export default function AdminPage() {
             </div>
           )}
         </section>
+          </div>
+        )}
 
         {/* ========================================================= */}
         {/* ADD / EDIT CUSTOMER MODAL                                 */}
