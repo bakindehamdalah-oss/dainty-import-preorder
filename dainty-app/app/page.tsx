@@ -321,14 +321,14 @@ function MatrixOrderModal({
             <div className="flex items-start gap-1.5">
               <Sparkles className="h-4 w-4 text-[#fa9d26] shrink-0 mt-0.5" />
               <div>
-                <strong>Store-Wide Mix & Match:</strong> Wholesale minimum is <strong>{moq} pieces total across all products</strong>. There is <strong>no minimum for this specific design</strong>; select any quantity and mix with other products to reach {moq} pcs.
+                <strong>Store-Wide Bulk Purchase:</strong> Wholesale factory pricing with a minimum of <strong>{moq} pieces total across all products</strong>. There is <strong>no minimum for this specific design</strong>; select any quantity to reach the {moq} pcs bulk target.
               </div>
             </div>
           ) : moqScope === 'category' ? (
             <div className="flex items-start gap-1.5">
               <Sparkles className="h-4 w-4 text-[#fa9d26] shrink-0 mt-0.5" />
               <div>
-                <strong>Category Mix & Match:</strong> Wholesale minimum is <strong>{moq} pieces total</strong> across this category. There is <strong>no minimum for each design</strong>; choose any quantity of this design and mix it with other designs to reach the category total.
+                <strong>Category Bulk Purchase:</strong> Wholesale factory pricing with a minimum of <strong>{moq} pieces total</strong> across this category. There is <strong>no minimum for each design</strong>; choose any quantity to reach the category bulk target.
               </div>
             </div>
           ) : (
@@ -497,7 +497,7 @@ function MatrixOrderModal({
               </span>
               {moqScope === 'all' ? (
                 <span className="text-[11px] font-bold text-amber-900">
-                  Store mix & match: <strong>{moq} pcs</strong> across all items
+                  Store-wide bulk: <strong>{moq} pcs</strong> across all items
                 </span>
               ) : moqScope === 'category' ? (
                 <span className="text-[11px] font-bold text-stone-700">
@@ -815,9 +815,9 @@ function ProductCard({
             {mode === 'wholesale' && (
               <span className="rounded-md bg-[#fa9d26] px-2 py-0.5 text-[10px] font-bold text-white shadow-xs tracking-wide">
                 {moqScope === 'all'
-                  ? `Mix & Match: ${moq} pcs across all products`
+                  ? `Bulk Factory Price • ${moq} pcs MOQ`
                   : moqScope === 'category'
-                  ? `Mix & Match: ${moq} pcs category total`
+                  ? `Bulk Factory Price • ${moq} pcs Category MOQ`
                   : `MOQ: ${moq} pcs (This item)`}
               </span>
             )}
@@ -862,9 +862,9 @@ function ProductCard({
             {mode === 'wholesale' && (
               <span className="text-[10px] font-semibold text-amber-900 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
                 {moqScope === 'all'
-                  ? `Mix & Match: ${moq} pcs store-wide • No MOQ per design`
+                  ? `Bulk Factory Price • ${moq} pcs store-wide • No MOQ per design`
                   : moqScope === 'category'
-                  ? `Category total: ${moq} pcs • No MOQ per design`
+                  ? `Bulk Category Price • ${moq} pcs total • No MOQ per design`
                   : `Item MOQ: ${moq} pcs`}
               </span>
             )}
@@ -1431,7 +1431,7 @@ export default function StorefrontPage() {
     if (hasAllProductsScope && highestAllProductsMoq > 0) {
       if (totalCartPieces < highestAllProductsMoq) {
         warnings.push({
-          name: 'Across All Products (Store Mix & Match)',
+          name: 'Store-Wide Bulk Purchase (Factory Prices)',
           required: highestAllProductsMoq,
           current: totalCartPieces,
           scope: 'all',
@@ -1466,7 +1466,7 @@ export default function StorefrontPage() {
           const catTotal = categoryQtyMap.get(catId) || 0;
           if (catTotal < moq) {
             warnings.push({
-              name: `${cat?.name || 'Category'} Mix & Match`,
+              name: `${cat?.name || 'Category'} Bulk Purchase`,
               required: moq,
               current: catTotal,
               scope: 'category',
@@ -1841,7 +1841,7 @@ export default function StorefrontPage() {
                 <span>Batch Order Spec Matrix</span>
               </div>
               <p className="mt-1.5 text-[11px] text-stone-600 leading-relaxed">
-                Click <strong>Batch Order</strong> to easily select sizes, colors, and quantities. You can mix and match designs where category MOQ applies.
+                Click <strong>Batch Order</strong> to easily select sizes, colors, and quantities for your bulk purchase at direct factory prices.
               </p>
             </div>
 
@@ -1881,7 +1881,7 @@ export default function StorefrontPage() {
               </div>
               <p className="mt-1 text-xs text-stone-600">
                 {mode === 'wholesale'
-                  ? 'Showing factory bulk prices. Mix & match designs to meet wholesale minimum quantity.'
+                  ? 'Showing direct factory prices for bulk purchases. Buy in bulk to unlock discounted China factory rates.'
                   : 'Showing standard retail pricing. Buy any quantity with no minimum required.'}
               </p>
             </div>
@@ -2117,7 +2117,7 @@ export default function StorefrontPage() {
               </div>
               {wholesaleMoqWarnings.map((w, idx) => (
                 <div key={idx} className="text-[11px] leading-snug">
-                  • <strong>{w.name}</strong> ({w.scope === 'all' ? 'Store Mix & Match' : w.scope === 'item' ? 'Item MOQ' : 'Category Mix & Match'}): Minimum order is <strong>{w.required} pcs</strong> (Currently: {w.current} pcs. Need {w.required - w.current} more piece(s)).
+                  • <strong>{w.name}</strong> ({w.scope === 'all' ? 'Store-Wide Bulk' : w.scope === 'item' ? 'Item MOQ' : 'Category Bulk'}): Minimum order is <strong>{w.required} pcs</strong> (Currently: {w.current} pcs. Need {w.required - w.current} more piece(s)).
                 </div>
               ))}
             </div>

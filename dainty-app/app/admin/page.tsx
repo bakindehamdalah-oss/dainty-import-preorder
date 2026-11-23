@@ -1784,9 +1784,9 @@ export default function AdminPage() {
                     onChange={(e) => setEditingCategory({ ...editingCategory, moq_scope: e.target.value as any })}
                     className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs focus:border-stone-900 focus:outline-hidden"
                   >
-                    <option value="category">Whole Category (Mix & Match)</option>
+                    <option value="category">Whole Category (Bulk MOQ)</option>
                     <option value="item">Per Item (Single design MOQ)</option>
-                    <option value="all">Store-Wide Mix & Match</option>
+                    <option value="all">Store-Wide Bulk MOQ</option>
                   </select>
                 </div>
                 <div className="flex items-center gap-2 mt-4 sm:mt-5">
@@ -1816,10 +1816,10 @@ export default function AdminPage() {
             <div className="space-y-0.5">
               <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                 <Sparkles className="h-4 w-4 text-[#fa9d26]" />
-                Store-Wide Mix & Match (Across All Products)
+                Store-Wide Bulk Purchase (Across All Products)
               </span>
               <p className="text-[11px] text-amber-900 leading-snug">
-                Customers can mix & match <strong>ANY products across the entire store</strong>. No minimum required for each individual design.
+                Customers can combine products across the entire store at factory prices to reach the bulk minimum order quantity.
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -1997,7 +1997,7 @@ export default function AdminPage() {
                         <span>Across All Products</span>
                       </div>
                       <p className="mt-1 text-[11px] text-stone-500 leading-snug">
-                        Customers can mix & match <strong>any products in entire store</strong> to reach <strong>{sharedMoq || 10} pcs</strong> total. No MOQ per design!
+                        Customers can combine products store-wide at factory prices to reach <strong>{sharedMoq || 10} pcs</strong> bulk minimum.
                       </p>
                     </button>
 
@@ -3659,7 +3659,7 @@ export default function AdminPage() {
                             : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'
                         }`}
                       >
-                        <span className="block font-semibold">Mix & Match Category</span>
+                        <span className="block font-semibold">Bulk Category</span>
                         <span className="text-[10px] text-stone-500 font-normal">Customer mixes any designs in this category</span>
                       </button>
 
