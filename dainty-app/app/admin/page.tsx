@@ -3,7 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Session } from '@supabase/supabase-js';
-import { Upload, Trash2, Plus, LogOut, Check, FolderPlus, RefreshCw, X, ShieldAlert, Sparkles, Layers, Image as ImageIcon, Ship, Plane, Tag, Box, Info, Pencil, Save, Settings, Phone, Search, Sliders, Edit2, CheckSquare, ExternalLink } from 'lucide-react';
+import { Upload, Trash2, Plus, LogOut, Check, FolderPlus, RefreshCw, X, ShieldAlert, Sparkles, Layers, Image as ImageIcon, Ship, Plane, Tag, Box, Info, Pencil, Save, Settings, Phone, Search, Sliders, Edit2, CheckSquare, ExternalLink, User, UserPlus, MapPin, Truck, CheckCircle2, Clock, CreditCard, MessageCircle, AlertCircle, ChevronRight, Eye } from 'lucide-react';
 
 type Category = {
   id: string;
@@ -36,6 +36,18 @@ type Product = {
   est_shipping_fee_sea?: number | null;
 };
 
+
+export type Customer = {
+  id: string;
+  name: string;
+  phone: string;
+  whatsapp?: string;
+  delivery_address?: string;
+  state_city?: string;
+  instagram_handle?: string;
+  notes?: string;
+  created_at?: string;
+};
 
 type EditProductState = {
   id: string;
@@ -152,6 +164,26 @@ export default function AdminPage() {
   // Editing categories
   const [editingCategory, setEditingCategory] = useState<EditCategoryState | null>(null);
   const [preorders, setPreorders] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [adminActiveSubTab, setAdminActiveSubTab] = useState<'pipeline' | 'customers'>('pipeline');
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
+  const [orderCustomerFilter, setOrderCustomerFilter] = useState<string>('all');
+  const [orderSearchQuery, setOrderSearchQuery] = useState<string>('');
+
+  // Customer Modal & Assignment
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [assigningToOrderId, setAssigningToOrderId] = useState<string | null>(null);
+  const [custFormName, setCustFormName] = useState('');
+  const [custFormPhone, setCustFormPhone] = useState('');
+  const [custFormAddress, setCustFormAddress] = useState('');
+  const [custFormCity, setCustFormCity] = useState('');
+  const [custFormInstagram, setCustFormInstagram] = useState('');
+  const [custFormNotes, setCustFormNotes] = useState('');
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [editingOrderDetailsId, setEditingOrderDetailsId] = useState<string | null>(null);
+  const [editChinaRef, setEditChinaRef] = useState('');
+  const [editFinalShipping, setEditFinalShipping] = useState('');
   const [savingCategoryEdit, setSavingCategoryEdit] = useState(false);
   const [managingCategories, setManagingCategories] = useState(false);
 
@@ -226,9 +258,25 @@ export default function AdminPage() {
         .from('preorders')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(50);
       if (preordersRes.data) {
         setPreorders(preordersRes.data);
+      }
+
+      try {
+        const custRes = await supabase
+          .from('customers')
+          .select('*')
+          .order('name', { ascending: true });
+        if (custRes.data && custRes.data.length > 0) {
+          setCustomers(custRes.data);
+        } else {
+          const saved = typeof window !== 'undefined' ? localStorage.getItem('dainty_admin_customers') : null;
+          if (saved) setCustomers(JSON.parse(saved));
+        }
+      } catch (custErr) {
+        const saved = typeof window !== 'undefined' ? localStorage.getItem('dainty_admin_customers') : null;
+        if (saved) setCustomers(JSON.parse(saved));
       }
     } catch (err) {
       console.warn('Could not load preorders in admin:', err);
@@ -263,6 +311,175 @@ export default function AdminPage() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // =========================================================
+  // CUSTOMER MANAGEMENT & ORDER STATUS PIPELINE HANDLERS
+  // =========================================================
+  async function handleSaveCustomer(e: FormEvent) {
+    e.preventDefault();
+    if (!custFormName.trim() || !custFormPhone.trim()) {
+      alert('Please enter at least the customer name and phone number.');
+      return;
+    }
+    setSavingCustomer(true);
+    const newId = 'CUST-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+    const newCustomer: Customer = {
+      id: newId,
+      name: custFormName.trim(),
+      phone: custFormPhone.trim(),
+      whatsapp: custFormPhone.trim(),
+      delivery_address: custFormAddress.trim() || undefined,
+      state_city: custFormCity.trim() || undefined,
+      instagram_handle: custFormInstagram.trim() || undefined,
+      notes: custFormNotes.trim() || undefined,
+      created_at: new Date().toISOString(),
+    };
+
+    const updatedList = [newCustomer, ...customers.filter(c => c.phone !== newCustomer.phone)];
+    setCustomers(updatedList);
+    try {
+      localStorage.setItem('dainty_admin_customers', JSON.stringify(updatedList));
+    } catch (err) {
+      console.warn('LocalStorage customer save error:', err);
+    }
+
+    try {
+      await supabase.from('customers').upsert([newCustomer]);
+    } catch (err) {
+      console.warn('Supabase customers table notice:', err);
+    }
+
+    // If modal was opened to assign to an active order:
+    if (assigningToOrderId) {
+      await handleAssignCustomerToOrder(assigningToOrderId, newCustomer);
+    }
+
+    setSavingCustomer(false);
+    setShowCustomerModal(false);
+    setAssigningToOrderId(null);
+    setCustFormName('');
+    setCustFormPhone('');
+    setCustFormAddress('');
+    setCustFormCity('');
+    setCustFormInstagram('');
+    setCustFormNotes('');
+  }
+
+  async function handleAssignCustomerToOrder(orderId: string, customer: Customer | null) {
+    const updatePayload = customer
+      ? {
+          customer_id: customer.id,
+          customer_name: customer.name,
+          customer_phone: customer.phone,
+          customer_address: customer.delivery_address || '',
+          customer_city: customer.state_city || '',
+        }
+      : {
+          customer_id: null,
+          customer_name: null,
+          customer_phone: null,
+          customer_address: null,
+          customer_city: null,
+        };
+
+    setPreorders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, ...updatePayload } : o))
+    );
+
+    try {
+      await supabase.from('preorders').update(updatePayload).eq('id', orderId);
+    } catch (err) {
+      console.warn('Supabase preorders update notice:', err);
+    }
+  }
+
+  async function handleUpdateOrderStatus(
+    orderId: string,
+    newStatus: string,
+    extraFields?: Record<string, any>
+  ) {
+    setUpdatingOrderId(orderId);
+    const timeNow = new Date().toISOString();
+    const statusTimestamps: Record<string, any> = {};
+    if (newStatus === 'paid') statusTimestamps.payment_date = timeNow;
+    if (newStatus === 'ordered') statusTimestamps.china_ordered_at = timeNow;
+    if (newStatus === 'shipped') statusTimestamps.shipped_at = timeNow;
+    if (newStatus === 'ready_for_delivery') statusTimestamps.ready_at = timeNow;
+    if (newStatus === 'delivered') statusTimestamps.delivered_at = timeNow;
+
+    const fullPayload = {
+      status: newStatus,
+      ...statusTimestamps,
+      ...(extraFields || {}),
+    };
+
+    setPreorders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, ...fullPayload } : o))
+    );
+
+    try {
+      await supabase.from('preorders').update(fullPayload).eq('id', orderId);
+    } catch (err) {
+      console.warn('Supabase update order status error:', err);
+    }
+    setUpdatingOrderId(null);
+  }
+
+  function handleSendCustomerWhatsAppUpdate(order: any) {
+    const phone = (order.customer_phone || '').replace(/[^0-9]/g, '');
+    const name = order.customer_name || 'Customer';
+    const status = order.status || 'pending';
+    const pieces = order.total_pieces || (order.items?.length || 0);
+    const amount = Number(order.total_amount || 0).toLocaleString();
+    const finalShip = order.final_shipping_fee ? Number(order.final_shipping_fee).toLocaleString() : null;
+    const estShip = order.est_shipping_fee ? Number(order.est_shipping_fee).toLocaleString() : '0';
+
+    let message = '';
+    if (status === 'paid') {
+      message = `*DAINTY IMPORT - PREORDER PAYMENT CONFIRMED* 💳\n\n` +
+        `Hello ${name}!\n` +
+        `We have received your payment of ₦${amount} for Preorder *#${order.id}* (${pieces} pcs).\n\n` +
+        `Next Step: We are processing and placing the order with our China supplier now! 🇨🇳\n\n` +
+        `View your order catalog here: https://${typeof window !== 'undefined' ? window.location.host : ''}/order?id=${order.id}\n\n` +
+        `Thank you for choosing Dainty Import! ✨`;
+    } else if (status === 'ordered') {
+      message = `*DAINTY IMPORT - ORDERED FROM CHINA* 🇨🇳\n\n` +
+        `Hello ${name}!\n` +
+        `Your Preorder *#${order.id}* (${pieces} pcs) has been ordered from our China supplier and is being prepared for overseas shipping (${order.shipping_method || 'Air'}).\n\n` +
+        `View your order catalog: https://${typeof window !== 'undefined' ? window.location.host : ''}/order?id=${order.id}\n\n` +
+        `We will notify you once your package is in transit! ✈️`;
+    } else if (status === 'shipped') {
+      message = `*DAINTY IMPORT - ORDER IN TRANSIT* ✈️📦\n\n` +
+        `Hello ${name}!\n` +
+        `Your Preorder *#${order.id}* has been shipped from China via ${order.shipping_method || 'Air'} shipping!\n` +
+        `Timeline: ${order.shipping_timeline || (order.shipping_method === 'sea' ? 'Within 3 months' : 'Within 3 weeks')}.\n\n` +
+        `View order details: https://${typeof window !== 'undefined' ? window.location.host : ''}/order?id=${order.id}`;
+    } else if (status === 'ready_for_delivery') {
+      message = `*DAINTY IMPORT - ARRIVED IN NIGERIA* 🇳🇬🎉\n\n` +
+        `Hello ${name}!\n` +
+        `Exciting news! Your Preorder *#${order.id}* (${pieces} pcs) has arrived in Nigeria and is ready for pickup or delivery!\n\n` +
+        `*Confirmed Shipping Fee:* ₦${finalShip || estShip}\n` +
+        `*Delivery Address:* ${order.customer_address || 'As registered'}\n\n` +
+        `Please confirm payment of the shipping fee so we can dispatch your parcel right away! 🚚`;
+    } else if (status === 'delivered') {
+      message = `*DAINTY IMPORT - ORDER DELIVERED* ✅🎉\n\n` +
+        `Hello ${name}!\n` +
+        `Your Preorder *#${order.id}* has been delivered! We hope you love all your items.\n\n` +
+        `Thank you so much for your patronising Dainty Import! We look forward to sourcing for you again soon! 💖`;
+    } else {
+      message = `*DAINTY IMPORT - PREORDER UPDATE* 📋\n\n` +
+        `Hello ${name}!\n` +
+        `Here is the update regarding your Preorder *#${order.id}* (${pieces} pcs - ₦${amount}).\n\n` +
+        `View your catalog: https://${typeof window !== 'undefined' ? window.location.host : ''}/order?id=${order.id}`;
+    }
+
+    const cleanMsg = message.replace(/\\n/g, '\n');
+    const targetUrl = phone
+      ? `https://wa.me/${phone.startsWith('0') ? '234' + phone.substring(1) : phone}?text=${encodeURIComponent(cleanMsg)}`
+      : `https://wa.me/?text=${encodeURIComponent(cleanMsg)}`;
+
+    window.open(targetUrl, '_blank');
+  }
 
   async function handleSignIn(e: FormEvent) {
     e.preventDefault();
@@ -2439,61 +2656,720 @@ export default function AdminPage() {
 
         {/* ========================================================= */}
         {/* EDIT PUBLISHED PRODUCT MODAL                              */}
-                {/* Section 4: Customer Preorders & Catalog Sheets */}
-        <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-xs sm:p-6 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                {/* Section 4: Customer Preorders, CRM & Inventory Pipeline */}
+        <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-xs sm:p-6 space-y-5">
+          {/* Section Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-stone-100 pb-4">
             <div>
-              <h2 className="text-sm font-bold text-stone-900 flex items-center gap-2">
-                <span>4. Customer Preorders & Catalog Sheets</span>
-                {preorders.length > 0 && (
-                  <span className="rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                    {preorders.length} orders
-                  </span>
-                )}
-              </h2>
-              <p className="text-xs text-stone-500">
-                Click &ldquo;View & Edit Catalog&rdquo; on any order to open its dedicated catalog view with full admin editing controls.
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-lg bg-amber-100 flex items-center justify-center text-[#fa9d26]">
+                  <Truck className="h-4 w-4" />
+                </div>
+                <h2 className="text-sm font-bold text-stone-900">
+                  4. Preorders, Customer Info & Inventory Pipeline
+                </h2>
+              </div>
+              <p className="text-xs text-stone-500 mt-1">
+                Record customer payments, track items from China to Nigeria, and manage order fulfillment.
               </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="inline-flex rounded-xl bg-stone-100 p-1 text-xs font-semibold text-stone-600">
+                <button
+                  type="button"
+                  onClick={() => setAdminActiveSubTab('pipeline')}
+                  className={`rounded-lg px-3 py-1.5 transition ${
+                    adminActiveSubTab === 'pipeline'
+                      ? 'bg-white text-stone-900 shadow-2xs font-bold'
+                      : 'hover:text-stone-900'
+                  }`}
+                >
+                  Order Pipeline ({preorders.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminActiveSubTab('customers')}
+                  className={`rounded-lg px-3 py-1.5 transition ${
+                    adminActiveSubTab === 'customers'
+                      ? 'bg-white text-stone-900 shadow-2xs font-bold'
+                      : 'hover:text-stone-900'
+                  }`}
+                >
+                  Customers ({customers.length})
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAssigningToOrderId(null);
+                  setShowCustomerModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#fa9d26] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#e68c1d] shadow-2xs transition"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                <span>+ New Customer</span>
+              </button>
             </div>
           </div>
 
-          {preorders.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50/50 p-6 text-center text-xs text-stone-400">
-              No preorders received yet. When customers click Send on WhatsApp, their orders appear here automatically.
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {preorders.map((po) => (
-                <div key={po.id} className="rounded-xl border border-stone-200 bg-stone-50/50 p-3.5 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs font-bold text-stone-900">#{po.id}</span>
-                    <span className="text-[10px] uppercase font-bold text-stone-500">
-                      {po.mode || 'Wholesale'} • {po.shipping_method || 'Air'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-stone-600">
-                    <span>{po.total_pieces || (po.items?.length || 0)} pieces</span>
-                    <span className="font-extrabold text-[#b86200]">₦{Number(po.total_amount || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="pt-2 border-t border-stone-200 flex items-center justify-between">
-                    <span className="text-[10px] text-stone-400">
-                      {po.created_at ? new Date(po.created_at).toLocaleDateString() : ''}
-                    </span>
-                    <a
-                      href={`/order?id=${po.id}&admin=1234`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded-lg bg-[#fa9d26] px-2.5 py-1 text-[11px] font-bold text-white hover:bg-[#e68c1d] shadow-2xs transition"
+          {/* ========================================================= */}
+          {/* TAB 1: ORDER PIPELINE & INVENTORY TAKING                  */}
+          {/* ========================================================= */}
+          {adminActiveSubTab === 'pipeline' && (
+            <div className="space-y-4">
+              {/* Pipeline Status Filter Tabs */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+                {[
+                  { id: 'all', label: 'All Orders', count: preorders.length, icon: '📋' },
+                  { id: 'pending', label: 'Pending Payment', count: preorders.filter(p => !p.status || p.status === 'pending').length, icon: '⏳' },
+                  { id: 'paid', label: 'Paid', count: preorders.filter(p => p.status === 'paid').length, icon: '💳' },
+                  { id: 'ordered', label: 'Ordered (China)', count: preorders.filter(p => p.status === 'ordered').length, icon: '🇨🇳' },
+                  { id: 'shipped', label: 'Shipped (In Transit)', count: preorders.filter(p => p.status === 'shipped').length, icon: '🚢' },
+                  { id: 'ready_for_delivery', label: 'Ready in Nigeria', count: preorders.filter(p => p.status === 'ready_for_delivery').length, icon: '📦' },
+                  { id: 'delivered', label: 'Delivered', count: preorders.filter(p => p.status === 'delivered').length, icon: '✅' },
+                ].map((tab) => {
+                  const isActive = orderStatusFilter === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setOrderStatusFilter(tab.id)}
+                      className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition border ${
+                        isActive
+                          ? 'border-stone-900 bg-stone-900 text-white shadow-2xs'
+                          : 'border-stone-200 bg-stone-50 text-stone-600 hover:bg-stone-100'
+                      }`}
                     >
-                      <span>View & Edit Catalog</span>
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </div>
+                      <span>{tab.icon}</span>
+                      <span>{tab.label}</span>
+                      <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                        isActive ? 'bg-stone-700 text-white' : 'bg-stone-200 text-stone-700'
+                      }`}>
+                        {tab.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Filters & Search Bar */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-stone-400" />
+                  <input
+                    type="text"
+                    value={orderSearchQuery}
+                    onChange={(e) => setOrderSearchQuery(e.target.value)}
+                    placeholder="Search by Order ID (#ORD-...), customer name, or phone..."
+                    className="w-full rounded-xl border border-stone-200 bg-stone-50/50 pl-9 pr-3 py-2 text-xs focus:border-stone-900 focus:bg-white focus:outline-hidden"
+                  />
+                  {orderSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setOrderSearchQuery('')}
+                      className="absolute right-2.5 top-2.5 text-stone-400 hover:text-stone-700"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
-              ))}
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={orderCustomerFilter}
+                    onChange={(e) => setOrderCustomerFilter(e.target.value)}
+                    className="w-full rounded-xl border border-stone-200 bg-stone-50/50 px-3 py-2 text-xs text-stone-700 focus:border-stone-900 focus:bg-white focus:outline-hidden"
+                  >
+                    <option value="all">Filter by Customer (All Customers)</option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.phone})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Order Cards List */}
+              {(() => {
+                const filteredOrders = preorders.filter((po) => {
+                  const status = po.status || 'pending';
+                  if (orderStatusFilter !== 'all' && status !== orderStatusFilter) return false;
+                  if (orderCustomerFilter !== 'all' && po.customer_id !== orderCustomerFilter) return false;
+                  if (orderSearchQuery.trim()) {
+                    const q = orderSearchQuery.toLowerCase();
+                    const matchId = (po.id || '').toLowerCase().includes(q);
+                    const matchCust = (po.customer_name || '').toLowerCase().includes(q);
+                    const matchPhone = (po.customer_phone || '').includes(q);
+                    if (!matchId && !matchCust && !matchPhone) return false;
+                  }
+                  return true;
+                });
+
+                if (filteredOrders.length === 0) {
+                  return (
+                    <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50/50 p-8 text-center space-y-2">
+                      <p className="text-xs font-semibold text-stone-600">No orders found in this view.</p>
+                      <p className="text-[11px] text-stone-400">
+                        When customers submit an order or click WhatsApp checkout, their order will appear here automatically.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3">
+                    {filteredOrders.map((po) => {
+                      const status = po.status || 'pending';
+                      const isUpdating = updatingOrderId === po.id;
+                      const pieces = po.total_pieces || (po.items?.length || 0);
+                      const amount = Number(po.total_amount || 0);
+                      const isAir = (po.shipping_method || 'air') === 'air';
+
+                      // Status visual config
+                      const statusStyles: Record<string, { label: string; bg: string; text: string; border: string; icon: string }> = {
+                        pending: { label: 'Pending Payment', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200', icon: '⏳' },
+                        paid: { label: 'Paid', bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200', icon: '💳' },
+                        ordered: { label: 'Ordered from China', bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-blue-200', icon: '🇨🇳' },
+                        shipped: { label: 'Shipped (In Transit)', bg: 'bg-indigo-50', text: 'text-indigo-800', border: 'border-indigo-200', icon: '🚢' },
+                        ready_for_delivery: { label: 'Ready in Nigeria', bg: 'bg-purple-50', text: 'text-purple-800', border: 'border-purple-200', icon: '📦' },
+                        delivered: { label: 'Delivered', bg: 'bg-stone-100', text: 'text-stone-700', border: 'border-stone-300', icon: '✅' },
+                      };
+                      const currStyle = statusStyles[status] || statusStyles.pending;
+
+                      return (
+                        <div
+                          key={po.id}
+                          className="rounded-2xl border border-stone-200 bg-white p-4 sm:p-5 shadow-2xs space-y-4 hover:border-stone-300 transition"
+                        >
+                          {/* Order Header */}
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-stone-100 pb-3">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono text-xs font-extrabold text-stone-900 bg-stone-100 px-2 py-0.5 rounded-md">
+                                #{po.id}
+                              </span>
+                              <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${currStyle.bg} ${currStyle.text} ${currStyle.border}`}>
+                                <span>{currStyle.icon}</span>
+                                <span>{currStyle.label}</span>
+                              </span>
+                              <span className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide">
+                                {po.mode || 'Wholesale'} • {isAir ? 'Air (3 wks)' : 'Sea (3 mos)'}
+                              </span>
+                            </div>
+
+                            <div className="text-[11px] text-stone-400">
+                              Placed: {po.created_at ? new Date(po.created_at).toLocaleString() : 'Recent'}
+                            </div>
+                          </div>
+
+                          {/* Customer Information Section */}
+                          <div className="rounded-xl border border-stone-200/70 bg-stone-50/70 p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-xs font-bold text-stone-800">
+                                <User className="h-3.5 w-3.5 text-[#fa9d26]" />
+                                <span>Customer Information:</span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                {po.customer_name ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAssigningToOrderId(po.id);
+                                      setShowCustomerModal(true);
+                                    }}
+                                    className="text-[11px] font-semibold text-amber-700 hover:underline"
+                                  >
+                                    Edit / Reassign
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAssigningToOrderId(po.id);
+                                      setShowCustomerModal(true);
+                                    }}
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-[#b86200] hover:underline"
+                                  >
+                                    <UserPlus className="h-3 w-3" />
+                                    <span>+ Add / Assign Customer</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {po.customer_name ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs pt-1">
+                                <div>
+                                  <span className="text-[10px] text-stone-400 uppercase font-bold block">Name</span>
+                                  <span className="font-bold text-stone-900">{po.customer_name}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] text-stone-400 uppercase font-bold block">Phone / WhatsApp</span>
+                                  <a
+                                    href={`https://wa.me/${(po.customer_phone || '').replace(/[^0-9]/g, '')}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-bold text-emerald-700 hover:underline inline-flex items-center gap-1"
+                                  >
+                                    <MessageCircle className="h-3 w-3" />
+                                    <span>{po.customer_phone}</span>
+                                  </a>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] text-stone-400 uppercase font-bold block">Delivery Address</span>
+                                  <span className="text-stone-700">{po.customer_address || po.customer_city || 'Not provided yet'}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-1">
+                                <select
+                                  onChange={(e) => {
+                                    const cust = customers.find((c) => c.id === e.target.value);
+                                    if (cust) handleAssignCustomerToOrder(po.id, cust);
+                                  }}
+                                  defaultValue=""
+                                  className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs text-stone-700 focus:border-stone-900 focus:outline-hidden"
+                                >
+                                  <option value="" disabled>Select from existing customers...</option>
+                                  {customers.map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.name} ({c.phone}) {c.state_city ? `- ${c.state_city}` : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                                <span className="text-xs text-stone-400">or click &ldquo;+ Add / Assign Customer&rdquo; above</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Items & Financial Overview */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 rounded-xl bg-amber-50/40 border border-amber-100 p-3 text-xs">
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-stone-400 block">Total Pieces</span>
+                              <span className="font-extrabold text-stone-900">{pieces} pcs</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-stone-400 block">Product Total</span>
+                              <span className="font-extrabold text-[#b86200]">₦{amount.toLocaleString()}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-stone-400 block">Est. Shipping</span>
+                              <span className="font-semibold text-stone-700">₦{Number(po.est_shipping_fee || 0).toLocaleString()}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-stone-400 block">Confirmed Shipping</span>
+                              <span className="font-extrabold text-purple-700">
+                                {po.final_shipping_fee ? `₦${Number(po.final_shipping_fee).toLocaleString()}` : 'Pending Arrival'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Quick Items Visual Row */}
+                          {po.items && po.items.length > 0 && (
+                            <div className="space-y-1.5">
+                              <span className="text-[10px] uppercase font-bold text-stone-400">Items Ordered:</span>
+                              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                                {po.items.map((it: any, idx: number) => (
+                                  <div
+                                    key={idx}
+                                    className="flex shrink-0 items-center gap-2 rounded-lg border border-stone-200 bg-white p-1.5 pr-3 shadow-2xs"
+                                  >
+                                    {it.selectedImage ? (
+                                      <img
+                                        src={it.selectedImage}
+                                        alt={it.title}
+                                        className="h-9 w-9 rounded-md object-cover border border-stone-100"
+                                      />
+                                    ) : (
+                                      <div className="h-9 w-9 rounded-md bg-stone-100 flex items-center justify-center text-stone-400 text-xs">
+                                        📦
+                                      </div>
+                                    )}
+                                    <div className="text-[11px] leading-tight">
+                                      <div className="font-bold text-stone-900 line-clamp-1">{it.title}</div>
+                                      <div className="text-stone-500 text-[10px]">
+                                        {it.quantity} pcs {it.selectedColor ? `• ${it.selectedColor}` : ''} {it.selectedSize ? `• ${it.selectedSize}` : ''}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* China Reference & Nigeria Shipping Fee Inputs */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-stone-100 text-xs">
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-stone-500 uppercase">
+                                China Tracking / 1688 Order #:
+                              </label>
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="text"
+                                  defaultValue={po.china_order_ref || ''}
+                                  placeholder="e.g. 1688-294029482 or tracking #"
+                                  onBlur={(e) => {
+                                    if (e.target.value !== (po.china_order_ref || '')) {
+                                      handleUpdateOrderStatus(po.id, status, { china_order_ref: e.target.value });
+                                    }
+                                  }}
+                                  className="w-full rounded-lg border border-stone-300 px-2.5 py-1 text-xs focus:border-stone-900 focus:outline-hidden"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-stone-500 uppercase">
+                                Confirmed Nigeria Shipping Fee (₦):
+                              </label>
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="number"
+                                  defaultValue={po.final_shipping_fee || ''}
+                                  placeholder="Exact fee when parcel lands in Nigeria"
+                                  onBlur={(e) => {
+                                    const val = e.target.value ? Number(e.target.value) : null;
+                                    if (val !== po.final_shipping_fee) {
+                                      handleUpdateOrderStatus(po.id, status, { final_shipping_fee: val });
+                                    }
+                                  }}
+                                  className="w-full rounded-lg border border-stone-300 px-2.5 py-1 text-xs focus:border-stone-900 focus:outline-hidden"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Status Stepper & Action Controls */}
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-3 border-t border-stone-100">
+                            {/* Manual status dropdown */}
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-stone-600">Update Status:</span>
+                              <select
+                                value={status}
+                                onChange={(e) => handleUpdateOrderStatus(po.id, e.target.value)}
+                                disabled={isUpdating}
+                                className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-bold text-stone-800 focus:border-stone-900 focus:outline-hidden"
+                              >
+                                <option value="pending">⏳ Pending Payment</option>
+                                <option value="paid">💳 Paid (Payment Confirmed)</option>
+                                <option value="ordered">🇨🇳 Ordered from China</option>
+                                <option value="shipped">🚢 Shipped (In Transit)</option>
+                                <option value="ready_for_delivery">📦 Ready in Nigeria</option>
+                                <option value="delivered">✅ Delivered</option>
+                              </select>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {/* One-click advance button */}
+                              {status === 'pending' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateOrderStatus(po.id, 'paid')}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 shadow-2xs transition"
+                                >
+                                  <CreditCard className="h-3.5 w-3.5" />
+                                  <span>Mark as Paid</span>
+                                </button>
+                              )}
+                              {status === 'paid' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateOrderStatus(po.id, 'ordered')}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 shadow-2xs transition"
+                                >
+                                  <span>🇨🇳 Mark Ordered (China)</span>
+                                </button>
+                              )}
+                              {status === 'ordered' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateOrderStatus(po.id, 'shipped')}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-700 shadow-2xs transition"
+                                >
+                                  <span>🚢 Mark Shipped</span>
+                                </button>
+                              )}
+                              {status === 'shipped' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateOrderStatus(po.id, 'ready_for_delivery')}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-purple-700 shadow-2xs transition"
+                                >
+                                  <span>📦 Mark Ready in Nigeria</span>
+                                </button>
+                              )}
+                              {status === 'ready_for_delivery' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateOrderStatus(po.id, 'delivered')}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-stone-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-black shadow-2xs transition"
+                                >
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                  <span>Mark Delivered</span>
+                                </button>
+                              )}
+
+                              {/* WhatsApp Status Update Notification */}
+                              <button
+                                type="button"
+                                onClick={() => handleSendCustomerWhatsAppUpdate(po)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 transition shadow-2xs"
+                                title="Send WhatsApp status update to customer"
+                              >
+                                <MessageCircle className="h-3.5 w-3.5 text-emerald-600" />
+                                <span>WhatsApp Update</span>
+                              </button>
+
+                              {/* View Catalog */}
+                              <a
+                                href={`/order?id=${po.id}&admin=1234`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-bold text-stone-700 hover:bg-stone-50 transition shadow-2xs"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5 text-stone-500" />
+                                <span>Catalog Sheet</span>
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* TAB 2: CUSTOMERS DIRECTORY                                */}
+          {/* ========================================================= */}
+          {adminActiveSubTab === 'customers' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-stone-700">
+                  Registered Customers ({customers.length})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssigningToOrderId(null);
+                    setShowCustomerModal(true);
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg bg-[#fa9d26] px-2.5 py-1 text-xs font-bold text-white hover:bg-[#e68c1d] shadow-2xs transition"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  <span>Add Customer</span>
+                </button>
+              </div>
+
+              {customers.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50/50 p-8 text-center space-y-2">
+                  <p className="text-xs font-semibold text-stone-600">No customers registered yet.</p>
+                  <p className="text-[11px] text-stone-400">
+                    Click &ldquo;+ Add Customer&rdquo; or assign customer information directly when reviewing preorders.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {customers.map((c) => {
+                    const custOrders = preorders.filter((po) => po.customer_id === c.id || po.customer_phone === c.phone);
+                    const totalSpent = custOrders.reduce((sum, po) => sum + Number(po.total_amount || 0), 0);
+
+                    return (
+                      <div
+                        key={c.id}
+                        className="rounded-xl border border-stone-200 bg-stone-50/40 p-4 space-y-2.5 shadow-2xs"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="text-xs font-bold text-stone-900">{c.name}</h4>
+                            <a
+                              href={`https://wa.me/${(c.phone || '').replace(/[^0-9]/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] font-semibold text-emerald-700 hover:underline inline-flex items-center gap-1 mt-0.5"
+                            >
+                              <Phone className="h-3 w-3" />
+                              <span>{c.phone}</span>
+                            </a>
+                          </div>
+
+                          <span className="rounded-full bg-stone-100 border border-stone-200 px-2 py-0.5 text-[10px] font-bold text-stone-700">
+                            {custOrders.length} orders
+                          </span>
+                        </div>
+
+                        {c.delivery_address && (
+                          <div className="text-[11px] text-stone-600 flex items-start gap-1">
+                            <MapPin className="h-3 w-3 text-stone-400 shrink-0 mt-0.5" />
+                            <span>{c.delivery_address} {c.state_city ? `(${c.state_city})` : ''}</span>
+                          </div>
+                        )}
+
+                        {c.instagram_handle && (
+                          <div className="text-[11px] text-stone-500">
+                            Instagram: <span className="font-semibold text-stone-800">@{c.instagram_handle.replace('@', '')}</span>
+                          </div>
+                        )}
+
+                        {c.notes && (
+                          <div className="text-[10px] text-stone-400 italic">
+                            &ldquo;{c.notes}&rdquo;
+                          </div>
+                        )}
+
+                        <div className="pt-2 border-t border-stone-200 flex items-center justify-between text-xs">
+                          <span className="font-bold text-[#b86200]">
+                            ₦{totalSpent.toLocaleString()} spent
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOrderCustomerFilter(c.id);
+                              setAdminActiveSubTab('pipeline');
+                            }}
+                            className="text-[11px] font-bold text-amber-700 hover:underline"
+                          >
+                            View Orders ({custOrders.length}) →
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </section>
+
+        {/* ========================================================= */}
+        {/* ADD / EDIT CUSTOMER MODAL                                 */}
+        {/* ========================================================= */}
+        {showCustomerModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-stone-950/60 backdrop-blur-xs overflow-y-auto">
+            <div className="relative w-full max-w-md rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-amber-100 flex items-center justify-center text-[#fa9d26]">
+                    <UserPlus className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-stone-900">
+                      {assigningToOrderId ? `Assign Customer to Order #${assigningToOrderId}` : 'Add New Customer'}
+                    </h3>
+                    <p className="text-[11px] text-stone-500">Save details for order tracking and fulfillment.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCustomerModal(false);
+                    setAssigningToOrderId(null);
+                  }}
+                  className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-700 transition"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveCustomer} className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-stone-700">Customer Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={custFormName}
+                    onChange={(e) => setCustFormName(e.target.value)}
+                    placeholder="e.g. Maryam Adeleke"
+                    className="w-full rounded-lg border border-stone-300 px-3 py-2 text-xs font-medium focus:border-stone-900 focus:outline-hidden"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-stone-700">Phone / WhatsApp Number *</label>
+                  <input
+                    type="text"
+                    required
+                    value={custFormPhone}
+                    onChange={(e) => setCustFormPhone(e.target.value)}
+                    placeholder="e.g. 08012345678"
+                    className="w-full rounded-lg border border-stone-300 px-3 py-2 text-xs font-medium focus:border-stone-900 focus:outline-hidden"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-stone-700">State / City</label>
+                    <input
+                      type="text"
+                      value={custFormCity}
+                      onChange={(e) => setCustFormCity(e.target.value)}
+                      placeholder="e.g. Lagos, Ikeja"
+                      className="w-full rounded-lg border border-stone-300 px-3 py-2 text-xs focus:border-stone-900 focus:outline-hidden"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-stone-700">Instagram Handle</label>
+                    <input
+                      type="text"
+                      value={custFormInstagram}
+                      onChange={(e) => setCustFormInstagram(e.target.value)}
+                      placeholder="e.g. @maryam_style"
+                      className="w-full rounded-lg border border-stone-300 px-3 py-2 text-xs focus:border-stone-900 focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-stone-700">Delivery Street Address</label>
+                  <textarea
+                    rows={2}
+                    value={custFormAddress}
+                    onChange={(e) => setCustFormAddress(e.target.value)}
+                    placeholder="Full street address for courier dispatch..."
+                    className="w-full rounded-lg border border-stone-300 px-3 py-2 text-xs focus:border-stone-900 focus:outline-hidden"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-stone-700">Admin Notes / Preferences</label>
+                  <input
+                    type="text"
+                    value={custFormNotes}
+                    onChange={(e) => setCustFormNotes(e.target.value)}
+                    placeholder="e.g. Prefers GIG Logistics / Regular buyer"
+                    className="w-full rounded-lg border border-stone-300 px-3 py-2 text-xs focus:border-stone-900 focus:outline-hidden"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-stone-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCustomerModal(false);
+                      setAssigningToOrderId(null);
+                    }}
+                    className="rounded-lg px-3 py-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingCustomer}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#fa9d26] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#e68c1d] shadow-2xs transition disabled:opacity-50"
+                  >
+                    {savingCustomer ? 'Saving...' : 'Save Customer'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* ========================================================= */}
         {editingProduct && (
