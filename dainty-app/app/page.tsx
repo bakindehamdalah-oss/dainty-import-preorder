@@ -82,17 +82,17 @@ type CartItem = {
 function isStrictIphoneCaseCategory(category?: Category | null, product?: Product | null): boolean {
   const catName = (category?.name || category?.slug || '').toLowerCase();
   const prodName = (product?.name || product?.title || '').toLowerCase();
-  return (
-    (catName.includes('iphone') && catName.includes('case')) ||
-    (prodName.includes('iphone') && prodName.includes('case'))
-  );
+  const isCat = catName.includes('iphone') || (catName.includes('case') && !catName.includes('briefcase') && !catName.includes('suitcase'));
+  const isProd = (prodName.includes('iphone') && (prodName.includes('case') || prodName.includes('cover') || prodName.includes('casing') || prodName.includes('clear') || prodName.includes('silicone') || prodName.includes('leather'))) ||
+                 (prodName.includes('case') && (prodName.includes('11') || prodName.includes('12') || prodName.includes('13') || prodName.includes('14') || prodName.includes('15') || prodName.includes('16') || prodName.includes('pro') || prodName.includes('promax') || prodName.includes('max') || prodName.includes('plus')));
+  return Boolean(isCat || isProd);
 }
 
 // Extract wholesale MOQ: strictly per item by default unless category MOQ is explicitly stated
 function getProductWholesaleMOQ(product: Product, category?: Category | null): number {
   // 1. Strictly for iPhone Cases: always 50 pieces across the category for mix & match
   if (isStrictIphoneCaseCategory(category, product)) {
-    return Number(category?.wholesale_moq) > 0 ? Number(category?.wholesale_moq) : 50;
+    return 50;
   }
 
   // 2. A whole-category rule is authoritative over item-level values
@@ -748,7 +748,7 @@ function ProductCard({
 }) {
   const productTitle = product.name || product.title || 'Product';
   const displayPrice = mode === 'wholesale' ? product.wholesale_price : product.retail_price;
-  const cat = product.category_id ? categoryMap.get(product.category_id) : null;
+  const cat = product.category_id ? (categoryMap.get(String(product.category_id)) || categoryMap.get(product.category_id)) : null;
   const moq = getProductWholesaleMOQ(product, cat);
   const moqScope = getProductMOQScope(product, cat);
 
@@ -1162,12 +1162,30 @@ export default function StorefrontPage() {
         const fetchedCats: Category[] = categoriesRes.data || [];
         const normalizedCats = fetchedCats.map((cat) => {
           const n = (cat.name || cat.slug || '').toLowerCase();
-          // Strictly for iPhone Cases category, only default to 50 if no custom MOQ was already set
-          if (n.includes('iphone') && n.includes('case') && (!cat.wholesale_moq || cat.wholesale_moq <= 0)) {
+          // Strictly for iPhone Cases category, always 50 pieces and category-wide MOQ
+          if (n.includes('iphone') || (n.includes('case') && !n.includes('briefcase') && !n.includes('suitcase'))) {
             return { ...cat, wholesale_moq: 50, moq_scope: 'category' as const };
           }
           return cat;
         });
+
+        // Proactively synchronize Supabase category record so it never reverts to 10
+        const iphoneCatRecord = fetchedCats.find((c) => {
+          const n = (c.name || c.slug || '').toLowerCase();
+          return n.includes('iphone') || (n.includes('case') && !n.includes('briefcase') && !n.includes('suitcase'));
+        });
+        if (iphoneCatRecord && (Number(iphoneCatRecord.wholesale_moq) !== 50 || iphoneCatRecord.moq_scope !== 'category')) {
+          supabase
+            .from('categories')
+            .update({ wholesale_moq: 50, moq_scope: 'category' })
+            .eq('id', iphoneCatRecord.id)
+            .then(() => {
+              supabase
+                .from('products')
+                .update({ wholesale_moq: 50, min_order_qty: 50, moq_scope: 'category' })
+                .eq('category_id', iphoneCatRecord.id);
+            });
+        }
         setCategories(normalizedCats);
         setProducts(productsRes.data || []);
       }
