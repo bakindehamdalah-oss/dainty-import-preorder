@@ -73,6 +73,49 @@ type EditCategoryState = {
   moq_scope: 'category' | 'item';
 };
 
+type PreorderAdminRecord = {
+  id: string;
+  customer_id?: string | null;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  customer_address?: string | null;
+  customer_city?: string | null;
+  china_order_ref?: string | null;
+  china_tracking_ref?: string | null;
+  items?: {
+    productId?: string;
+    product_id?: string;
+    name?: string;
+    title?: string;
+    quantity?: number;
+    price?: number;
+    selectedColor?: string | null;
+    selectedSize?: string | null;
+    selectedImage?: string | null;
+    estShippingAir?: number;
+    estShippingSea?: number;
+  }[];
+  total_pieces?: number;
+  total_amount?: number;
+  mode?: 'wholesale' | 'retail';
+  shipping_method?: 'air' | 'sea';
+  est_shipping_fee?: number;
+  final_shipping_fee?: number;
+  shipping_timeline?: string;
+  admin_notes?: string;
+  created_at?: string;
+  status?: string;
+  payment_date?: string;
+  china_ordered_at?: string;
+  shipped_at?: string;
+  ready_at?: string;
+  delivered_at?: string;
+  cancelled_at?: string;
+  is_delayed?: boolean;
+  delay_reason?: string;
+  revised_arrival_date?: string;
+};
+
 type DraftPhotoItem = {
   tempId: string;
   name: string;
@@ -149,7 +192,7 @@ function getProductAllImages(product: Product | null | undefined): string[] {
   if (!product) return [];
   const list: string[] = [];
 
-  const add = (url: any) => {
+  const add = (url: unknown) => {
     if (typeof url === 'string') {
       const clean = url.trim();
       if (clean && !list.includes(clean)) list.push(clean);
@@ -198,6 +241,10 @@ function cleanFileTitle(filename: string): string {
     .trim();
 }
 
+function generateCustomerId(): string {
+  return 'CUST-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+}
+
 export default function AdminPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -218,9 +265,17 @@ export default function AdminPage() {
 
   // Editing categories
   const [editingCategory, setEditingCategory] = useState<EditCategoryState | null>(null);
-  const [preorders, setPreorders] = useState<any[]>([]);
+  const [preorders, setPreorders] = useState<PreorderAdminRecord[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [adminActiveTab, setAdminActiveTab] = useState<'upload' | 'published' | 'inventory'>('upload');
+  const [adminActiveTab, setAdminActiveTab] = useState<'upload' | 'published' | 'inventory'>(() => {
+    if (typeof window !== 'undefined') {
+      const tabParam = new URLSearchParams(window.location.search).get('tab');
+      if (tabParam === 'upload' || tabParam === 'published' || tabParam === 'inventory') {
+        return tabParam;
+      }
+    }
+    return 'upload';
+  });
   const [adminActiveSubTab, setAdminActiveSubTab] = useState<'pipeline' | 'customers'>('pipeline');
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
   const [orderCustomerFilter, setOrderCustomerFilter] = useState<string>('all');
@@ -270,7 +325,10 @@ export default function AdminPage() {
     return '';
   });
   const selectedCatIdRef = useRef<string>(selectedCategoryId);
-  selectedCatIdRef.current = selectedCategoryId;
+
+  useEffect(() => {
+    selectedCatIdRef.current = selectedCategoryId;
+  }, [selectedCategoryId]);
 
   function handleSelectCategory(catId: string) {
     selectedCatIdRef.current = catId;
@@ -311,12 +369,13 @@ export default function AdminPage() {
       const catNameLower = (selCat.name || '').toLowerCase();
       const isIphoneCat = catNameLower.includes('iphone') && catNameLower.includes('case');
       const isCategoryMoq = selCat.moq_scope === 'category' || isIphoneCat;
-      setSharedMoqScope(isCategoryMoq ? 'category' : 'item');
-      if (isCategoryMoq) {
-        setSharedMoq(String(Number(selCat.wholesale_moq) > 0 ? selCat.wholesale_moq : (isIphoneCat ? 50 : '')));
-      } else {
-        setSharedMoq('');
-      }
+      const targetScope = isCategoryMoq ? 'category' : 'item';
+      const targetMoq = isCategoryMoq ? String(Number(selCat.wholesale_moq) > 0 ? selCat.wholesale_moq : (isIphoneCat ? 50 : '')) : '';
+      const timer = setTimeout(() => {
+        setSharedMoqScope(targetScope);
+        setSharedMoq(targetMoq);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [selectedCategoryId, categories]);
 
@@ -386,14 +445,7 @@ export default function AdminPage() {
     }
   }
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const tabParam = new URLSearchParams(window.location.search).get('tab');
-      if (tabParam === 'upload' || tabParam === 'published' || tabParam === 'inventory') {
-        setAdminActiveTab(tabParam);
-      }
-    }
-  }, []);
+
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -422,7 +474,7 @@ export default function AdminPage() {
       return;
     }
     setSavingCustomer(true);
-    const newId = 'CUST-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+    const newId = generateCustomerId();
     const newCustomer: Customer = {
       id: newId,
       name: custFormName.trim(),
@@ -496,11 +548,11 @@ export default function AdminPage() {
   async function handleUpdateOrderStatus(
     orderId: string,
     newStatus: string,
-    extraFields?: Record<string, any>
+    extraFields?: Record<string, unknown>
   ) {
     setUpdatingOrderId(orderId);
     const timeNow = new Date().toISOString();
-    const statusTimestamps: Record<string, any> = {};
+    const statusTimestamps: Record<string, unknown> = {};
     if (newStatus === 'paid') statusTimestamps.payment_date = timeNow;
     if (newStatus === 'ordered') statusTimestamps.china_ordered_at = timeNow;
     if (newStatus === 'shipped') statusTimestamps.shipped_at = timeNow;
@@ -535,11 +587,11 @@ export default function AdminPage() {
     }
   }
 
-  function handleSendCustomerWhatsAppUpdate(order: any) {
-    const phone = (order.customer_phone || '').replace(/[^0-9]/g, '');
-    const name = order.customer_name || 'Customer';
-    const status = order.status || 'pending';
-    const pieces = order.total_pieces || (order.items?.length || 0);
+  function handleSendCustomerWhatsAppUpdate(order: PreorderAdminRecord) {
+    const phone = ((order.customer_phone as string) || '').replace(/[^0-9]/g, '');
+    const name = (order.customer_name as string) || 'Customer';
+    const status = (order.status as string) || 'pending';
+    const pieces = Number(order.total_pieces) || ((order.items as unknown[])?.length || 0);
     const amount = Number(order.total_amount || 0).toLocaleString();
     const finalShip = order.final_shipping_fee ? Number(order.final_shipping_fee).toLocaleString() : null;
     const estShip = order.est_shipping_fee ? Number(order.est_shipping_fee).toLocaleString() : '0';
@@ -822,7 +874,9 @@ export default function AdminPage() {
 
     const category = categories.find((item) => item.id === selectedCategoryId);
     const categoryName = category?.name || 'selected category';
-    const categoryMoq = Number(sharedMoq || category?.wholesale_moq || 10);
+    const catNameLower = categoryName.toLowerCase();
+    const isIphoneCat = catNameLower.includes('iphone') && catNameLower.includes('case');
+    const categoryMoq = Number(sharedMoq || (isIphoneCat ? 50 : category?.wholesale_moq || 10));
     if (!Number.isFinite(categoryMoq) || categoryMoq < 1) {
       setErrorMsg('Enter a valid category minimum of at least 1 piece.');
       return;
@@ -928,8 +982,8 @@ export default function AdminPage() {
               } else {
                 lastErrText = upErr.message || JSON.stringify(upErr);
               }
-            } catch (err: any) {
-              lastErrText = err?.message || String(err);
+            } catch (err: unknown) {
+              lastErrText = err instanceof Error ? err.message : String(err);
             }
           }
 
@@ -1033,7 +1087,7 @@ export default function AdminPage() {
     e.target.value = '';
   }
 
-  function updateDraftItem(tempId: string, field: keyof DraftPhotoItem, val: any) {
+  function updateDraftItem(tempId: string, field: keyof DraftPhotoItem, val: unknown) {
     setDraftItems((prev) =>
       prev.map((item) => (item.tempId === tempId ? { ...item, [field]: val } : item))
     );
@@ -1315,12 +1369,12 @@ export default function AdminPage() {
     if (error && error.message?.toLowerCase().includes('schema cache')) {
       // Gracefully omit fields if Supabase columns do not exist yet
       const fallbackPayload1 = payload.map(({ moq_scope, ...rest }) => rest);
-      let fallbackRes1 = await supabase.from('products').insert(fallbackPayload1);
+      const fallbackRes1 = await supabase.from('products').insert(fallbackPayload1);
       error = fallbackRes1.error;
 
       if (error && error.message?.toLowerCase().includes('schema cache')) {
         const fallbackPayload2 = payload.map(({ moq_scope, sizes, size_options, wholesale_moq, min_order_qty, ...rest }) => rest);
-        let fallbackRes2 = await supabase.from('products').insert(fallbackPayload2);
+        const fallbackRes2 = await supabase.from('products').insert(fallbackPayload2);
         error = fallbackRes2.error;
 
         if (error && error.message?.toLowerCase().includes('schema cache')) {
@@ -1436,7 +1490,7 @@ export default function AdminPage() {
       ? `${descText}\n<!--dainty_moq:${moqVal}-->\n<!--dainty_moq_scope:${editingProduct.moqScope}-->\n<!--dainty_ship_air:${airFee}-->\n<!--dainty_ship_sea:${seaFee}-->\n<!--dainty_sizes:${JSON.stringify(sizesList)}-->\n<!--dainty_colors:${JSON.stringify(colorsList)}-->`
       : `<!--dainty_moq:${moqVal}-->\n<!--dainty_moq_scope:${editingProduct.moqScope}-->\n<!--dainty_ship_air:${airFee}-->\n<!--dainty_ship_sea:${seaFee}-->\n<!--dainty_sizes:${JSON.stringify(sizesList)}-->\n<!--dainty_colors:${JSON.stringify(colorsList)}-->`;
 
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       name: cleanName,
       title: cleanName,
       category_id: editingProduct.categoryId || null,
@@ -1917,7 +1971,7 @@ export default function AdminPage() {
                   <label className="text-[10px] font-bold text-stone-600 block mb-1">MOQ Scope</label>
                   <select
                     value={editingCategory.moq_scope}
-                    onChange={(e) => setEditingCategory({ ...editingCategory, moq_scope: e.target.value as any })}
+                    onChange={(e) => setEditingCategory({ ...editingCategory, moq_scope: e.target.value as 'category' | 'item' })}
                     className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs focus:border-stone-900 focus:outline-hidden"
                   >
                     <option value="category">Whole Category (Bulk MOQ)</option>
@@ -2414,7 +2468,7 @@ export default function AdminPage() {
                           />
                           <select
                             value={item.moqScope || 'item'}
-                            onChange={(e) => updateDraftItem(item.tempId, 'moqScope', e.target.value as any)}
+                            onChange={(e) => updateDraftItem(item.tempId, 'moqScope', e.target.value as 'category' | 'item')}
                             className="text-[10px] rounded border border-stone-300 px-1 py-1 bg-white font-medium"
                           >
                             <option value="item">Per item (Default)</option>
@@ -2708,13 +2762,13 @@ export default function AdminPage() {
                               {air > 0 ? (
                                 <span className="text-stone-600">Air: ₦{air.toLocaleString()}</span>
                               ) : (
-                                <span className="text-red-600 font-medium">Can't be shipped by air</span>
+                                <span className="text-red-600 font-medium">Can&apos;t be shipped by air</span>
                               )}
                               <span className="text-stone-300">•</span>
                               {sea > 0 ? (
                                 <span className="text-stone-600">Sea: ₦{sea.toLocaleString()}</span>
                               ) : (
-                                <span className="text-red-600 font-medium">Can't be shipped by sea</span>
+                                <span className="text-red-600 font-medium">Can&apos;t be shipped by sea</span>
                               )}
                             </span>
                           </div>
@@ -3202,15 +3256,15 @@ export default function AdminPage() {
                             <div className="space-y-1.5">
                               <span className="text-[10px] uppercase font-bold text-stone-400">Items Ordered:</span>
                               <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                                {po.items.map((it: any, idx: number) => (
+                                {((po.items as Record<string, unknown>[]) || []).map((it: Record<string, unknown>, idx: number) => (
                                   <div
                                     key={idx}
                                     className="flex shrink-0 items-center gap-2 rounded-lg border border-stone-200 bg-white p-1.5 pr-3 shadow-2xs"
                                   >
                                     {it.selectedImage ? (
                                       <img
-                                        src={it.selectedImage}
-                                        alt={it.title}
+                                        src={it.selectedImage as string}
+                                        alt={(it.title as string) || (it.name as string) || 'Item'}
                                         className="h-9 w-9 rounded-md object-cover border border-stone-100"
                                       />
                                     ) : (
@@ -3219,9 +3273,9 @@ export default function AdminPage() {
                                       </div>
                                     )}
                                     <div className="text-[11px] leading-tight">
-                                      <div className="font-bold text-stone-900 line-clamp-1">{it.title}</div>
+                                      <div className="font-bold text-stone-900 line-clamp-1">{String(it.title || it.name || 'Item')}</div>
                                       <div className="text-stone-500 text-[10px]">
-                                        {it.quantity} pcs {it.selectedColor ? `• ${it.selectedColor}` : ''} {it.selectedSize ? `• ${it.selectedSize}` : ''}
+                                        {String(it.quantity || 1)} pcs {it.selectedColor ? `• ${String(it.selectedColor)}` : ''} {it.selectedSize ? `• ${String(it.selectedSize)}` : ''}
                                       </div>
                                     </div>
                                   </div>
