@@ -78,20 +78,29 @@ type CartItem = {
   selectedImage?: string | null;
 };
 
-// Check strictly if this category is the iPhone Cases category
-function isStrictIphoneCaseCategory(category?: Category | null): boolean {
+// Check strictly if this category or product belongs to the iPhone Cases category
+function isStrictIphoneCaseCategory(category?: Category | null, product?: Product | null): boolean {
   const catName = (category?.name || category?.slug || '').toLowerCase();
-  return catName.includes('iphone') && catName.includes('case');
+  const prodName = (product?.name || product?.title || '').toLowerCase();
+  return (
+    (catName.includes('iphone') && catName.includes('case')) ||
+    (prodName.includes('iphone') && prodName.includes('case'))
+  );
 }
 
 // Extract wholesale MOQ: strictly per item by default unless category MOQ is explicitly stated
 function getProductWholesaleMOQ(product: Product, category?: Category | null): number {
-  // A whole-category rule is authoritative over item-level values.
+  // 1. Strictly for iPhone Cases: always 50 pieces across the category for mix & match
+  if (isStrictIphoneCaseCategory(category, product)) {
+    return Number(category?.wholesale_moq) > 0 ? Number(category?.wholesale_moq) : 50;
+  }
+
+  // 2. A whole-category rule is authoritative over item-level values
   if (getProductMOQScope(product, category) === 'category' && Number(category?.wholesale_moq) > 0) {
     return Number(category?.wholesale_moq);
   }
 
-  // 1. If product specifies its own wholesale MOQ, that always takes priority
+  // 3. If product specifies its own wholesale MOQ, that takes priority for item scope
   if (product.wholesale_moq !== undefined && product.wholesale_moq !== null && Number(product.wholesale_moq) > 0) {
     return Number(product.wholesale_moq);
   }
@@ -99,17 +108,12 @@ function getProductWholesaleMOQ(product: Product, category?: Category | null): n
     return Number(product.min_order_qty);
   }
 
-  // 2. Read embedded metadata tag from description (survives any DB schema gaps)
+  // 4. Read embedded metadata tag from description (survives any DB schema gaps)
   if (product.description) {
     const match = product.description.match(/<!--dainty_moq:(\d+)-->/);
     if (match && Number(match[1]) > 0) {
       return Number(match[1]);
     }
-  }
-
-  // 4. Strictly for iPhone Cases category ONLY (and only when no custom item MOQ is set)
-  if (isStrictIphoneCaseCategory(category) && getProductMOQScope(product, category) === 'category') {
-    return 50;
   }
 
   // 5. Per-item default: 1 piece
@@ -118,6 +122,11 @@ function getProductWholesaleMOQ(product: Product, category?: Category | null): n
 
 // Extract wholesale MOQ scope: strictly per-item by default unless category MOQ is explicitly chosen
 function getProductMOQScope(product: Product, category?: Category | null): 'category' | 'item' {
+  // iPhone cases are ALWAYS category-wide mix and match
+  if (isStrictIphoneCaseCategory(category, product)) {
+    return 'category';
+  }
+
   // 1. If product explicitly specifies its own scope
   if (product.moq_scope === 'item') return 'item';
   if (product.moq_scope === 'category') return 'category';
@@ -336,13 +345,13 @@ function MatrixOrderModal({
                 {getProductShippingFees(product).air > 0 ? (
                   <span className="text-stone-600">Air: ₦{getProductShippingFees(product).air.toLocaleString()}</span>
                 ) : (
-                  <span className="text-red-600 font-medium">Can't be shipped by air</span>
+                  <span className="text-red-600 font-medium">Can&apos;t be shipped by air</span>
                 )}
                 <span className="text-stone-300">•</span>
                 {getProductShippingFees(product).sea > 0 ? (
                   <span className="text-stone-600">Sea: ₦{getProductShippingFees(product).sea.toLocaleString()}</span>
                 ) : (
-                  <span className="text-red-600 font-medium">Can't be shipped by sea</span>
+                  <span className="text-red-600 font-medium">Can&apos;t be shipped by sea</span>
                 )}
               </div>
             </div>
@@ -635,6 +644,10 @@ function cleanProductDescription(description?: string | null): string {
     .replace(/(?:^|\s*[•|]\s*)(?:sizes?|models?):\s*[^•\n]*/gi, '')
     .replace(/(?:^|\s*[•|]\s*)colors?:\s*[^•\n]*/gi, '')
     .replace(/(?:^|\s*[•|]\s*)shipping:\s*(?:sea|air)\s+cargo\s+only/gi, '')
+    .replace(/(?:^|\s*[•|]\s*)(?:wholesale\s+)?moq:\s*[^•\n]*/gi, '')
+    .replace(/(?:^|\s*[•|]\s*)(?:moq\s+)?scope:\s*[^•\n]*/gi, '')
+    .replace(/(?:^|\s*[•|]\s*)minimum\s+order(?:\s+quantity)?:\s*[^•\n]*/gi, '')
+    .replace(/(?:^|\s*[•|]\s*)category\s+moq:\s*[^•\n]*/gi, '')
     .replace(/(?:\s*•\s*){2,}/g, ' • ')
     .replace(/^\s*•\s*|\s*•\s*$/g, '')
     .trim();
@@ -662,7 +675,7 @@ function getProductAllImages(product: Product | null | undefined): string[] {
   if (!product) return [];
   const list: string[] = [];
 
-  const add = (url: any) => {
+  const add = (url: unknown) => {
     if (typeof url === 'string') {
       const clean = url.trim();
       if (clean && !list.includes(clean)) list.push(clean);
@@ -823,15 +836,8 @@ function ProductCard({
   const defaultQty = mode === 'wholesale' ? (moqScope === 'item' ? (hasVariants ? 1 : moq) : 1) : 1;
   const [orderQty, setOrderQty] = useState<number>(defaultQty);
 
-  useEffect(() => {
-    if (allImages.length > 0 && !allImages.includes(activeImage)) {
-      setActiveImage(allImages[0]);
-    }
-  }, [allImages, activeImage]);
-
-  useEffect(() => {
-    setOrderQty(mode === 'wholesale' ? (moqScope === 'item' ? (hasVariants ? 1 : moq) : 1) : 1);
-  }, [mode, moq, moqScope, hasVariants]);
+  // Active image falls back safely to first photo if current active is invalid
+  const displayActiveImage = (activeImage && allImages.includes(activeImage)) ? activeImage : (allImages[0] || '');
 
   function handleSelectColor(colorName: string, index?: number) {
     setSelectedColor(colorName);
@@ -897,7 +903,7 @@ function ProductCard({
               </button>
 
               <span className="absolute top-2.5 right-2.5 rounded-full bg-stone-900/80 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-xs backdrop-blur-xs z-10">
-                {Math.max(1, allImages.indexOf(activeImage) + 1)} / {allImages.length}
+                {Math.max(1, allImages.indexOf(displayActiveImage) + 1)} / {allImages.length}
               </span>
             </>
           )}
@@ -907,7 +913,7 @@ function ProductCard({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onZoomImage(activeImage);
+                onZoomImage(displayActiveImage);
               }}
               title="Click to view full photo clearly"
               className="absolute bottom-2.5 right-2.5 inline-flex items-center gap-1 rounded-md bg-stone-900/80 px-2 py-1 text-[11px] font-medium text-white opacity-0 backdrop-blur-xs transition group-hover:opacity-100 hover:bg-stone-900 z-10 cursor-pointer"
@@ -922,18 +928,18 @@ function ProductCard({
             {mode === 'wholesale' && (
               <span className="rounded-md bg-[#fa9d26] px-2 py-0.5 text-[10px] font-bold text-white shadow-xs tracking-wide">
                 {moqScope === 'category'
-                  ? `Category MOQ: ${moq} pcs`
+                  ? `Category MOQ: ${moq} pcs (mix & match)`
                   : `MOQ: ${moq} pcs`}
               </span>
             )}
             {!hasAir && (
               <span className="rounded-md bg-stone-900/90 px-2 py-0.5 text-[10px] font-medium text-white shadow-xs">
-                Can't ship by air
+                Can&apos;t ship by air
               </span>
             )}
             {!hasSea && (
               <span className="rounded-md bg-stone-900/90 px-2 py-0.5 text-[10px] font-medium text-white shadow-xs">
-                Can't ship by sea
+                Can&apos;t ship by sea
               </span>
             )}
           </div>
@@ -1043,13 +1049,13 @@ function ProductCard({
               {hasAir ? (
                 <span className="text-stone-600 font-medium">Air: ₦{airFee.toLocaleString()}</span>
               ) : (
-                <span className="text-red-600 font-medium">Can't be shipped by air</span>
+                <span className="text-red-600 font-medium">Can&apos;t be shipped by air</span>
               )}
               <span className="text-stone-300">•</span>
               {hasSea ? (
                 <span className="text-stone-600 font-medium">Sea: ₦{seaFee.toLocaleString()}</span>
               ) : (
-                <span className="text-red-600 font-medium">Can't be shipped by sea</span>
+                <span className="text-red-600 font-medium">Can&apos;t be shipped by sea</span>
               )}
             </div>
           </div>
@@ -1093,7 +1099,7 @@ function ProductCard({
         {/* Standard Add to Cart button */}
         <button
           type="button"
-          onClick={() => onAddToCart(product, selectedColor, selectedSize, activeImage, orderQty)}
+          onClick={() => onAddToCart(product, selectedColor, selectedSize, displayActiveImage, orderQty)}
           className={`w-full flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold transition shadow-xs active:scale-98 ${
             mode === 'wholesale' && hasVariants
               ? 'bg-stone-100 text-stone-800 hover:bg-stone-200'
@@ -1202,15 +1208,17 @@ export default function StorefrontPage() {
           }
 
           if (restoredCart.length > 0) {
-            setCart(restoredCart);
-            if (data.m === 'wholesale' || data.m === 'retail') {
-              setMode(data.m);
-            }
-            if (data.sm === 'air' || data.sm === 'sea') {
-              setShippingMethod(data.sm);
-            }
-            setIsCartOpen(true);
-            setLoadedOrderNotice(`Viewing shared order (${restoredCart.length} item${restoredCart.length > 1 ? 's' : ''})`);
+            setTimeout(() => {
+              setCart(restoredCart);
+              if (data.m === 'wholesale' || data.m === 'retail') {
+                setMode(data.m);
+              }
+              if (data.sm === 'air' || data.sm === 'sea') {
+                setShippingMethod(data.sm);
+              }
+              setIsCartOpen(true);
+              setLoadedOrderNotice(`Viewing shared order (${restoredCart.length} item${restoredCart.length > 1 ? 's' : ''})`);
+            }, 0);
             isInitialCartLoadRef.current = true;
             return;
           }
@@ -1241,13 +1249,18 @@ export default function StorefrontPage() {
               }
             }
             if (restoredCart.length > 0) {
-              setCart(restoredCart);
-            }
-            if (saved.mode === 'wholesale' || saved.mode === 'retail') {
-              setMode(saved.mode);
-            }
-            if (saved.shippingMethod === 'air' || saved.shippingMethod === 'sea') {
-              setShippingMethod(saved.shippingMethod);
+              const rCart = restoredCart;
+              const rMode = saved.mode;
+              const rShip = saved.shippingMethod;
+              setTimeout(() => {
+                setCart(rCart);
+                if (rMode === 'wholesale' || rMode === 'retail') {
+                  setMode(rMode);
+                }
+                if (rShip === 'air' || rShip === 'sea') {
+                  setShippingMethod(rShip);
+                }
+              }, 0);
             }
           }
         }
@@ -1439,9 +1452,11 @@ export default function StorefrontPage() {
       for (let i = 0; i < 5; i++) {
         id += chars.charAt(Math.floor(Math.random() * chars.length));
       }
-      setActiveOrderId(id);
+      const timer = setTimeout(() => setActiveOrderId(id), 0);
+      return () => clearTimeout(timer);
     } else if (cart.length === 0 && activeOrderId) {
-      setActiveOrderId('');
+      const timer = setTimeout(() => setActiveOrderId(''), 0);
+      return () => clearTimeout(timer);
     }
   }, [cart, activeOrderId]);
 
@@ -2251,13 +2266,13 @@ export default function StorefrontPage() {
                         {getProductShippingFees(item.product).air > 0 ? (
                           <span>Air: ₦{getProductShippingFees(item.product).air.toLocaleString()}</span>
                         ) : (
-                          <span className="text-red-600 font-medium">Can't be shipped by air</span>
+                          <span className="text-red-600 font-medium">Can&apos;t be shipped by air</span>
                         )}
                         <span>•</span>
                         {getProductShippingFees(item.product).sea > 0 ? (
                           <span>Sea: ₦{getProductShippingFees(item.product).sea.toLocaleString()}</span>
                         ) : (
-                          <span className="text-red-600 font-medium">Can't be shipped by sea</span>
+                          <span className="text-red-600 font-medium">Can&apos;t be shipped by sea</span>
                         )}
                       </div>
                     </div>
@@ -2323,7 +2338,7 @@ export default function StorefrontPage() {
 
             {cartHasUnavailableSelectedMethod ? (
               <div className="mt-1 rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-center text-xs font-semibold text-red-700">
-                Can't be shipped by {shippingMethod}. Remove the unavailable item or choose another available shipping method.
+                Can&apos;t be shipped by {shippingMethod}. Remove the unavailable item or choose another available shipping method.
               </div>
             ) : (
               <a
