@@ -70,7 +70,7 @@ type EditCategoryState = {
   id: string;
   name: string;
   wholesale_moq: string;
-  moq_scope: 'all' | 'category' | 'item';
+  moq_scope: 'category' | 'item';
 };
 
 type DraftPhotoItem = {
@@ -90,7 +90,62 @@ type DraftPhotoItem = {
 };
 
 
-export function getProductAllImages(product: Product | null | undefined): string[] {
+// Resolve each shipping method independently; never treat a generic fee as an Air or Sea rate.
+function getProductShippingFees(p: {
+  est_shipping_fee?: number | null;
+  est_shipping_fee_air?: number | null;
+  est_shipping_fee_sea?: number | null;
+  description?: string | null;
+}): { air: number; sea: number } {
+  if (p.description) {
+    const airMatch = p.description.match(/<!--dainty_ship_air:([0-9]+(?:\.[0-9]+)?)-->/);
+    const seaMatch = p.description.match(/<!--dainty_ship_sea:([0-9]+(?:\.[0-9]+)?)-->/);
+    if (airMatch !== null || seaMatch !== null) {
+      return {
+        air: airMatch ? Number(airMatch[1]) : 0,
+        sea: seaMatch ? Number(seaMatch[1]) : 0,
+      };
+    }
+  }
+
+  const hasAir = p.est_shipping_fee_air !== undefined && p.est_shipping_fee_air !== null;
+  const hasSea = p.est_shipping_fee_sea !== undefined && p.est_shipping_fee_sea !== null;
+  return {
+    air: hasAir && Number(p.est_shipping_fee_air) > 0 ? Number(p.est_shipping_fee_air) : 0,
+    sea: hasSea && Number(p.est_shipping_fee_sea) > 0 ? Number(p.est_shipping_fee_sea) : 0,
+  };
+}
+
+function cleanProductDescription(description?: string | null): string {
+  return (description || '')
+    .replace(/<!--dainty_[\s\S]*?-->/g, '')
+    .replace(/(?:^|\s*[•|]\s*)(?:sizes?|models?):\s*[^•\n]*/gi, '')
+    .replace(/(?:^|\s*[•|]\s*)colors?:\s*[^•\n]*/gi, '')
+    .replace(/(?:^|\s*[•|]\s*)shipping:\s*(?:sea|air)\s+cargo\s+only/gi, '')
+    .replace(/(?:\s*•\s*){2,}/g, ' • ')
+    .replace(/^\s*•\s*|\s*•\s*$/g, '')
+    .trim();
+}
+
+function getDescriptionList(description: string | null | undefined, field: 'sizes' | 'colors'): string[] {
+  if (!description) return [];
+  const match = description.match(new RegExp(`<!--dainty_${field}:(.*?)-->`));
+  if (match) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      if (Array.isArray(parsed)) return parsed.map((item) => String(item).trim()).filter(Boolean);
+    } catch {
+      // Fall back to legacy inline specs below.
+    }
+  }
+  const label = field === 'sizes' ? '(?:sizes?|models?)' : 'colors?';
+  const legacy = description.match(new RegExp(`${label}:\\s*([^•\\n]+)`, 'i'));
+  return legacy?.[1]
+    ? legacy[1].split(/[,/|;]+/).map((item) => item.trim()).filter(Boolean)
+    : [];
+}
+
+function getProductAllImages(product: Product | null | undefined): string[] {
   if (!product) return [];
   const list: string[] = [];
 
@@ -253,19 +308,14 @@ export default function AdminPage() {
       if (typeof window !== 'undefined') {
         localStorage.setItem('dainty_admin_selected_cat_id', selCat.id);
       }
-      if (selCat.moq_scope === 'category') {
-        setSharedMoqScope('category');
+      const catNameLower = (selCat.name || '').toLowerCase();
+      const isIphoneCat = catNameLower.includes('iphone') && catNameLower.includes('case');
+      const isCategoryMoq = selCat.moq_scope === 'category' || isIphoneCat;
+      setSharedMoqScope(isCategoryMoq ? 'category' : 'item');
+      if (isCategoryMoq) {
+        setSharedMoq(String(Number(selCat.wholesale_moq) > 0 ? selCat.wholesale_moq : (isIphoneCat ? 50 : '')));
       } else {
-        setSharedMoqScope('item');
-      }
-      // Populate shared MOQ from category MOQ if set
-      if (selCat.wholesale_moq && Number(selCat.wholesale_moq) > 0) {
-        setSharedMoq(String(selCat.wholesale_moq));
-      } else {
-        const catNameLower = (selCat.name || '').toLowerCase();
-        if (catNameLower.includes('iphone') && catNameLower.includes('case')) {
-          setSharedMoq('50');
-        }
+        setSharedMoq('');
       }
     }
   }, [selectedCategoryId, categories]);
@@ -778,7 +828,7 @@ export default function AdminPage() {
       return;
     }
 
-    if (!window.confirm(`Apply a ${categoryMoq}-piece minimum to the whole ${categoryName} category? Customers can mix designs, and no individual design will have its own MOQ.`)) {
+    if (!window.confirm(`Apply a ${categoryMoq}-piece minimum to the whole ${categoryName} category? The minimum applies to the combined quantity across products in this category.`)) {
       return;
     }
 
@@ -810,7 +860,7 @@ export default function AdminPage() {
 
     setSharedMoq(String(categoryMoq));
     setSharedMoqScope('category');
-    setStatusMsg(`Applied ${categoryMoq} pieces total across ${categoryName}. Customers can mix designs with no MOQ per design.`);
+    setStatusMsg(`Applied ${categoryMoq} pieces total across ${categoryName}. The minimum applies to the combined quantity across products in this category.`);
     await refreshData();
   }
 
@@ -904,8 +954,11 @@ export default function AdminPage() {
     const selCat = categories.find((c) => c.id === selectedCategoryId);
     const catNameLower = (selCat?.name || '').toLowerCase();
     const isIphoneCat = catNameLower.includes('iphone') && catNameLower.includes('case');
-    const defaultMoq = sharedMoq || (selCat?.wholesale_moq ? String(selCat.wholesale_moq) : '') || (isIphoneCat ? '50' : '1');
-    const defaultScope = sharedMoqScope || (selCat?.moq_scope === 'category' ? 'category' : 'item');
+    const defaultScope = selCat?.moq_scope === 'category' || isIphoneCat ? 'category' : 'item';
+    const categoryMoq = defaultScope === 'category' && Number(selCat?.wholesale_moq) > 0
+      ? String(selCat?.wholesale_moq)
+      : (isIphoneCat && defaultScope === 'category' ? '50' : '');
+    const defaultMoq = sharedMoq || categoryMoq || '1';
 
     if (uploadMode === 'single_product') {
       const mainPhoto = newUploadedUrls[0];
@@ -1192,8 +1245,8 @@ export default function AdminPage() {
       const cleanName = item.name.trim() || `Product ${idx + 1}`;
       const retail = Number(item.retailPrice) || 0;
       const wholesale = Number(item.wholesalePrice) || 0;
-      const airFee = item.estAirShipping.trim() !== '' ? Number(item.estAirShipping) : 0;
-      const seaFee = item.estSeaShipping.trim() !== '' ? Number(item.estSeaShipping) : 0;
+      const airFee = item.estAirShipping && item.estAirShipping.trim() !== '' ? Number(item.estAirShipping) : 0;
+      const seaFee = item.estSeaShipping && item.estSeaShipping.trim() !== '' ? Number(item.estSeaShipping) : 0;
       const sizeText = item.size ? item.size.trim() : null;
       const catNameLower = (selCat?.name || '').toLowerCase();
       const isIphoneCat = catNameLower.includes('iphone') && catNameLower.includes('case');
@@ -1202,15 +1255,14 @@ export default function AdminPage() {
       const parsedSharedMoq = Number(sharedMoq);
       const parsedCatMoq = Number(selCat?.wholesale_moq);
 
+      const moqScopeVal: 'category' | 'item' = item.moqScope || sharedMoqScope || (selCat?.moq_scope === 'category' ? 'category' : 'item');
       const moqVal = parsedItemMoq > 0
         ? parsedItemMoq
         : parsedSharedMoq > 0
         ? parsedSharedMoq
-        : parsedCatMoq > 0
+        : moqScopeVal === 'category' && parsedCatMoq > 0
         ? parsedCatMoq
-        : (isIphoneCat ? 50 : 1);
-
-      const moqScopeVal: 'category' | 'item' = item.moqScope || sharedMoqScope || (selCat?.moq_scope === 'category' ? 'category' : 'item');
+        : (isIphoneCat && moqScopeVal === 'category' ? 50 : 1);
 
       // Colors and sizes are completely optional!
       const colorsList = item.colors && item.colors.trim() !== ''
@@ -1222,19 +1274,19 @@ export default function AdminPage() {
       const allImages = [item.imageUrl, ...(item.additionalImages || [])].filter(Boolean);
 
       let descText = item.description ? item.description.trim() : '';
-      if (sizeText) descText = descText ? `${descText} • Sizes: ${sizeText}` : `Sizes: ${sizeText}`;
-      if (colorsList.length > 0) {
-        descText = descText ? `${descText} • Colors: ${colorsList.join(', ')}` : `Colors: ${colorsList.join(', ')}`;
-      }
-// Clean description without hardcoded MOQ injection
-      if (airFee <= 0 && seaFee > 0) {
-        descText = descText ? `${descText} • Shipping: Sea Cargo Only` : `Shipping: Sea Cargo Only`;
-      }
+      // Keep variants as hidden metadata for older schemas without repeating them in the visible description.
+      descText = descText
+        ? `${descText}\n<!--dainty_sizes:${JSON.stringify(sizesList)}-->\n<!--dainty_colors:${JSON.stringify(colorsList)}-->`
+        : `<!--dainty_sizes:${JSON.stringify(sizesList)}-->\n<!--dainty_colors:${JSON.stringify(colorsList)}-->`;
 
       // Safe multi-photo backup embedded in description
       if (allImages.length > 0) {
         descText = descText ? `${descText}\n<!--dainty_images:${JSON.stringify(allImages)}-->` : `<!--dainty_images:${JSON.stringify(allImages)}-->`;
       }
+      // Explicit shipping metadata tags so 0/blank is never lost or confused
+      descText = descText
+        ? `${descText}\n<!--dainty_ship_air:${airFee}-->\n<!--dainty_ship_sea:${seaFee}-->`
+        : `<!--dainty_ship_air:${airFee}-->\n<!--dainty_ship_sea:${seaFee}-->`;
 
       return {
         name: cleanName,
@@ -1248,7 +1300,7 @@ export default function AdminPage() {
         moq_scope: moqScopeVal,
         retail_price: retail,
         wholesale_price: wholesale,
-        est_shipping_fee: airFee || seaFee || 0,
+        est_shipping_fee: airFee > 0 ? airFee : (seaFee > 0 ? seaFee : 0),
         est_shipping_fee_air: airFee > 0 ? airFee : null,
         est_shipping_fee_sea: seaFee > 0 ? seaFee : null,
         image_url: item.imageUrl || null,
@@ -1275,6 +1327,11 @@ export default function AdminPage() {
           const minimalPayload = payload.map(({ moq_scope, images, colors, color_options, sizes, size_options, wholesale_moq, min_order_qty, ...rest }) => rest);
           const minRes = await supabase.from('products').insert(minimalPayload);
           error = minRes.error;
+          if (error && error.message?.toLowerCase().includes('schema cache')) {
+            const compatiblePayload = minimalPayload.map(({ est_shipping_fee, est_shipping_fee_air, est_shipping_fee_sea, ...rest }) => rest);
+            const compatibleRes = await supabase.from('products').insert(compatiblePayload);
+            error = compatibleRes.error;
+          }
         }
       }
     }
@@ -1294,10 +1351,30 @@ export default function AdminPage() {
   // EDIT PUBLISHED PRODUCT HANDLERS
   // ==========================================
   function startEditingProduct(p: Product) {
-    const air = p.est_shipping_fee_air ?? (p.est_shipping_fee && p.est_shipping_fee > 0 ? p.est_shipping_fee : null);
-    const sea = p.est_shipping_fee_sea ?? (p.est_shipping_fee && p.est_shipping_fee > 0 ? p.est_shipping_fee : null);
+    const ship = getProductShippingFees(p);
     const allImages = getProductAllImages(p);
-    const cleanDesc = (p.description || '').replace(/<!--dainty_images:.*?-->/g, '').trim();
+    const cleanDesc = cleanProductDescription(p.description);
+    const pCat = categories.find((c) => c.id === p.category_id);
+    const descMoq = Number((p.description || '').match(/<!--dainty_moq:(\d+(?:\.\d+)?)-->/)?.[1] || 0);
+    const descScope = (p.description || '').match(/<!--dainty_moq_scope:(category|item)-->/)?.[1];
+    const moqScope: 'category' | 'item' = p.moq_scope === 'category' || p.moq_scope === 'item'
+      ? p.moq_scope
+      : descScope === 'category' || descScope === 'item'
+      ? descScope
+      : pCat?.moq_scope === 'category' ? 'category' : 'item';
+    const pCatName = (pCat?.name || '').toLowerCase();
+    const isIphoneCat = pCatName.includes('iphone') && pCatName.includes('case');
+    const moqValue = moqScope === 'category' && Number(pCat?.wholesale_moq) > 0
+      ? Number(pCat?.wholesale_moq)
+      : Number(p.wholesale_moq) > 0
+      ? Number(p.wholesale_moq)
+      : Number(p.min_order_qty) > 0
+      ? Number(p.min_order_qty)
+      : descMoq > 0
+      ? descMoq
+      : (isIphoneCat && moqScope === 'category' ? 50 : 1);
+    const sizesFromMeta = getDescriptionList(p.description, 'sizes');
+    const colorsFromMeta = getDescriptionList(p.description, 'colors');
 
     setEditingProduct({
       id: p.id,
@@ -1305,12 +1382,12 @@ export default function AdminPage() {
       categoryId: p.category_id || '',
       retailPrice: String(p.retail_price ?? 0),
       wholesalePrice: String(p.wholesale_price ?? 0),
-      moq: String(p.wholesale_moq || p.min_order_qty || 1),
-      moqScope: (p.moq_scope as 'category' | 'item') || 'item',
-      estAirShipping: air !== null && air !== undefined && air > 0 ? String(air) : '',
-      estSeaShipping: sea !== null && sea !== undefined && sea > 0 ? String(sea) : '',
-      size: p.size || (Array.isArray(p.sizes) ? p.sizes.join(', ') : '') || p.size_options || '',
-      colors: (Array.isArray(p.colors) ? p.colors.join(', ') : '') || p.color_options || '',
+      moq: String(moqValue),
+      moqScope,
+      estAirShipping: ship.air > 0 ? String(ship.air) : '',
+      estSeaShipping: ship.sea > 0 ? String(ship.sea) : '',
+      size: p.size || (Array.isArray(p.sizes) ? p.sizes.join(', ') : '') || p.size_options || sizesFromMeta.join(', ') || '',
+      colors: (Array.isArray(p.colors) ? p.colors.join(', ') : '') || p.color_options || colorsFromMeta.join(', ') || '',
       description: cleanDesc,
       imageUrl: p.image_url || allImages[0] || '',
       images: allImages,
@@ -1333,11 +1410,11 @@ export default function AdminPage() {
     const isIphoneCat = catNameLower.includes('iphone') && catNameLower.includes('case');
     const moqVal = Number(editingProduct.moq) > 0
       ? Number(editingProduct.moq)
-      : Number(selCat?.wholesale_moq) > 0
+      : editingProduct.moqScope === 'category' && Number(selCat?.wholesale_moq) > 0
       ? Number(selCat?.wholesale_moq)
-      : (isIphoneCat ? 50 : 1);
-    const airFee = editingProduct.estAirShipping ? Number(editingProduct.estAirShipping) : 0;
-    const seaFee = editingProduct.estSeaShipping ? Number(editingProduct.estSeaShipping) : 0;
+      : (isIphoneCat && editingProduct.moqScope === 'category' ? 50 : 1);
+    const airFee = editingProduct.estAirShipping && editingProduct.estAirShipping.trim() !== '' ? Number(editingProduct.estAirShipping) : 0;
+    const seaFee = editingProduct.estSeaShipping && editingProduct.estSeaShipping.trim() !== '' ? Number(editingProduct.estSeaShipping) : 0;
 
     const sizesList = editingProduct.size
       .split(',')
@@ -1348,10 +1425,7 @@ export default function AdminPage() {
       .map((c) => c.trim())
       .filter(Boolean);
 
-    let descText = editingProduct.description.trim()
-      .replace(/<!--dainty_moq:.*?-->/g, '')
-      .replace(/<!--dainty_moq_scope:.*?-->/g, '')
-      .trim();
+    let descText = cleanProductDescription(editingProduct.description);
     if (editingProduct.images.length > 0) {
       descText = descText
         ? `${descText}
@@ -1359,11 +1433,8 @@ export default function AdminPage() {
         : `<!--dainty_images:${JSON.stringify(editingProduct.images)}-->`;
     }
     descText = descText
-      ? `${descText}
-<!--dainty_moq:${moqVal}-->
-<!--dainty_moq_scope:${editingProduct.moqScope}-->`
-      : `<!--dainty_moq:${moqVal}-->
-<!--dainty_moq_scope:${editingProduct.moqScope}-->`;
+      ? `${descText}\n<!--dainty_moq:${moqVal}-->\n<!--dainty_moq_scope:${editingProduct.moqScope}-->\n<!--dainty_ship_air:${airFee}-->\n<!--dainty_ship_sea:${seaFee}-->\n<!--dainty_sizes:${JSON.stringify(sizesList)}-->\n<!--dainty_colors:${JSON.stringify(colorsList)}-->`
+      : `<!--dainty_moq:${moqVal}-->\n<!--dainty_moq_scope:${editingProduct.moqScope}-->\n<!--dainty_ship_air:${airFee}-->\n<!--dainty_ship_sea:${seaFee}-->\n<!--dainty_sizes:${JSON.stringify(sizesList)}-->\n<!--dainty_colors:${JSON.stringify(colorsList)}-->`;
 
     const payload: any = {
       name: cleanName,
@@ -1377,7 +1448,7 @@ export default function AdminPage() {
       moq_scope: editingProduct.moqScope,
       retail_price: retail,
       wholesale_price: wholesale,
-      est_shipping_fee: airFee || seaFee || 0,
+      est_shipping_fee: airFee > 0 ? airFee : (seaFee > 0 ? seaFee : 0),
       est_shipping_fee_air: airFee > 0 ? airFee : null,
       est_shipping_fee_sea: seaFee > 0 ? seaFee : null,
       image_url: editingProduct.imageUrl || editingProduct.images[0] || null,
@@ -1400,6 +1471,10 @@ export default function AdminPage() {
         if (updateRes.error && updateRes.error.message?.toLowerCase().includes('schema cache')) {
           const { moq_scope: _m2, images: _img, colors: _col, color_options: _co, sizes: _s2, size_options: _so2, wholesale_moq: _w2, min_order_qty: _mo2, ...minimal } = payload;
           updateRes = await supabase.from('products').update(minimal).eq('id', editingProduct.id);
+          if (updateRes.error && updateRes.error.message?.toLowerCase().includes('schema cache')) {
+            const { est_shipping_fee, est_shipping_fee_air, est_shipping_fee_sea, ...compatible } = minimal;
+            updateRes = await supabase.from('products').update(compatible).eq('id', editingProduct.id);
+          }
         }
       }
     }
@@ -1479,7 +1554,7 @@ export default function AdminPage() {
       id: c.id,
       name: c.name,
       wholesale_moq: String(c.wholesale_moq || 5),
-      moq_scope: c.moq_scope || 'category',
+      moq_scope: c.moq_scope === 'item' ? 'item' : 'category',
     });
   }
 
@@ -1781,7 +1856,7 @@ export default function AdminPage() {
                   onClick={() => handleSelectCategory(c.id)}
                   className="px-3.5 py-1.5 focus:outline-hidden"
                 >
-                  {c.name} {c.wholesale_moq ? `(${c.wholesale_moq} pcs ${c.moq_scope === 'category' ? 'mix & match' : 'per item'})` : ''}
+                  {c.name} {c.wholesale_moq ? `(${c.wholesale_moq} pcs ${c.moq_scope === 'category' ? 'category total' : 'per item'})` : ''}
                 </button>
                 <button
                   type="button"
@@ -1847,7 +1922,6 @@ export default function AdminPage() {
                   >
                     <option value="category">Whole Category (Bulk MOQ)</option>
                     <option value="item">Per Item (Single design MOQ)</option>
-                    <option value="all">Store-Wide Bulk MOQ</option>
                   </select>
                 </div>
                 <div className="flex items-center gap-2 mt-4 sm:mt-5">
@@ -2061,7 +2135,7 @@ export default function AdminPage() {
                         <span>Whole Category MOQ</span>
                       </div>
                       <p className="mt-1 text-[11px] text-stone-500 leading-snug font-normal">
-                        Only if stated for the whole category. Customers mix & match any designs in this category to reach the category total.
+                        Only if stated for the whole category. The minimum applies to the combined quantity across products in this category.
                       </p>
                     </button>
                   </div>
@@ -2591,22 +2665,11 @@ export default function AdminPage() {
                 return matchCat && matchSearch;
               })
               .map((p) => {
-                const air = Number(p.est_shipping_fee_air ?? p.est_shipping_fee ?? 0);
-                const sea = Number(p.est_shipping_fee_sea ?? p.est_shipping_fee ?? 0);
+                const ship = getProductShippingFees(p);
+                const air = ship.air;
+                const sea = ship.sea;
                 const pTitle = p.name || p.title || 'Untitled';
-                const descMoq = (p.description || '').match(/<!--dainty_moq:(\d+)-->/);
-                const descScope = (p.description || '').match(/<!--dainty_moq_scope:(category|item)-->/);
-                const pCat = categories.find((c) => c.id === p.category_id);
-                const moqVal = Number(p.wholesale_moq) > 0
-                  ? Number(p.wholesale_moq)
-                  : Number(p.min_order_qty) > 0
-                  ? Number(p.min_order_qty)
-                  : descMoq
-                  ? Number(descMoq[1])
-                  : Number(pCat?.wholesale_moq) > 0
-                  ? Number(pCat?.wholesale_moq)
-                  : 1;
-                const moqScope = p.moq_scope || (descScope ? descScope[1] : (pCat?.moq_scope === 'category' ? 'category' : 'item'));
+                const description = cleanProductDescription(p.description);
                 const pImages = getProductAllImages(p);
                 const isManagingPhotos = managingPhotosProductId === p.id;
                 const isUploadingPhotos = uploadingExistingPhotoId === p.id;
@@ -2640,13 +2703,7 @@ export default function AdminPage() {
                           </div>
                           <div className="text-[11px] text-stone-500 flex flex-wrap gap-2 mt-1">
                             <span>Retail: <strong className="text-stone-800">₦{Number(p.retail_price).toLocaleString()}</strong></span>
-                            <span className="text-amber-800">Wholesale: <strong className="text-amber-900">₦{Number(p.wholesale_price).toLocaleString()}</strong> ({moqScope === 'category' ? `Cat. total ${moqVal} pcs` : `MOQ ${moqVal} pcs`})</span>
-                            {(p.size || (Array.isArray(p.sizes) && p.sizes.length > 0) || p.size_options) && (
-                              <span>
-                                Size: {Array.isArray(p.sizes) && p.sizes.length > 0 ? p.sizes.join(', ') : p.size || p.size_options}
-                              </span>
-                            )}
-                            {p.colors && p.colors.length > 0 && <span>Colors: {p.colors.join(', ')}</span>}
+                            <span className="text-amber-800">Wholesale: <strong className="text-amber-900">₦{Number(p.wholesale_price).toLocaleString()}</strong></span>
                             <span className="inline-flex flex-wrap items-center gap-1.5">
                               {air > 0 ? (
                                 <span className="text-stone-600">Air: ₦{air.toLocaleString()}</span>
@@ -2661,6 +2718,7 @@ export default function AdminPage() {
                               )}
                             </span>
                           </div>
+                          <p className="mt-1 line-clamp-2 text-[11px] text-stone-600"><span className="font-semibold text-stone-700">Description:</span> {description || 'No description added.'}</p>
                         </div>
                       </div>
 
@@ -3354,7 +3412,7 @@ export default function AdminPage() {
 
                               {/* View Catalog */}
                               <a
-                                href={`/order?id=${po.id}&admin=1234`}
+                                href={`/order?id=${po.id}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-bold text-stone-700 hover:bg-stone-50 transition shadow-2xs"
