@@ -367,10 +367,10 @@ export default function AdminPage() {
         localStorage.setItem('dainty_admin_selected_cat_id', selCat.id);
       }
       const catNameLower = (selCat.name || '').toLowerCase();
-      const isIphoneCat = catNameLower.includes('iphone') && catNameLower.includes('case');
+      const isIphoneCat = catNameLower.includes('iphone') || (catNameLower.includes('case') && !catNameLower.includes('briefcase') && !catNameLower.includes('suitcase'));
       const isCategoryMoq = selCat.moq_scope === 'category' || isIphoneCat;
       const targetScope = isCategoryMoq ? 'category' : 'item';
-      const targetMoq = isCategoryMoq ? String(Number(selCat.wholesale_moq) > 0 ? selCat.wholesale_moq : (isIphoneCat ? 50 : '')) : '';
+      const targetMoq = isIphoneCat ? '50' : (isCategoryMoq ? String(Number(selCat.wholesale_moq) > 0 ? selCat.wholesale_moq : '') : '');
       const timer = setTimeout(() => {
         setSharedMoqScope(targetScope);
         setSharedMoq(targetMoq);
@@ -425,8 +425,31 @@ export default function AdminPage() {
         catsRes.error?.message || prodsRes.error?.message || 'Failed to load store data.'
       );
     } else {
-      const loadedCats: Category[] = catsRes.data || [];
-// Clean load without forcing 50 MOQ onto categories or products
+      const loadedCats: Category[] = (catsRes.data || []).map((c) => {
+        const n = (c.name || c.slug || '').toLowerCase();
+        if (n.includes('iphone') || (n.includes('case') && !n.includes('briefcase') && !n.includes('suitcase'))) {
+          return { ...c, wholesale_moq: 50, moq_scope: 'category' as const };
+        }
+        return c;
+      });
+
+      // Synchronize Supabase so iPhone cases category permanently holds 50 pcs MOQ
+      const iphoneCatRecord = loadedCats.find((c) => {
+        const n = (c.name || c.slug || '').toLowerCase();
+        return n.includes('iphone') || (n.includes('case') && !n.includes('briefcase') && !n.includes('suitcase'));
+      });
+      if (iphoneCatRecord) {
+        supabase
+          .from('categories')
+          .update({ wholesale_moq: 50, moq_scope: 'category' })
+          .eq('id', iphoneCatRecord.id)
+          .then(() => {
+            supabase
+              .from('products')
+              .update({ wholesale_moq: 50, min_order_qty: 50, moq_scope: 'category' })
+              .eq('category_id', iphoneCatRecord.id);
+          });
+      }
 
       setCategories(loadedCats);
       setProducts(prodsRes.data || []);
@@ -875,8 +898,8 @@ export default function AdminPage() {
     const category = categories.find((item) => item.id === selectedCategoryId);
     const categoryName = category?.name || 'selected category';
     const catNameLower = categoryName.toLowerCase();
-    const isIphoneCat = catNameLower.includes('iphone') && catNameLower.includes('case');
-    const categoryMoq = Number(sharedMoq || (isIphoneCat ? 50 : category?.wholesale_moq || 10));
+    const isIphoneCat = catNameLower.includes('iphone') || (catNameLower.includes('case') && !catNameLower.includes('briefcase') && !catNameLower.includes('suitcase'));
+    const categoryMoq = isIphoneCat ? 50 : Number(sharedMoq || category?.wholesale_moq || 10);
     if (!Number.isFinite(categoryMoq) || categoryMoq < 1) {
       setErrorMsg('Enter a valid category minimum of at least 1 piece.');
       return;
@@ -1007,12 +1030,10 @@ export default function AdminPage() {
 
     const selCat = categories.find((c) => c.id === selectedCategoryId);
     const catNameLower = (selCat?.name || '').toLowerCase();
-    const isIphoneCat = catNameLower.includes('iphone') && catNameLower.includes('case');
-    const defaultScope = selCat?.moq_scope === 'category' || isIphoneCat ? 'category' : 'item';
-    const categoryMoq = defaultScope === 'category' && Number(selCat?.wholesale_moq) > 0
-      ? String(selCat?.wholesale_moq)
-      : (isIphoneCat && defaultScope === 'category' ? '50' : '');
-    const defaultMoq = sharedMoq || categoryMoq || '1';
+    const isIphoneCat = catNameLower.includes('iphone') || (catNameLower.includes('case') && !catNameLower.includes('briefcase') && !catNameLower.includes('suitcase'));
+    const defaultScope = isIphoneCat || selCat?.moq_scope === 'category' ? 'category' : 'item';
+    const categoryMoq = isIphoneCat ? '50' : (defaultScope === 'category' && Number(selCat?.wholesale_moq) > 0 ? String(selCat?.wholesale_moq) : '');
+    const defaultMoq = isIphoneCat ? '50' : (sharedMoq || categoryMoq || '1');
 
     if (uploadMode === 'single_product') {
       const mainPhoto = newUploadedUrls[0];
@@ -1409,24 +1430,29 @@ export default function AdminPage() {
     const allImages = getProductAllImages(p);
     const cleanDesc = cleanProductDescription(p.description);
     const pCat = categories.find((c) => c.id === p.category_id);
+    const pCatName = (pCat?.name || '').toLowerCase();
+    const prodName = (p.name || p.title || '').toLowerCase();
+    const isIphoneCat = pCatName.includes('iphone') || prodName.includes('iphone') || ((pCatName.includes('case') || prodName.includes('case')) && !pCatName.includes('briefcase') && !prodName.includes('briefcase'));
     const descMoq = Number((p.description || '').match(/<!--dainty_moq:(\d+(?:\.\d+)?)-->/)?.[1] || 0);
     const descScope = (p.description || '').match(/<!--dainty_moq_scope:(category|item)-->/)?.[1];
-    const moqScope: 'category' | 'item' = p.moq_scope === 'category' || p.moq_scope === 'item'
-      ? p.moq_scope
-      : descScope === 'category' || descScope === 'item'
-      ? descScope
-      : pCat?.moq_scope === 'category' ? 'category' : 'item';
-    const pCatName = (pCat?.name || '').toLowerCase();
-    const isIphoneCat = pCatName.includes('iphone') && pCatName.includes('case');
-    const moqValue = moqScope === 'category' && Number(pCat?.wholesale_moq) > 0
-      ? Number(pCat?.wholesale_moq)
-      : Number(p.wholesale_moq) > 0
-      ? Number(p.wholesale_moq)
-      : Number(p.min_order_qty) > 0
-      ? Number(p.min_order_qty)
-      : descMoq > 0
-      ? descMoq
-      : (isIphoneCat && moqScope === 'category' ? 50 : 1);
+    const moqScope: 'category' | 'item' = isIphoneCat
+      ? 'category'
+      : (p.moq_scope === 'category' || p.moq_scope === 'item'
+          ? p.moq_scope
+          : descScope === 'category' || descScope === 'item'
+          ? descScope
+          : pCat?.moq_scope === 'category' ? 'category' : 'item');
+    const moqValue = isIphoneCat
+      ? 50
+      : (moqScope === 'category' && Number(pCat?.wholesale_moq) > 0
+          ? Number(pCat?.wholesale_moq)
+          : Number(p.wholesale_moq) > 0
+          ? Number(p.wholesale_moq)
+          : Number(p.min_order_qty) > 0
+          ? Number(p.min_order_qty)
+          : descMoq > 0
+          ? descMoq
+          : 1);
     const sizesFromMeta = getDescriptionList(p.description, 'sizes');
     const colorsFromMeta = getDescriptionList(p.description, 'colors');
 
@@ -1461,12 +1487,16 @@ export default function AdminPage() {
     const wholesale = Number(editingProduct.wholesalePrice) || 0;
     const selCat = categories.find((c) => c.id === editingProduct.categoryId);
     const catNameLower = (selCat?.name || '').toLowerCase();
-    const isIphoneCat = catNameLower.includes('iphone') && catNameLower.includes('case');
-    const moqVal = Number(editingProduct.moq) > 0
-      ? Number(editingProduct.moq)
-      : editingProduct.moqScope === 'category' && Number(selCat?.wholesale_moq) > 0
-      ? Number(selCat?.wholesale_moq)
-      : (isIphoneCat && editingProduct.moqScope === 'category' ? 50 : 1);
+    const prodName = editingProduct.name.toLowerCase();
+    const isIphoneCat = catNameLower.includes('iphone') || prodName.includes('iphone') || ((catNameLower.includes('case') || prodName.includes('case')) && !catNameLower.includes('briefcase') && !prodName.includes('briefcase'));
+    const finalScope = isIphoneCat ? 'category' : editingProduct.moqScope;
+    const moqVal = isIphoneCat
+      ? 50
+      : (Number(editingProduct.moq) > 0
+          ? Number(editingProduct.moq)
+          : finalScope === 'category' && Number(selCat?.wholesale_moq) > 0
+          ? Number(selCat?.wholesale_moq)
+          : 1);
     const airFee = editingProduct.estAirShipping && editingProduct.estAirShipping.trim() !== '' ? Number(editingProduct.estAirShipping) : 0;
     const seaFee = editingProduct.estSeaShipping && editingProduct.estSeaShipping.trim() !== '' ? Number(editingProduct.estSeaShipping) : 0;
 
@@ -1499,7 +1529,7 @@ export default function AdminPage() {
       size_options: editingProduct.size.trim() || null,
       wholesale_moq: moqVal,
       min_order_qty: moqVal,
-      moq_scope: editingProduct.moqScope,
+      moq_scope: finalScope,
       retail_price: retail,
       wholesale_price: wholesale,
       est_shipping_fee: airFee > 0 ? airFee : (seaFee > 0 ? seaFee : 0),
