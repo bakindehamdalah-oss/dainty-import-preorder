@@ -1,6 +1,6 @@
 'use client';
 
-import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import { Upload, Trash2, Plus, LogOut, Check, FolderPlus, RefreshCw, X, ShieldAlert, Sparkles, Layers, Image as ImageIcon, Ship, Plane, Tag, Box, Package, Info, Pencil, Save, Settings, Phone, Search, Sliders, Edit2, CheckSquare, ExternalLink, User, UserPlus, MapPin, Truck, CheckCircle2, Clock, CreditCard, MessageCircle, AlertCircle, ChevronRight, Eye } from 'lucide-react';
@@ -208,7 +208,22 @@ export default function AdminPage() {
   const [savingCat, setSavingCat] = useState(false);
   const [applyingCategoryMoq, setApplyingCategoryMoq] = useState(false);
 
-  const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('dainty_admin_selected_cat_id') || '';
+    }
+    return '';
+  });
+  const selectedCatIdRef = useRef<string>(selectedCategoryId);
+  selectedCatIdRef.current = selectedCategoryId;
+
+  function handleSelectCategory(catId: string) {
+    selectedCatIdRef.current = catId;
+    setSelectedCategoryId(catId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dainty_admin_selected_cat_id', catId);
+    }
+  }
   const [draftItems, setDraftItems] = useState<DraftPhotoItem[]>([]);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
@@ -230,16 +245,27 @@ export default function AdminPage() {
   const [sharedSeaShipping, setSharedSeaShipping] = useState('');
   const [sharedDescription, setSharedDescription] = useState('');
 
-  // Auto-sync MOQ and scope from selected category (strictly per-item by default)
+  // Auto-sync MOQ and scope from selected category
   useEffect(() => {
+    if (!selectedCategoryId) return;
     const selCat = categories.find((c) => c.id === selectedCategoryId);
     if (selCat) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('dainty_admin_selected_cat_id', selCat.id);
+      }
       if (selCat.moq_scope === 'category') {
         setSharedMoqScope('category');
-        if (selCat.wholesale_moq) setSharedMoq(String(selCat.wholesale_moq));
       } else {
         setSharedMoqScope('item');
-        // Do not force a category-level MOQ onto item-based category
+      }
+      // Populate shared MOQ from category MOQ if set
+      if (selCat.wholesale_moq && Number(selCat.wholesale_moq) > 0) {
+        setSharedMoq(String(selCat.wholesale_moq));
+      } else {
+        const catNameLower = (selCat.name || '').toLowerCase();
+        if (catNameLower.includes('iphone') && catNameLower.includes('case')) {
+          setSharedMoq('50');
+        }
       }
     }
   }, [selectedCategoryId, categories]);
@@ -295,8 +321,17 @@ export default function AdminPage() {
 
       setCategories(loadedCats);
       setProducts(prodsRes.data || []);
-      if (!selectedCategoryId && loadedCats.length > 0) {
+
+      const currentSelected = selectedCatIdRef.current || (typeof window !== 'undefined' ? localStorage.getItem('dainty_admin_selected_cat_id') : '');
+      if (currentSelected && loadedCats.some((c) => c.id === currentSelected)) {
+        selectedCatIdRef.current = currentSelected;
+        setSelectedCategoryId(currentSelected);
+      } else if (loadedCats.length > 0) {
+        selectedCatIdRef.current = loadedCats[0].id;
         setSelectedCategoryId(loadedCats[0].id);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('dainty_admin_selected_cat_id', loadedCats[0].id);
+        }
       }
     }
   }
@@ -597,8 +632,14 @@ export default function AdminPage() {
     } else {
       setCatName('');
       setCatSlug('');
-      if (data?.id) setSelectedCategoryId(data.id);
-      setStatusMsg(`Category "${data?.name || catName}" added with MOQ ${targetMoq} (${targetScope === 'item' ? 'Per Item' : 'Whole Category'}).`);
+      if (data?.id) {
+        selectedCatIdRef.current = data.id;
+        setSelectedCategoryId(data.id);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('dainty_admin_selected_cat_id', data.id);
+        }
+      }
+      setStatusMsg(`Category "${data?.name || catName}" added with MOQ ${targetMoq || 1} (${targetScope === 'item' ? 'Per Item' : 'Whole Category'}).`);
       await refreshData();
     }
   }
@@ -861,7 +902,9 @@ export default function AdminPage() {
     }
 
     const selCat = categories.find((c) => c.id === selectedCategoryId);
-    const defaultMoq = sharedMoq || (selCat?.moq_scope === 'category' && selCat?.wholesale_moq ? String(selCat.wholesale_moq) : '');
+    const catNameLower = (selCat?.name || '').toLowerCase();
+    const isIphoneCat = catNameLower.includes('iphone') && catNameLower.includes('case');
+    const defaultMoq = sharedMoq || (selCat?.wholesale_moq ? String(selCat.wholesale_moq) : '') || (isIphoneCat ? '50' : '1');
     const defaultScope = sharedMoqScope || (selCat?.moq_scope === 'category' ? 'category' : 'item');
 
     if (uploadMode === 'single_product') {
@@ -1152,9 +1195,22 @@ export default function AdminPage() {
       const airFee = item.estAirShipping.trim() !== '' ? Number(item.estAirShipping) : 0;
       const seaFee = item.estSeaShipping.trim() !== '' ? Number(item.estSeaShipping) : 0;
       const sizeText = item.size ? item.size.trim() : null;
-      // Per-item MOQ by default; only category MOQ if category explicitly has category scope
-      const moqVal = Number(item.moq) > 0 ? Number(item.moq) : (selCat?.moq_scope === 'category' && selCat?.wholesale_moq ? Number(selCat.wholesale_moq) : 1);
-      const moqScopeVal = item.moqScope || (selCat?.moq_scope === 'category' ? 'category' : 'item');
+      const catNameLower = (selCat?.name || '').toLowerCase();
+      const isIphoneCat = catNameLower.includes('iphone') && catNameLower.includes('case');
+
+      const parsedItemMoq = Number(item.moq);
+      const parsedSharedMoq = Number(sharedMoq);
+      const parsedCatMoq = Number(selCat?.wholesale_moq);
+
+      const moqVal = parsedItemMoq > 0
+        ? parsedItemMoq
+        : parsedSharedMoq > 0
+        ? parsedSharedMoq
+        : parsedCatMoq > 0
+        ? parsedCatMoq
+        : (isIphoneCat ? 50 : 1);
+
+      const moqScopeVal: 'category' | 'item' = item.moqScope || sharedMoqScope || (selCat?.moq_scope === 'category' ? 'category' : 'item');
 
       // Colors and sizes are completely optional!
       const colorsList = item.colors && item.colors.trim() !== ''
@@ -1272,7 +1328,14 @@ export default function AdminPage() {
     const cleanName = editingProduct.name.trim();
     const retail = Number(editingProduct.retailPrice) || 0;
     const wholesale = Number(editingProduct.wholesalePrice) || 0;
-    const moqVal = Number(editingProduct.moq) || 1;
+    const selCat = categories.find((c) => c.id === editingProduct.categoryId);
+    const catNameLower = (selCat?.name || '').toLowerCase();
+    const isIphoneCat = catNameLower.includes('iphone') && catNameLower.includes('case');
+    const moqVal = Number(editingProduct.moq) > 0
+      ? Number(editingProduct.moq)
+      : Number(selCat?.wholesale_moq) > 0
+      ? Number(selCat?.wholesale_moq)
+      : (isIphoneCat ? 50 : 1);
     const airFee = editingProduct.estAirShipping ? Number(editingProduct.estAirShipping) : 0;
     const seaFee = editingProduct.estSeaShipping ? Number(editingProduct.estSeaShipping) : 0;
 
@@ -1285,13 +1348,22 @@ export default function AdminPage() {
       .map((c) => c.trim())
       .filter(Boolean);
 
-    let descText = editingProduct.description.trim();
+    let descText = editingProduct.description.trim()
+      .replace(/<!--dainty_moq:.*?-->/g, '')
+      .replace(/<!--dainty_moq_scope:.*?-->/g, '')
+      .trim();
     if (editingProduct.images.length > 0) {
       descText = descText
         ? `${descText}
 <!--dainty_images:${JSON.stringify(editingProduct.images)}-->`
         : `<!--dainty_images:${JSON.stringify(editingProduct.images)}-->`;
     }
+    descText = descText
+      ? `${descText}
+<!--dainty_moq:${moqVal}-->
+<!--dainty_moq_scope:${editingProduct.moqScope}-->`
+      : `<!--dainty_moq:${moqVal}-->
+<!--dainty_moq_scope:${editingProduct.moqScope}-->`;
 
     const payload: any = {
       name: cleanName,
@@ -1706,7 +1778,7 @@ export default function AdminPage() {
               >
                 <button
                   type="button"
-                  onClick={() => setSelectedCategoryId(c.id)}
+                  onClick={() => handleSelectCategory(c.id)}
                   className="px-3.5 py-1.5 focus:outline-hidden"
                 >
                   {c.name} {c.wholesale_moq ? `(${c.wholesale_moq} pcs ${c.moq_scope === 'category' ? 'mix & match' : 'per item'})` : ''}
@@ -2522,7 +2594,19 @@ export default function AdminPage() {
                 const air = Number(p.est_shipping_fee_air ?? p.est_shipping_fee ?? 0);
                 const sea = Number(p.est_shipping_fee_sea ?? p.est_shipping_fee ?? 0);
                 const pTitle = p.name || p.title || 'Untitled';
-                const moqVal = p.wholesale_moq || p.min_order_qty || 5;
+                const descMoq = (p.description || '').match(/<!--dainty_moq:(\d+)-->/);
+                const descScope = (p.description || '').match(/<!--dainty_moq_scope:(category|item)-->/);
+                const pCat = categories.find((c) => c.id === p.category_id);
+                const moqVal = Number(p.wholesale_moq) > 0
+                  ? Number(p.wholesale_moq)
+                  : Number(p.min_order_qty) > 0
+                  ? Number(p.min_order_qty)
+                  : descMoq
+                  ? Number(descMoq[1])
+                  : Number(pCat?.wholesale_moq) > 0
+                  ? Number(pCat?.wholesale_moq)
+                  : 1;
+                const moqScope = p.moq_scope || (descScope ? descScope[1] : (pCat?.moq_scope === 'category' ? 'category' : 'item'));
                 const pImages = getProductAllImages(p);
                 const isManagingPhotos = managingPhotosProductId === p.id;
                 const isUploadingPhotos = uploadingExistingPhotoId === p.id;
@@ -2556,7 +2640,7 @@ export default function AdminPage() {
                           </div>
                           <div className="text-[11px] text-stone-500 flex flex-wrap gap-2 mt-1">
                             <span>Retail: <strong className="text-stone-800">₦{Number(p.retail_price).toLocaleString()}</strong></span>
-                            <span className="text-amber-800">Wholesale: <strong className="text-amber-900">₦{Number(p.wholesale_price).toLocaleString()}</strong> ({p.moq_scope === 'category' ? `Cat. total ${moqVal} pcs` : `MOQ ${moqVal} pcs`})</span>
+                            <span className="text-amber-800">Wholesale: <strong className="text-amber-900">₦{Number(p.wholesale_price).toLocaleString()}</strong> ({moqScope === 'category' ? `Cat. total ${moqVal} pcs` : `MOQ ${moqVal} pcs`})</span>
                             {(p.size || (Array.isArray(p.sizes) && p.sizes.length > 0) || p.size_options) && (
                               <span>
                                 Size: {Array.isArray(p.sizes) && p.sizes.length > 0 ? p.sizes.join(', ') : p.size || p.size_options}

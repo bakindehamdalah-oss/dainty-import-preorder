@@ -94,17 +94,25 @@ function getProductWholesaleMOQ(product: Product, category?: Category | null): n
     return Number(product.min_order_qty);
   }
 
-  // 2. Only if the whole category has category MOQ explicitly stated
-  if (category?.moq_scope === 'category' && category?.wholesale_moq && Number(category.wholesale_moq) > 0) {
+  // 2. Read embedded metadata tag from description (survives any DB schema gaps)
+  if (product.description) {
+    const match = product.description.match(/<!--dainty_moq:(\d+)-->/);
+    if (match && Number(match[1]) > 0) {
+      return Number(match[1]);
+    }
+  }
+
+  // 3. Category wholesale MOQ (whether category scope or per-item category default)
+  if (category?.wholesale_moq && Number(category.wholesale_moq) > 0) {
     return Number(category.wholesale_moq);
   }
 
-  // 3. Strictly for iPhone Cases category ONLY (and only when no custom item MOQ is set)
+  // 4. Strictly for iPhone Cases category ONLY (and only when no custom item MOQ is set)
   if (isStrictIphoneCaseCategory(category)) {
     return 50;
   }
 
-  // 4. Per-item default: 1 piece (never artificially default to 50)
+  // 5. Per-item default: 1 piece
   return 1;
 }
 
@@ -114,12 +122,20 @@ function getProductMOQScope(product: Product, category?: Category | null): 'cate
   if (product.moq_scope === 'item') return 'item';
   if (product.moq_scope === 'category') return 'category';
 
-  // 2. If category is explicitly set to whole category scope
+  // 2. Read embedded metadata tag from description
+  if (product.description) {
+    const match = product.description.match(/<!--dainty_moq_scope:(category|item)-->/);
+    if (match) {
+      return match[1] as 'category' | 'item';
+    }
+  }
+
+  // 3. If category is explicitly set to whole category scope
   if (category?.moq_scope === 'category') {
     return 'category';
   }
 
-  // 3. Default is strictly per-item
+  // 4. Default is strictly per-item
   return 'item';
 }
 
