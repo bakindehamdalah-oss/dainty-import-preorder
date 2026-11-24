@@ -6,25 +6,17 @@ import { supabase } from '../../lib/supabase';
 import {
   ArrowLeft,
   Check,
-  Edit2,
-  ExternalLink,
-  Eye,
-  FileText,
-  Lock,
   Maximize2,
   MessageCircle,
   Minus,
   Plane,
   Plus,
-  RefreshCw,
   Share2,
-  ShieldAlert,
   ShieldCheck,
   Ship,
   ShoppingBag,
   Sparkles,
   Trash2,
-  Unlock,
   X,
 } from 'lucide-react';
 
@@ -60,14 +52,12 @@ export default function OrderCatalogPage() {
   const [order, setOrder] = useState<PreorderRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [adminSaveError, setAdminSaveError] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
 
   // Admin edit mode
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [adminPinInput, setAdminPinInput] = useState('');
-  const [pinError, setPinError] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -75,6 +65,21 @@ export default function OrderCatalogPage() {
   const [editedItems, setEditedItems] = useState<OrderItem[]>([]);
   const [editedShippingMethod, setEditedShippingMethod] = useState<'air' | 'sea'>('air');
   const [editedAdminNotes, setEditedAdminNotes] = useState('');
+
+  // Only an authenticated Supabase admin session can enable order editing.
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (active) setIsAdminUnlocked(Boolean(session));
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAdminUnlocked(Boolean(session));
+    });
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // Read order ID or encoded fallback from window.location
   useEffect(() => {
@@ -84,13 +89,9 @@ export default function OrderCatalogPage() {
     const id = urlParams.get('id') || '';
     const fallbackData = urlParams.get('d') || urlParams.get('data') || '';
 
+    // The order ID comes from the customer-specific URL and drives the order fetch.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOrderId(id);
-
-    // Auto-unlock admin if ?admin=1234 or similar in URL
-    const adminParam = urlParams.get('admin');
-    if (adminParam === '1234' || adminParam === 'true') {
-      setIsAdminUnlocked(true);
-    }
 
     async function fetchOrder() {
       setLoading(true);
@@ -163,7 +164,10 @@ export default function OrderCatalogPage() {
   }, []);
 
   // Recalculate totals for active items (view or admin edit mode)
-  const activeItems = isAdminUnlocked ? editedItems : (order?.items || []);
+  const activeItems = useMemo(
+    () => (isAdminUnlocked ? editedItems : (order?.items || [])),
+    [isAdminUnlocked, editedItems, order?.items]
+  );
   const activeShippingMethod = isAdminUnlocked ? editedShippingMethod : (order?.shipping_method || 'air');
 
   const totalPieces = useMemo(() => {
@@ -189,18 +193,6 @@ export default function OrderCatalogPage() {
 
   const shippingTimeline = activeShippingMethod === 'air' ? '~3 weeks' : '~3 months';
 
-  // Admin PIN verification (Default PIN: 1234)
-  function handleUnlockAdmin() {
-    if (adminPinInput.trim() === '1234') {
-      setIsAdminUnlocked(true);
-      setShowPinModal(false);
-      setPinError(false);
-      setAdminPinInput('');
-    } else {
-      setPinError(true);
-    }
-  }
-
   // Admin quantity & item controls
   function handleQuantityChange(index: number, delta: number) {
     setEditedItems((prev) => {
@@ -219,11 +211,19 @@ export default function OrderCatalogPage() {
     setEditedItems((prev) => prev.filter((_, idx) => idx !== index));
   }
 
-  // Admin Save Changes
+  // Save changes only when the existing Supabase admin session is still valid.
   async function handleSaveAdminChanges() {
     if (!order) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setIsAdminUnlocked(false);
+      setAdminSaveError('Your admin session has expired. Sign in through the admin dashboard to edit this order.');
+      return;
+    }
+
     setIsSaving(true);
     setSaveSuccess(false);
+    setAdminSaveError(null);
 
     const updatedRecord: PreorderRecord = {
       ...order,
@@ -236,18 +236,11 @@ export default function OrderCatalogPage() {
       admin_notes: editedAdminNotes,
     };
 
-    // Save to Supabase preorders
-    try {
-      await supabase.from('preorders').upsert([updatedRecord]);
-    } catch (e) {
-      console.warn('Failed to upsert to Supabase:', e);
-    }
-
-    // Save to localStorage
-    try {
-      localStorage.setItem(`dainty_order_${order.id}`, JSON.stringify(updatedRecord));
-    } catch (e) {
-      console.warn('LocalStorage save error:', e);
+    const { error } = await supabase.from('preorders').upsert([updatedRecord]);
+    if (error) {
+      setIsSaving(false);
+      setAdminSaveError(`Could not save this order: ${error.message}`);
+      return;
     }
 
     setOrder(updatedRecord);
@@ -266,7 +259,6 @@ export default function OrderCatalogPage() {
   // Generate WhatsApp message from this catalog
   function buildOrderWhatsAppUrl() {
     if (!order) return '#';
-    const cleanPhone = '2348000000000'; // Fallback or loaded from settings
     const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
 
     const lines: string[] = [
@@ -321,66 +313,6 @@ export default function OrderCatalogPage() {
         </div>
       )}
 
-      {/* Admin PIN Modal */}
-      {showPinModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
-          onClick={() => setShowPinModal(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-stone-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-                <Lock className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="font-bold text-stone-900 text-sm">Admin Access</h3>
-                <p className="text-xs text-stone-500">Enter Admin PIN to edit this preorder</p>
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <input
-                type="password"
-                placeholder="Enter PIN (Default: 1234)"
-                value={adminPinInput}
-                onChange={(e) => {
-                  setAdminPinInput(e.target.value);
-                  setPinError(false);
-                }}
-                onKeyDown={(e) => e.key === 'Enter' && handleUnlockAdmin()}
-                className="w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-center text-lg tracking-widest font-mono focus:border-[#fa9d26] focus:outline-hidden"
-                autoFocus
-              />
-              {pinError && (
-                <p className="mt-2 text-center text-xs font-semibold text-red-600">
-                  Incorrect PIN. Please try again.
-                </p>
-              )}
-            </div>
-
-            <div className="mt-5 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowPinModal(false)}
-                className="flex-1 rounded-xl border border-stone-200 py-2.5 text-xs font-semibold text-stone-600 hover:bg-stone-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleUnlockAdmin}
-                className="flex-1 rounded-xl bg-[#fa9d26] py-2.5 text-xs font-bold text-white hover:bg-[#e68c1d] shadow-sm transition"
-              >
-                Unlock
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Top Header */}
       <header className="sticky top-0 z-40 border-b border-stone-200 bg-white/95 backdrop-blur-xs">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3 sm:px-6">
@@ -397,17 +329,10 @@ export default function OrderCatalogPage() {
               {orderId ? `#${orderId}` : 'Preorder Sheet'}
             </span>
 
-            {/* Admin Edit / Lock toggle: only visible when explicitly unlocked from admin dashboard */}
             {isAdminUnlocked && (
-              <button
-                type="button"
-                onClick={() => setIsAdminUnlocked(false)}
-                className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900 hover:bg-amber-200 transition"
-                title="Lock Admin Mode"
-              >
-                <Unlock className="h-3.5 w-3.5 text-amber-700" />
-                <span>Admin Editing</span>
-              </button>
+              <span className="inline-flex items-center rounded-lg border border-amber-300 bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900">
+                Admin Editing
+              </span>
             )}
 
             <button
@@ -448,14 +373,17 @@ export default function OrderCatalogPage() {
                   <Sparkles className="h-4 w-4 text-[#fa9d26] shrink-0" />
                   <span>Admin Mode Active: You can adjust quantities, remove items, or switch shipping method.</span>
                 </div>
-                <button
+                <div className="ml-auto flex flex-col items-end gap-1">
+                  {adminSaveError && <span role="alert" className="max-w-xs text-[11px] font-semibold text-red-700">{adminSaveError}</span>}
+                  <button
                   type="button"
                   onClick={handleSaveAdminChanges}
                   disabled={isSaving}
                   className="rounded-lg bg-[#fa9d26] px-3 py-1 text-xs font-bold text-white hover:bg-[#e68c1d] disabled:opacity-50 transition"
                 >
                   {isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save Changes'}
-                </button>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -536,11 +464,6 @@ export default function OrderCatalogPage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 {activeItems.map((item, idx) => {
                   const itemSubtotal = (Number(item.price) || 0) * (Number(item.quantity) || 0);
-                  const shipFee =
-                    activeShippingMethod === 'air'
-                      ? Number(item.estShippingAir || 0)
-                      : Number(item.estShippingSea || 0);
-
                   return (
                     <div
                       key={idx}
@@ -599,7 +522,7 @@ export default function OrderCatalogPage() {
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center rounded-md bg-red-50 text-red-700 px-2 py-0.5 text-[10px] font-semibold border border-red-200">
-                                  Can't be shipped by air
+                                  Can&apos;t be shipped by air
                                 </span>
                               )
                             ) : (
@@ -609,7 +532,7 @@ export default function OrderCatalogPage() {
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center rounded-md bg-red-50 text-red-700 px-2 py-0.5 text-[10px] font-semibold border border-red-200">
-                                  Can't be shipped by sea
+                                  Can&apos;t be shipped by sea
                                 </span>
                               )
                             )}
