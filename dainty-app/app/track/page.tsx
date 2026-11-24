@@ -43,7 +43,13 @@ type Preorder = {
 const statusOrder = ['pending', 'paid', 'ordered', 'shipped', 'ready_for_delivery', 'delivered'];
 
 export default function TrackOrderPage() {
-  const [trackingInput, setTrackingInput] = useState('');
+  const [trackingInput, setTrackingInput] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const id = new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('track');
+      return id ? id.trim().replace(/^#/, '') : '';
+    }
+    return '';
+  });
   const [order, setOrder] = useState<Preorder | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -54,7 +60,6 @@ export default function TrackOrderPage() {
     const id = new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('track');
     if (id) {
       const cleanId = id.trim().replace(/^#/, '');
-      setTrackingInput(cleanId);
       void loadOrder(cleanId);
     }
   }, []);
