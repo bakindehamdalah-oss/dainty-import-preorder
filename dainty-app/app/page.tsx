@@ -40,7 +40,7 @@ type Category = {
   name: string;
   slug: string;
   wholesale_moq?: number;
-  moq_scope?: 'all' | 'category' | 'item';
+  moq_scope?: 'category' | 'item';
   allow_mix_and_match?: boolean;
   allow_air_shipping?: boolean;
   allow_sea_shipping?: boolean;
@@ -56,7 +56,7 @@ type Product = {
   size_options?: string | null;
   wholesale_moq?: number | null;
   min_order_qty?: number | null;
-  moq_scope?: 'all' | 'category' | 'item' | null;
+  moq_scope?: 'category' | 'item' | null;
   description: string | null;
   image_url: string | null;
   images?: string[] | null;
@@ -78,67 +78,49 @@ type CartItem = {
   selectedImage?: string | null;
 };
 
-function isIphoneCaseItem(product?: Product | null, category?: Category | null): boolean {
+// Check strictly if this category is the iPhone Cases category
+function isStrictIphoneCaseCategory(category?: Category | null): boolean {
   const catName = (category?.name || category?.slug || '').toLowerCase();
-  const prodText = ((product?.name || product?.title || '') + ' ' + (product?.description || '')).toLowerCase();
-  return (
-    catName.includes('iphone') ||
-    catName.includes('case') ||
-    prodText.includes('iphone') ||
-    prodText.includes('phone case')
-  );
+  return catName.includes('iphone') && catName.includes('case');
 }
 
-// Extract wholesale MOQ
+// Extract wholesale MOQ: strictly per item by default unless category MOQ is explicitly stated
 function getProductWholesaleMOQ(product: Product, category?: Category | null): number {
-  // iPhone cases have a strict wholesale MOQ of 50 pieces
-  if (isIphoneCaseItem(product, category)) {
-    return 50;
-  }
-
-  if (product.wholesale_moq && Number(product.wholesale_moq) > 0) {
+  // 1. If product specifies its own wholesale MOQ, that always takes priority
+  if (product.wholesale_moq !== undefined && product.wholesale_moq !== null && Number(product.wholesale_moq) > 0) {
     return Number(product.wholesale_moq);
   }
-  if (product.min_order_qty && Number(product.min_order_qty) > 0) {
+  if (product.min_order_qty !== undefined && product.min_order_qty !== null && Number(product.min_order_qty) > 0) {
     return Number(product.min_order_qty);
   }
-  if (product.description) {
-    const moqMatch = product.description.match(/(?:moq|minimum\s*(?:order)?(?:\s*qty)?):\s*(\d+)/i);
-    if (moqMatch && moqMatch[1]) {
-      return parseInt(moqMatch[1], 10);
-    }
-  }
-  if (category?.wholesale_moq && Number(category.wholesale_moq) > 0) {
+
+  // 2. Only if the whole category has category MOQ explicitly stated
+  if (category?.moq_scope === 'category' && category?.wholesale_moq && Number(category.wholesale_moq) > 0) {
     return Number(category.wholesale_moq);
   }
 
-  return 50;
+  // 3. Strictly for iPhone Cases category ONLY (and only when no custom item MOQ is set)
+  if (isStrictIphoneCaseCategory(category)) {
+    return 50;
+  }
+
+  // 4. Per-item default: 1 piece (never artificially default to 50)
+  return 1;
 }
 
-// Extract whether wholesale MOQ is across all products, whole category, or per-item
-function getProductMOQScope(product: Product, category?: Category | null): 'all' | 'category' | 'item' {
-  // iPhone cases are category bulk (customers mix & match designs in the category to reach 50 pieces)
-  if (isIphoneCaseItem(product, category)) {
+// Extract wholesale MOQ scope: strictly per-item by default unless category MOQ is explicitly chosen
+function getProductMOQScope(product: Product, category?: Category | null): 'category' | 'item' {
+  // 1. If product explicitly specifies its own scope
+  if (product.moq_scope === 'item') return 'item';
+  if (product.moq_scope === 'category') return 'category';
+
+  // 2. If category is explicitly set to whole category scope
+  if (category?.moq_scope === 'category') {
     return 'category';
   }
 
-  if (product.moq_scope === 'all') return 'all';
-  if (product.moq_scope === 'category') return 'category';
-  if (product.moq_scope === 'item') return 'item';
-
-  if (product.description) {
-    const scopeMatch = product.description.match(/moq\s*scope:\s*(all|store|category|item)/i);
-    if (scopeMatch && scopeMatch[1]) {
-      const s = scopeMatch[1].toLowerCase();
-      if (s === 'all' || s === 'store') return 'all';
-      if (s === 'category') return 'category';
-      if (s === 'item') return 'item';
-    }
-  }
-  if (category?.moq_scope === 'all' || category?.moq_scope === 'category' || category?.moq_scope === 'item') {
-    return category.moq_scope;
-  }
-  return 'all';
+  // 3. Default is strictly per-item
+  return 'item';
 }
 
 // Wholesale Specification Matrix Modal
@@ -340,6 +322,19 @@ function MatrixOrderModal({
               <h2 className="text-sm sm:text-base font-bold text-stone-900 truncate mt-0.5">
                 {productTitle}
               </h2>
+              <div className="text-[11px] flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5">
+                {(product.est_shipping_fee_air ?? product.est_shipping_fee ?? 0) > 0 ? (
+                  <span className="text-stone-600">Air: ₦{Number(product.est_shipping_fee_air ?? product.est_shipping_fee).toLocaleString()}</span>
+                ) : (
+                  <span className="text-red-600 font-medium">Can't be shipped by air</span>
+                )}
+                <span className="text-stone-300">•</span>
+                {(product.est_shipping_fee_sea ?? product.est_shipping_fee ?? 0) > 0 ? (
+                  <span className="text-stone-600">Sea: ₦{Number(product.est_shipping_fee_sea ?? product.est_shipping_fee).toLocaleString()}</span>
+                ) : (
+                  <span className="text-red-600 font-medium">Can't be shipped by sea</span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -354,25 +349,18 @@ function MatrixOrderModal({
 
         {/* Scope Notice Banner */}
         <div className="border-b border-amber-200/80 bg-amber-50/70 px-4 py-2 text-xs text-amber-900">
-          {moqScope === 'all' ? (
+          {moqScope === 'category' ? (
             <div className="flex items-start gap-1.5">
               <Sparkles className="h-4 w-4 text-[#fa9d26] shrink-0 mt-0.5" />
               <div>
-                <strong>Store-Wide Bulk Purchase:</strong> Wholesale factory pricing with a minimum of <strong>{moq} pieces total across all products</strong>. There is <strong>no minimum for this specific design</strong>; select any quantity to reach the {moq} pcs bulk target.
-              </div>
-            </div>
-          ) : moqScope === 'category' ? (
-            <div className="flex items-start gap-1.5">
-              <Sparkles className="h-4 w-4 text-[#fa9d26] shrink-0 mt-0.5" />
-              <div>
-                <strong>Category Bulk Purchase:</strong> Wholesale factory pricing with a minimum of <strong>{moq} pieces total</strong> across this category. There is <strong>no minimum for each design</strong>; choose any quantity to reach the category bulk target.
+                <strong>Category Bulk Purchase:</strong> Wholesale factory pricing with a minimum of <strong>{moq} pieces total</strong> across this category. Choose any quantity of this design to reach the category bulk target.
               </div>
             </div>
           ) : (
             <div className="flex items-start gap-1.5">
               <Box className="h-4 w-4 text-[#fa9d26] shrink-0 mt-0.5" />
               <div>
-                <strong>Product-Specific Minimum:</strong> Minimum order for this item is <strong>{moq} pieces</strong>. You can mix and match any sizes and colors below to hit the {moq} pcs target.
+                <strong>Item Minimum Order:</strong> Minimum order for this item is <strong>{moq} pieces</strong>. You can mix and match any sizes and colors below to reach {moq} pcs.
               </div>
             </div>
           )}
@@ -556,21 +544,17 @@ function MatrixOrderModal({
           <div>
             <div className="flex items-center justify-between text-xs mb-1.5">
               <span className="font-semibold text-stone-700">
-                {moqScope === 'all' || moqScope === 'category' ? 'Selected from this design (no design MOQ)' : 'Selected for this design'}: <strong className="text-stone-900">{totalSelected}</strong> pcs
+                Selected for this design: <strong className="text-stone-900">{totalSelected}</strong> pcs
               </span>
-              {moqScope === 'all' ? (
-                <span className="text-[11px] font-bold text-amber-900">
-                  Store-wide bulk: <strong>{moq} pcs</strong> across all items
-                </span>
-              ) : moqScope === 'category' ? (
+              {moqScope === 'category' ? (
                 <span className="text-[11px] font-bold text-stone-700">
-                  Category total across all designs: <strong>{totalTowardsCategory}</strong> / {moq} pcs
+                  Category total across designs: <strong>{totalTowardsCategory}</strong> / {moq} pcs
                 </span>
               ) : (
                 <span className={`text-[11px] font-bold ${totalSelected >= moq ? 'text-emerald-700' : 'text-[#d97706]'}`}>
                   {totalSelected >= moq
-                    ? 'Wholesale MOQ Reached!'
-                    : `Need ${moq - totalSelected} more pieces to reach ${moq} pcs MOQ`}
+                    ? 'Item MOQ Reached!'
+                    : `Need ${moq - totalSelected} more pcs to reach ${moq} pcs MOQ`}
                 </span>
               )}
             </div>
@@ -876,21 +860,19 @@ function ProductCard({
           <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 items-start">
             {mode === 'wholesale' && (
               <span className="rounded-md bg-[#fa9d26] px-2 py-0.5 text-[10px] font-bold text-white shadow-xs tracking-wide">
-                {moqScope === 'all'
-                  ? `Bulk Factory Price • ${moq} pcs MOQ`
-                  : moqScope === 'category'
-                  ? `Bulk Factory Price • ${moq} pcs Category MOQ`
-                  : `MOQ: ${moq} pcs (This item)`}
+                {moqScope === 'category'
+                  ? `Category MOQ: ${moq} pcs`
+                  : `MOQ: ${moq} pcs`}
               </span>
             )}
-            {!hasAir && hasSea && (
-              <span className="rounded-md bg-blue-600/95 px-2 py-0.5 text-[10px] font-semibold text-white shadow-xs">
-                Sea Cargo Only
+            {!hasAir && (
+              <span className="rounded-md bg-stone-900/90 px-2 py-0.5 text-[10px] font-medium text-white shadow-xs">
+                Can't ship by air
               </span>
             )}
-            {hasAir && !hasSea && (
-              <span className="rounded-md bg-emerald-700/95 px-2 py-0.5 text-[10px] font-semibold text-white shadow-xs">
-                Air Cargo Only
+            {!hasSea && (
+              <span className="rounded-md bg-stone-900/90 px-2 py-0.5 text-[10px] font-medium text-white shadow-xs">
+                Can't ship by sea
               </span>
             )}
           </div>
@@ -923,10 +905,8 @@ function ProductCard({
             {cat && <span className="text-xs font-medium text-stone-500">{cat.name}</span>}
             {mode === 'wholesale' && (
               <span className="text-[10px] font-semibold text-amber-900 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                {moqScope === 'all'
-                  ? `Bulk Factory Price • ${moq} pcs store-wide • No MOQ per design`
-                  : moqScope === 'category'
-                  ? `Bulk Category Price • ${moq} pcs total • No MOQ per design`
+                {moqScope === 'category'
+                  ? `Category MOQ: ${moq} pcs total`
                   : `Item MOQ: ${moq} pcs`}
               </span>
             )}
@@ -1007,17 +987,17 @@ function ProductCard({
               ₦{Number(displayPrice).toLocaleString()}
               {mode === 'wholesale' && <span className="text-xs font-normal text-stone-500 ml-1">/ piece</span>}
             </div>
-            <div className="text-[11px]">
-              {hasAir && hasSea ? (
-                <span className="text-stone-500">
-                  Air: ₦{airFee.toLocaleString()} • Sea: ₦{seaFee.toLocaleString()}
-                </span>
-              ) : hasSea && !hasAir ? (
-                <span className="text-blue-700 font-medium">Sea Cargo: ₦{seaFee.toLocaleString()} (Sea Only)</span>
-              ) : hasAir && !hasSea ? (
-                <span className="text-emerald-700 font-medium">Air Cargo: ₦{airFee.toLocaleString()}</span>
+            <div className="text-[11px] flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+              {hasAir ? (
+                <span className="text-stone-600 font-medium">Air: ₦{airFee.toLocaleString()}</span>
               ) : (
-                <span className="text-stone-400">Shipping billed upon arrival</span>
+                <span className="text-red-600 font-medium">Can't be shipped by air</span>
+              )}
+              <span className="text-stone-300">•</span>
+              {hasSea ? (
+                <span className="text-stone-600 font-medium">Sea: ₦{seaFee.toLocaleString()}</span>
+              ) : (
+                <span className="text-red-600 font-medium">Can't be shipped by sea</span>
               )}
             </div>
           </div>
@@ -1124,7 +1104,8 @@ export default function StorefrontPage() {
         const fetchedCats: Category[] = categoriesRes.data || [];
         const normalizedCats = fetchedCats.map((cat) => {
           const n = (cat.name || cat.slug || '').toLowerCase();
-          if (n.includes('case') || n.includes('iphone')) {
+          // Strictly for iPhone Cases category, only default to 50 if no custom MOQ was already set
+          if (n.includes('iphone') && n.includes('case') && (!cat.wholesale_moq || cat.wholesale_moq <= 0)) {
             return { ...cat, wholesale_moq: 50, moq_scope: 'category' as const };
           }
           return cat;
@@ -1469,12 +1450,10 @@ export default function StorefrontPage() {
     syncToSupabase();
   }, [cart, activeOrderId, mode, shippingMethod, subtotal, totalCartCount, estimatedShipping, shippingTimeline]);
 
-  // Check Wholesale MOQ requirements for Item-Level, Category-Level, and All-Products scopes
+  // Check Wholesale MOQ requirements for Item-Level (default) and Category-Level scopes
   const wholesaleMoqWarnings = useMemo(() => {
     if (mode !== 'wholesale') return [];
-    const warnings: { name: string; required: number; current: number; scope: 'all' | 'item' | 'category' }[] = [];
-
-    const totalCartPieces = cart.reduce((sum, item) => sum + item.quantity, 0);
+    const warnings: { name: string; required: number; current: number; scope: 'item' | 'category' }[] = [];
 
     // Group 1: Product-level quantities
     const productQtyMap = new Map<string, number>();
@@ -1489,32 +1468,6 @@ export default function StorefrontPage() {
       categoryQtyMap.set(cId, (categoryQtyMap.get(cId) || 0) + item.quantity);
     }
 
-    // Check store-wide all-products MOQ
-    let hasAllProductsScope = false;
-    let highestAllProductsMoq = 0;
-
-    for (const item of cart) {
-      const cat = item.product.category_id ? categoryMap.get(item.product.category_id) : null;
-      const moq = getProductWholesaleMOQ(item.product, cat);
-      const scope = getProductMOQScope(item.product, cat);
-
-      if (scope === 'all') {
-        hasAllProductsScope = true;
-        if (moq > highestAllProductsMoq) highestAllProductsMoq = moq;
-      }
-    }
-
-    if (hasAllProductsScope && highestAllProductsMoq > 0) {
-      if (totalCartPieces < highestAllProductsMoq) {
-        warnings.push({
-          name: 'Store-Wide Bulk Purchase (Factory Prices)',
-          required: highestAllProductsMoq,
-          current: totalCartPieces,
-          scope: 'all',
-        });
-      }
-    }
-
     // Track checked categories to avoid duplicate warnings
     const checkedCategories = new Set<string>();
 
@@ -1526,16 +1479,7 @@ export default function StorefrontPage() {
       const moq = getProductWholesaleMOQ(item.product, cat);
       const scope = getProductMOQScope(item.product, cat);
 
-      if (scope === 'item') {
-        if (totalQty < moq) {
-          warnings.push({
-            name: item.product.name || item.product.title || 'Product',
-            required: moq,
-            current: totalQty,
-            scope: 'item',
-          });
-        }
-      } else if (scope === 'category') {
+      if (scope === 'category') {
         const catId = item.product.category_id || 'uncategorized';
         if (!checkedCategories.has(catId)) {
           checkedCategories.add(catId);
@@ -1548,6 +1492,16 @@ export default function StorefrontPage() {
               scope: 'category',
             });
           }
+        }
+      } else {
+        // Per-item MOQ by default
+        if (totalQty < moq) {
+          warnings.push({
+            name: item.product.name || item.product.title || 'Product',
+            required: moq,
+            current: totalQty,
+            scope: 'item',
+          });
         }
       }
     }
@@ -2193,7 +2147,7 @@ export default function StorefrontPage() {
               </div>
               {wholesaleMoqWarnings.map((w, idx) => (
                 <div key={idx} className="text-[11px] leading-snug">
-                  • <strong>{w.name}</strong> ({w.scope === 'all' ? 'Store-Wide Bulk' : w.scope === 'item' ? 'Item MOQ' : 'Category Bulk'}): Minimum order is <strong>{w.required} pcs</strong> (Currently: {w.current} pcs. Need {w.required - w.current} more piece(s)).
+                  • <strong>{w.name}</strong> ({w.scope === 'item' ? 'Item MOQ' : 'Category Bulk'}): Minimum order is <strong>{w.required} pcs</strong> (Currently: {w.current} pcs. Need {w.required - w.current} more piece(s)).
                 </div>
               ))}
             </div>
@@ -2255,6 +2209,19 @@ export default function StorefrontPage() {
                         <span className="text-[10px] font-normal text-stone-400 ml-1">
                           (₦{Number(mode === 'wholesale' ? item.product.wholesale_price : item.product.retail_price).toLocaleString()} ea)
                         </span>
+                      </div>
+                      <div className="text-[10px] text-stone-500 mt-0.5 flex flex-wrap gap-1.5">
+                        {Number(item.product.est_shipping_fee_air ?? item.product.est_shipping_fee ?? 0) > 0 ? (
+                          <span>Air: ₦{Number(item.product.est_shipping_fee_air ?? item.product.est_shipping_fee).toLocaleString()}</span>
+                        ) : (
+                          <span className="text-red-600 font-medium">Can't be shipped by air</span>
+                        )}
+                        <span>•</span>
+                        {Number(item.product.est_shipping_fee_sea ?? item.product.est_shipping_fee ?? 0) > 0 ? (
+                          <span>Sea: ₦{Number(item.product.est_shipping_fee_sea ?? item.product.est_shipping_fee).toLocaleString()}</span>
+                        ) : (
+                          <span className="text-red-600 font-medium">Can't be shipped by sea</span>
+                        )}
                       </div>
                     </div>
                   </div>

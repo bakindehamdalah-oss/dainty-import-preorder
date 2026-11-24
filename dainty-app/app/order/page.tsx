@@ -592,6 +592,27 @@ export default function OrderCatalogPage() {
                                 Size: {item.selectedSize}
                               </span>
                             )}
+                            {activeShippingMethod === 'air' ? (
+                              Number(item.estShippingAir || 0) > 0 ? (
+                                <span className="inline-flex items-center rounded-md bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-600">
+                                  Est. Air: ₦{Number(item.estShippingAir).toLocaleString()}/pc
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-md bg-red-50 text-red-700 px-2 py-0.5 text-[10px] font-semibold border border-red-200">
+                                  Can't be shipped by air
+                                </span>
+                              )
+                            ) : (
+                              Number(item.estShippingSea || 0) > 0 ? (
+                                <span className="inline-flex items-center rounded-md bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-600">
+                                  Est. Sea: ₦{Number(item.estShippingSea).toLocaleString()}/pc
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-md bg-red-50 text-red-700 px-2 py-0.5 text-[10px] font-semibold border border-red-200">
+                                  Can't be shipped by sea
+                                </span>
+                              )
+                            )}
                           </div>
                         </div>
 

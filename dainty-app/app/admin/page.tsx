@@ -10,7 +10,7 @@ type Category = {
   name: string;
   slug: string;
   wholesale_moq?: number;
-  moq_scope?: 'all' | 'category' | 'item';
+  moq_scope?: 'category' | 'item';
 };
 
 type Product = {
@@ -23,7 +23,7 @@ type Product = {
   size_options?: string | null;
   wholesale_moq?: number | null;
   min_order_qty?: number | null;
-  moq_scope?: 'all' | 'category' | 'item' | null;
+  moq_scope?: 'category' | 'item' | null;
   description: string | null;
   image_url: string | null;
   images?: string[] | null;
@@ -56,7 +56,7 @@ type EditProductState = {
   retailPrice: string;
   wholesalePrice: string;
   moq: string;
-  moqScope: 'all' | 'category' | 'item';
+  moqScope: 'category' | 'item';
   estAirShipping: string;
   estSeaShipping: string;
   size: string;
@@ -85,7 +85,7 @@ type DraftPhotoItem = {
   additionalImages: string[];
   colors: string;
   moq: string;
-  moqScope: 'all' | 'category' | 'item';
+  moqScope: 'category' | 'item';
   description: string;
 };
 
@@ -200,10 +200,8 @@ export default function AdminPage() {
 
   const [catName, setCatName] = useState('');
   const [catSlug, setCatSlug] = useState('');
-  const [catMoq, setCatMoq] = useState('50');
-  const [catMoqScope, setCatMoqScope] = useState<'all' | 'category' | 'item'>('category');
-  const [storewideMoq, setStorewideMoq] = useState('10');
-  const [applyingStorewideMoq, setApplyingStorewideMoq] = useState(false);
+  const [catMoq, setCatMoq] = useState('');
+  const [catMoqScope, setCatMoqScope] = useState<'category' | 'item'>('item');
   const [uploadingItemPhotoId, setUploadingItemPhotoId] = useState<string | null>(null);
   const [managingPhotosProductId, setManagingPhotosProductId] = useState<string | null>(null);
   const [uploadingExistingPhotoId, setUploadingExistingPhotoId] = useState<string | null>(null);
@@ -226,19 +224,23 @@ export default function AdminPage() {
   const [sharedColors, setSharedColors] = useState('');
   const [sharedRetail, setSharedRetail] = useState('');
   const [sharedWholesale, setSharedWholesale] = useState('');
-  const [sharedMoq, setSharedMoq] = useState('50');
-  const [sharedMoqScope, setSharedMoqScope] = useState<'all' | 'category' | 'item'>('all');
+  const [sharedMoq, setSharedMoq] = useState('');
+  const [sharedMoqScope, setSharedMoqScope] = useState<'category' | 'item'>('item');
   const [sharedAirShipping, setSharedAirShipping] = useState('');
   const [sharedSeaShipping, setSharedSeaShipping] = useState('');
   const [sharedDescription, setSharedDescription] = useState('');
 
-  // Auto-sync MOQ and scope from selected category
+  // Auto-sync MOQ and scope from selected category (strictly per-item by default)
   useEffect(() => {
     const selCat = categories.find((c) => c.id === selectedCategoryId);
     if (selCat) {
-      if (selCat.wholesale_moq) setSharedMoq(String(selCat.wholesale_moq));
-      if (selCat.moq_scope) setSharedMoqScope(selCat.moq_scope);
-      else setSharedMoqScope('category');
+      if (selCat.moq_scope === 'category') {
+        setSharedMoqScope('category');
+        if (selCat.wholesale_moq) setSharedMoq(String(selCat.wholesale_moq));
+      } else {
+        setSharedMoqScope('item');
+        // Do not force a category-level MOQ onto item-based category
+      }
     }
   }, [selectedCategoryId, categories]);
 
@@ -289,26 +291,7 @@ export default function AdminPage() {
       );
     } else {
       const loadedCats: Category[] = catsRes.data || [];
-      const iphoneCat = loadedCats.find((c) => {
-        const n = (c.name || '').toLowerCase();
-        return n.includes('iphone') || n.includes('case');
-      });
-
-      if (iphoneCat && (Number(iphoneCat.wholesale_moq) !== 50 || iphoneCat.moq_scope !== 'category')) {
-        // Auto-repair iPhone case category & products in Supabase
-        supabase
-          .from('categories')
-          .update({ wholesale_moq: 50, moq_scope: 'category' })
-          .eq('id', iphoneCat.id)
-          .then(() => {
-            supabase
-              .from('products')
-              .update({ wholesale_moq: 50, min_order_qty: 50, moq_scope: 'category' })
-              .eq('category_id', iphoneCat.id);
-          });
-        iphoneCat.wholesale_moq = 50;
-        iphoneCat.moq_scope = 'category';
-      }
+// Clean load without forcing 50 MOQ onto categories or products
 
       setCategories(loadedCats);
       setProducts(prodsRes.data || []);
@@ -565,8 +548,8 @@ export default function AdminPage() {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '');
 
-    const targetMoq = Number(catMoq) || 50;
-    const targetScope = catMoqScope || 'category';
+    const targetMoq = Number(catMoq) > 0 ? Number(catMoq) : null;
+    const targetScope = catMoqScope || 'item';
 
     // Try inserting with wholesale_moq & moq_scope, fallback if columns not yet present
     let { data, error } = await supabase
@@ -620,67 +603,7 @@ export default function AdminPage() {
     }
   }
 
-    async function applyStorewideMixAndMatchToAllProducts() {
-    const targetMoq = Number(storewideMoq || 10);
-    if (!Number.isFinite(targetMoq) || targetMoq < 1) {
-      setErrorMsg('Enter a valid store-wide minimum of at least 1 piece.');
-      return;
-    }
 
-    if (!window.confirm(`Apply a ${targetMoq}-piece minimum across ALL products in the entire store? Customers can mix & match any designs from any category to reach ${targetMoq} pieces total.`)) {
-      return;
-    }
-
-    setApplyingStorewideMoq(true);
-    setErrorMsg(null);
-    setStatusMsg(null);
-
-    // Update categories
-    await supabase
-      .from('categories')
-      .update({ wholesale_moq: targetMoq, moq_scope: 'all' })
-      .neq('id', '00000000-0000-0000-0000-000000000000');
-
-    // Update products
-    let productsUpdate = await supabase
-      .from('products')
-      .update({ wholesale_moq: targetMoq, min_order_qty: targetMoq, moq_scope: 'all' })
-      .neq('id', '00000000-0000-0000-0000-000000000000');
-
-    if (productsUpdate.error && productsUpdate.error.message?.toLowerCase().includes('schema cache')) {
-      productsUpdate = await supabase
-        .from('products')
-        .update({ wholesale_moq: targetMoq, min_order_qty: targetMoq })
-        .neq('id', '00000000-0000-0000-0000-000000000000');
-    }
-
-    setApplyingStorewideMoq(false);
-    if (productsUpdate.error) {
-      setErrorMsg(`Failed to update store-wide MOQ: ${productsUpdate.error.message}`);
-      return;
-    }
-
-    // Restore iPhone cases category & products back to 50 pcs MOQ
-    const iphoneCat = categories.find((c) => {
-      const n = (c.name || '').toLowerCase();
-      return n.includes('iphone') || n.includes('case');
-    });
-    if (iphoneCat) {
-      await supabase
-        .from('categories')
-        .update({ wholesale_moq: 50, moq_scope: 'category' })
-        .eq('id', iphoneCat.id);
-      await supabase
-        .from('products')
-        .update({ wholesale_moq: 50, min_order_qty: 50, moq_scope: 'category' })
-        .eq('category_id', iphoneCat.id);
-    }
-
-    setSharedMoq(String(targetMoq));
-    setSharedMoqScope('all');
-    setStatusMsg(`Applied store-wide MOQ: ${targetMoq} pieces (iPhone Cases preserved at 50 pcs MOQ).`);
-    await refreshData();
-  }
 
   async function handleResetIphoneCaseMoq50() {
     setErrorMsg(null);
@@ -938,8 +861,8 @@ export default function AdminPage() {
     }
 
     const selCat = categories.find((c) => c.id === selectedCategoryId);
-    const defaultMoq = sharedMoq || (selCat?.wholesale_moq ? String(selCat.wholesale_moq) : '50');
-    const defaultScope = sharedMoqScope || (selCat?.moq_scope ? selCat.moq_scope : 'category');
+    const defaultMoq = sharedMoq || (selCat?.moq_scope === 'category' && selCat?.wholesale_moq ? String(selCat.wholesale_moq) : '');
+    const defaultScope = sharedMoqScope || (selCat?.moq_scope === 'category' ? 'category' : 'item');
 
     if (uploadMode === 'single_product') {
       const mainPhoto = newUploadedUrls[0];
@@ -1221,8 +1144,6 @@ export default function AdminPage() {
     const itemsToPublish = sameForAll ? applySharedSpecsToList(draftItems) : draftItems;
 
     const selCat = categories.find((c) => c.id === selectedCategoryId);
-    const catNameLower = (selCat?.name || '').toLowerCase();
-    const isIphoneCaseCat = catNameLower.includes('case') || catNameLower.includes('iphone');
 
     const payload = itemsToPublish.map((item, idx) => {
       const cleanName = item.name.trim() || `Product ${idx + 1}`;
@@ -1231,8 +1152,9 @@ export default function AdminPage() {
       const airFee = item.estAirShipping.trim() !== '' ? Number(item.estAirShipping) : 0;
       const seaFee = item.estSeaShipping.trim() !== '' ? Number(item.estSeaShipping) : 0;
       const sizeText = item.size ? item.size.trim() : null;
-      const moqVal = Number(item.moq) || (isIphoneCaseCat ? 50 : 5);
-      const moqScopeVal = item.moqScope || (isIphoneCaseCat ? 'item' : 'category');
+      // Per-item MOQ by default; only category MOQ if category explicitly has category scope
+      const moqVal = Number(item.moq) > 0 ? Number(item.moq) : (selCat?.moq_scope === 'category' && selCat?.wholesale_moq ? Number(selCat.wholesale_moq) : 1);
+      const moqScopeVal = item.moqScope || (selCat?.moq_scope === 'category' ? 'category' : 'item');
 
       // Colors and sizes are completely optional!
       const colorsList = item.colors && item.colors.trim() !== ''
@@ -1248,10 +1170,7 @@ export default function AdminPage() {
       if (colorsList.length > 0) {
         descText = descText ? `${descText} • Colors: ${colorsList.join(', ')}` : `Colors: ${colorsList.join(', ')}`;
       }
-      if (moqVal > 0) {
-        descText = descText ? `${descText} • Wholesale MOQ: ${moqVal} pcs (${moqScopeVal === 'all' ? 'All Products' : (moqScopeVal === 'category' ? 'Category' : 'Item')})` : `Wholesale MOQ: ${moqVal} pcs (${moqScopeVal === 'all' ? 'All Products' : (moqScopeVal === 'category' ? 'Category' : 'Item')})`;
-      }
-      descText = descText ? `${descText} • MOQ Scope: ${moqScopeVal === 'all' ? 'All Products' : (moqScopeVal === 'category' ? 'Category' : 'Item')}` : `MOQ Scope: ${moqScopeVal === 'all' ? 'All Products' : (moqScopeVal === 'category' ? 'Category' : 'Item')}`;
+// Clean description without hardcoded MOQ injection
       if (airFee <= 0 && seaFee > 0) {
         descText = descText ? `${descText} • Shipping: Sea Cargo Only` : `Shipping: Sea Cargo Only`;
       }
@@ -1330,8 +1249,8 @@ export default function AdminPage() {
       categoryId: p.category_id || '',
       retailPrice: String(p.retail_price ?? 0),
       wholesalePrice: String(p.wholesale_price ?? 0),
-      moq: String(p.wholesale_moq || p.min_order_qty || 5),
-      moqScope: (p.moq_scope as 'all' | 'category' | 'item') || 'category',
+      moq: String(p.wholesale_moq || p.min_order_qty || 1),
+      moqScope: (p.moq_scope as 'category' | 'item') || 'item',
       estAirShipping: air !== null && air !== undefined && air > 0 ? String(air) : '',
       estSeaShipping: sea !== null && sea !== undefined && sea > 0 ? String(sea) : '',
       size: p.size || (Array.isArray(p.sizes) ? p.sizes.join(', ') : '') || p.size_options || '',
@@ -1881,40 +1800,7 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* Store-Wide Mix & Match Across ALL Products */}
-          <div className="flex flex-col gap-2.5 rounded-xl border border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50/40 p-3.5 sm:flex-row sm:items-center sm:justify-between shadow-2xs">
-            <div className="space-y-0.5">
-              <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                <Sparkles className="h-4 w-4 text-[#fa9d26]" />
-                Store-Wide Bulk Purchase (Across All Products)
-              </span>
-              <p className="text-[11px] text-amber-900 leading-snug">
-                Customers can combine products across the entire store at factory prices to reach the bulk minimum order quantity.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center gap-1 bg-white border border-amber-300 rounded-lg px-2 py-1 shadow-2xs">
-                <span className="text-[11px] font-medium text-stone-600">MOQ:</span>
-                <input
-                  type="number"
-                  min="1"
-                  value={storewideMoq}
-                  onChange={(e) => setStorewideMoq(e.target.value)}
-                  className="w-12 text-xs font-bold text-stone-900 focus:outline-hidden"
-                  placeholder="10"
-                />
-                <span className="text-[11px] text-stone-500">pcs</span>
-              </div>
-              <button
-                type="button"
-                onClick={applyStorewideMixAndMatchToAllProducts}
-                disabled={applyingStorewideMoq}
-                className="rounded-lg bg-[#fa9d26] px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#e68c1d] transition disabled:opacity-50"
-              >
-                {applyingStorewideMoq ? 'Applying...' : `Set ${storewideMoq} pcs Store-Wide`}
-              </button>
-            </div>
-          </div>
+{/* Store-wide MOQ removed */}
 
           <div className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3 sm:flex-row sm:items-center sm:justify-between shadow-2xs">
             <div className="space-y-0.5">
@@ -2070,22 +1956,22 @@ export default function AdminPage() {
                       Target: {sharedMoq} pieces
                     </span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
                     <button
                       type="button"
-                      onClick={() => setSharedMoqScope('all')}
+                      onClick={() => setSharedMoqScope('item')}
                       className={`rounded-lg border p-2.5 text-left text-xs transition ${
-                        sharedMoqScope === 'all'
-                          ? 'border-[#fa9d26] bg-white ring-2 ring-[#fa9d26]/30 shadow-xs text-stone-900'
+                        sharedMoqScope === 'item'
+                          ? 'border-[#fa9d26] bg-white ring-2 ring-[#fa9d26]/30 shadow-xs text-stone-900 font-semibold'
                           : 'border-stone-200 bg-white/60 text-stone-600 hover:bg-white'
                       }`}
                     >
                       <div className="flex items-center gap-1.5 font-bold text-stone-900">
-                        <Sparkles className="h-3.5 w-3.5 text-[#fa9d26]" />
-                        <span>Across All Products</span>
+                        <Box className="h-3.5 w-3.5 text-stone-800" />
+                        <span>Per Item Only (Default)</span>
                       </div>
-                      <p className="mt-1 text-[11px] text-stone-500 leading-snug">
-                        Customers can combine products store-wide at factory prices to reach <strong>{sharedMoq || 10} pcs</strong> bulk minimum.
+                      <p className="mt-1 text-[11px] text-stone-500 leading-snug font-normal">
+                        Each item has its own MOQ. Different items under this category can have different minimum order quantities.
                       </p>
                     </button>
 
@@ -2094,34 +1980,16 @@ export default function AdminPage() {
                       onClick={() => setSharedMoqScope('category')}
                       className={`rounded-lg border p-2.5 text-left text-xs transition ${
                         sharedMoqScope === 'category'
-                          ? 'border-[#fa9d26] bg-white ring-2 ring-[#fa9d26]/30 shadow-xs text-stone-900'
+                          ? 'border-[#fa9d26] bg-white ring-2 ring-[#fa9d26]/30 shadow-xs text-stone-900 font-semibold'
                           : 'border-stone-200 bg-white/60 text-stone-600 hover:bg-white'
                       }`}
                     >
                       <div className="flex items-center gap-1.5 font-bold text-stone-900">
                         <FolderPlus className="h-3.5 w-3.5 text-blue-600" />
-                        <span>Whole Category</span>
+                        <span>Whole Category MOQ</span>
                       </div>
-                      <p className="mt-1 text-[11px] text-stone-500 leading-snug">
-                        Customers can mix designs across this category to reach <strong>{sharedMoq || 10} pcs</strong> total.
-                      </p>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setSharedMoqScope('item')}
-                      className={`rounded-lg border p-2.5 text-left text-xs transition ${
-                        sharedMoqScope === 'item'
-                          ? 'border-[#fa9d26] bg-white ring-2 ring-[#fa9d26]/30 shadow-xs text-stone-900'
-                          : 'border-stone-200 bg-white/60 text-stone-600 hover:bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 font-bold text-stone-900">
-                        <Box className="h-3.5 w-3.5 text-stone-700" />
-                        <span>Per Item Only</span>
-                      </div>
-                      <p className="mt-1 text-[11px] text-stone-500 leading-snug">
-                        Must buy at least <strong>{sharedMoq || 5} pcs</strong> of this exact product.
+                      <p className="mt-1 text-[11px] text-stone-500 leading-snug font-normal">
+                        Only if stated for the whole category. Customers mix & match any designs in this category to reach the category total.
                       </p>
                     </button>
                   </div>
@@ -2399,13 +2267,12 @@ export default function AdminPage() {
                             className="w-14 rounded-md border border-amber-300 bg-amber-50/50 px-1.5 py-1 text-xs font-semibold"
                           />
                           <select
-                            value={item.moqScope || 'all'}
+                            value={item.moqScope || 'item'}
                             onChange={(e) => updateDraftItem(item.tempId, 'moqScope', e.target.value as any)}
                             className="text-[10px] rounded border border-stone-300 px-1 py-1 bg-white font-medium"
                           >
-                            <option value="all">Across all products</option>
-                            <option value="category">Category total</option>
-                            <option value="item">Item only</option>
+                            <option value="item">Per item (Default)</option>
+                            <option value="category">Whole category</option>
                           </select>
                         </div>
                       </div>
@@ -2696,11 +2563,19 @@ export default function AdminPage() {
                               </span>
                             )}
                             {p.colors && p.colors.length > 0 && <span>Colors: {p.colors.join(', ')}</span>}
-                            {air <= 0 && sea > 0 ? (
-                              <span className="text-blue-700 font-semibold">Sea Only (₦{sea.toLocaleString()})</span>
-                            ) : (
-                              <span>Air: ₦{air.toLocaleString()} • Sea: ₦{sea.toLocaleString()}</span>
-                            )}
+                            <span className="inline-flex flex-wrap items-center gap-1.5">
+                              {air > 0 ? (
+                                <span className="text-stone-600">Air: ₦{air.toLocaleString()}</span>
+                              ) : (
+                                <span className="text-red-600 font-medium">Can't be shipped by air</span>
+                              )}
+                              <span className="text-stone-300">•</span>
+                              {sea > 0 ? (
+                                <span className="text-stone-600">Sea: ₦{sea.toLocaleString()}</span>
+                              ) : (
+                                <span className="text-red-600 font-medium">Can't be shipped by sea</span>
+                              )}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -3741,20 +3616,7 @@ export default function AdminPage() {
                   {/* MOQ Scope Selector */}
                   <div className="col-span-2 sm:col-span-3 pt-2 border-t border-stone-200/80">
                     <label className="text-[11px] font-bold text-stone-700 block mb-1.5">Wholesale MOQ Rule:</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setEditingProduct({ ...editingProduct, moqScope: 'category' })}
-                        className={`rounded-lg border p-2 text-left text-xs transition ${
-                          editingProduct.moqScope === 'category'
-                            ? 'border-[#fa9d26] bg-amber-50 text-amber-950 font-bold'
-                            : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'
-                        }`}
-                      >
-                        <span className="block font-semibold">Bulk Category</span>
-                        <span className="text-[10px] text-stone-500 font-normal">Customer mixes any designs in this category</span>
-                      </button>
-
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <button
                         type="button"
                         onClick={() => setEditingProduct({ ...editingProduct, moqScope: 'item' })}
@@ -3764,21 +3626,21 @@ export default function AdminPage() {
                             : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'
                         }`}
                       >
-                        <span className="block font-semibold">Per Design / Item</span>
-                        <span className="text-[10px] text-stone-500 font-normal">Must buy this exact item to reach MOQ</span>
+                        <span className="block font-semibold">Per Item (Default)</span>
+                        <span className="text-[10px] text-stone-500 font-normal">This exact item has its own MOQ</span>
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => setEditingProduct({ ...editingProduct, moqScope: 'all' })}
+                        onClick={() => setEditingProduct({ ...editingProduct, moqScope: 'category' })}
                         className={`rounded-lg border p-2 text-left text-xs transition ${
-                          editingProduct.moqScope === 'all'
+                          editingProduct.moqScope === 'category'
                             ? 'border-[#fa9d26] bg-amber-50 text-amber-950 font-bold'
                             : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'
                         }`}
                       >
-                        <span className="block font-semibold">Store-Wide Mix</span>
-                        <span className="text-[10px] text-stone-500 font-normal">Mix any products across the whole store</span>
+                        <span className="block font-semibold">Whole Category</span>
+                        <span className="text-[10px] text-stone-500 font-normal">Applies across the whole category</span>
                       </button>
                     </div>
                   </div>
