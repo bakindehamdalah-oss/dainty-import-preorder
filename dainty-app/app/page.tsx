@@ -86,6 +86,11 @@ function isStrictIphoneCaseCategory(category?: Category | null): boolean {
 
 // Extract wholesale MOQ: strictly per item by default unless category MOQ is explicitly stated
 function getProductWholesaleMOQ(product: Product, category?: Category | null): number {
+  // A whole-category rule is authoritative over item-level values.
+  if (getProductMOQScope(product, category) === 'category' && Number(category?.wholesale_moq) > 0) {
+    return Number(category?.wholesale_moq);
+  }
+
   // 1. If product specifies its own wholesale MOQ, that always takes priority
   if (product.wholesale_moq !== undefined && product.wholesale_moq !== null && Number(product.wholesale_moq) > 0) {
     return Number(product.wholesale_moq);
@@ -102,13 +107,8 @@ function getProductWholesaleMOQ(product: Product, category?: Category | null): n
     }
   }
 
-  // 3. Category wholesale MOQ (whether category scope or per-item category default)
-  if (category?.wholesale_moq && Number(category.wholesale_moq) > 0) {
-    return Number(category.wholesale_moq);
-  }
-
   // 4. Strictly for iPhone Cases category ONLY (and only when no custom item MOQ is set)
-  if (isStrictIphoneCaseCategory(category)) {
+  if (isStrictIphoneCaseCategory(category) && getProductMOQScope(product, category) === 'category') {
     return 50;
   }
 
@@ -191,11 +191,8 @@ function MatrixOrderModal({
         if (v?.size) addSize(v.size);
       }
     }
-    if (list.length === 0 && product.description) {
-      const match = product.description.match(/(?:sizes?|models?):\s*([^•\n]+)/i);
-      if (match && match[1]) {
-        addSize(match[1]);
-      }
+    if (list.length === 0) {
+      for (const size of getDescriptionList(product.description, 'sizes')) addSize(size);
     }
     return list;
   }, [product]);
@@ -226,11 +223,8 @@ function MatrixOrderModal({
         if (v?.color) addColor(v.color);
       }
     }
-    if (list.length === 0 && product.description) {
-      const match = product.description.match(/colors?:\s*([^•\n]+)/i);
-      if (match && match[1]) {
-        addColor(match[1]);
-      }
+    if (list.length === 0) {
+      for (const color of getDescriptionList(product.description, 'colors')) addColor(color);
     }
     return list;
   }, [product]);
@@ -339,14 +333,14 @@ function MatrixOrderModal({
                 {productTitle}
               </h2>
               <div className="text-[11px] flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5">
-                {(product.est_shipping_fee_air ?? product.est_shipping_fee ?? 0) > 0 ? (
-                  <span className="text-stone-600">Air: ₦{Number(product.est_shipping_fee_air ?? product.est_shipping_fee).toLocaleString()}</span>
+                {getProductShippingFees(product).air > 0 ? (
+                  <span className="text-stone-600">Air: ₦{getProductShippingFees(product).air.toLocaleString()}</span>
                 ) : (
                   <span className="text-red-600 font-medium">Can't be shipped by air</span>
                 )}
                 <span className="text-stone-300">•</span>
-                {(product.est_shipping_fee_sea ?? product.est_shipping_fee ?? 0) > 0 ? (
-                  <span className="text-stone-600">Sea: ₦{Number(product.est_shipping_fee_sea ?? product.est_shipping_fee).toLocaleString()}</span>
+                {getProductShippingFees(product).sea > 0 ? (
+                  <span className="text-stone-600">Sea: ₦{getProductShippingFees(product).sea.toLocaleString()}</span>
                 ) : (
                   <span className="text-red-600 font-medium">Can't be shipped by sea</span>
                 )}
@@ -369,14 +363,14 @@ function MatrixOrderModal({
             <div className="flex items-start gap-1.5">
               <Sparkles className="h-4 w-4 text-[#fa9d26] shrink-0 mt-0.5" />
               <div>
-                <strong>Category Bulk Purchase:</strong> Wholesale factory pricing with a minimum of <strong>{moq} pieces total</strong> across this category. Choose any quantity of this design to reach the category bulk target.
+                <strong>Category Bulk Purchase:</strong> Wholesale factory pricing applies once the combined order reaches <strong>{moq} pieces</strong> across this category.
               </div>
             </div>
           ) : (
             <div className="flex items-start gap-1.5">
               <Box className="h-4 w-4 text-[#fa9d26] shrink-0 mt-0.5" />
               <div>
-                <strong>Item Minimum Order:</strong> Minimum order for this item is <strong>{moq} pieces</strong>. You can mix and match any sizes and colors below to reach {moq} pcs.
+                <strong>Item Minimum Order:</strong> Wholesale factory pricing for this item starts at <strong>{moq} pieces</strong>. Choose the available sizes and colors below.
               </div>
             </div>
           )}
@@ -609,7 +603,62 @@ function MatrixOrderModal({
 }
 
 
-export function getProductAllImages(product: Product | null | undefined): string[] {
+// Resolve each shipping method independently; blank or zero never falls back to the other method.
+function getProductShippingFees(product: Product): { air: number; sea: number } {
+  if (product.description) {
+    const airMatch = product.description.match(/<!--dainty_ship_air:([0-9]+(?:\.[0-9]+)?)-->/);
+    const seaMatch = product.description.match(/<!--dainty_ship_sea:([0-9]+(?:\.[0-9]+)?)-->/);
+    if (airMatch !== null || seaMatch !== null) {
+      return {
+        air: airMatch ? Number(airMatch[1]) : 0,
+        sea: seaMatch ? Number(seaMatch[1]) : 0,
+      };
+    }
+  }
+
+  const hasAir = product.est_shipping_fee_air !== undefined && product.est_shipping_fee_air !== null;
+  const hasSea = product.est_shipping_fee_sea !== undefined && product.est_shipping_fee_sea !== null;
+  if (hasAir || hasSea) {
+    return {
+      air: hasAir && Number(product.est_shipping_fee_air) > 0 ? Number(product.est_shipping_fee_air) : 0,
+      sea: hasSea && Number(product.est_shipping_fee_sea) > 0 ? Number(product.est_shipping_fee_sea) : 0,
+    };
+  }
+
+  // A legacy generic fee does not identify Air vs Sea, so fail safe and show neither as available.
+  return { air: 0, sea: 0 };
+}
+
+function cleanProductDescription(description?: string | null): string {
+  return (description || '')
+    .replace(/<!--dainty_[\s\S]*?-->/g, '')
+    .replace(/(?:^|\s*[•|]\s*)(?:sizes?|models?):\s*[^•\n]*/gi, '')
+    .replace(/(?:^|\s*[•|]\s*)colors?:\s*[^•\n]*/gi, '')
+    .replace(/(?:^|\s*[•|]\s*)shipping:\s*(?:sea|air)\s+cargo\s+only/gi, '')
+    .replace(/(?:\s*•\s*){2,}/g, ' • ')
+    .replace(/^\s*•\s*|\s*•\s*$/g, '')
+    .trim();
+}
+
+function getDescriptionList(description: string | null | undefined, field: 'sizes' | 'colors'): string[] {
+  if (!description) return [];
+  const match = description.match(new RegExp(`<!--dainty_${field}:(.*?)-->`));
+  if (match) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      if (Array.isArray(parsed)) return parsed.map((item) => String(item).trim()).filter(Boolean);
+    } catch {
+      // Continue to the human-readable legacy description fallback below.
+    }
+  }
+  const label = field === 'sizes' ? '(?:sizes?|models?)' : 'colors?';
+  const legacy = description.match(new RegExp(`${label}:\\s*([^•\\n]+)`, 'i'));
+  return legacy?.[1]
+    ? legacy[1].split(/[,/|;]+/).map((item) => item.trim()).filter(Boolean)
+    : [];
+}
+
+function getProductAllImages(product: Product | null | undefined): string[] {
   if (!product) return [];
   const list: string[] = [];
 
@@ -693,11 +742,10 @@ function ProductCard({
   // Gather all available images with deep array/fallback parsing
   const allImages = useMemo(() => getProductAllImages(product), [product]);
 
-  const cleanDescription = useMemo(() => {
-    return (product.description || '')
-      .replace(/<!--dainty_images:.*?-->/g, '')
-      .trim();
-  }, [product.description]);
+  const cleanDescription = useMemo(
+    () => cleanProductDescription(product.description),
+    [product.description]
+  );
 
   // Gather all available color options (optional)
   const allColors = useMemo(() => {
@@ -724,9 +772,8 @@ function ProductCard({
         if (v?.color) addColor(v.color);
       }
     }
-    if (list.length === 0 && product.description) {
-      const match = product.description.match(/colors?:\s*([^•\n]+)/i);
-      if (match && match[1]) addColor(match[1]);
+    if (list.length === 0) {
+      for (const color of getDescriptionList(product.description, 'colors')) addColor(color);
     }
     return list;
   }, [product]);
@@ -759,9 +806,8 @@ function ProductCard({
         if (v?.size) addSize(v.size);
       }
     }
-    if (list.length === 0 && product.description) {
-      const match = product.description.match(/(?:sizes?|models?):\s*([^•\n]+)/i);
-      if (match && match[1]) addSize(match[1]);
+    if (list.length === 0) {
+      for (const size of getDescriptionList(product.description, 'sizes')) addSize(size);
     }
     return list;
   }, [product]);
@@ -772,7 +818,7 @@ function ProductCard({
   const [selectedColor, setSelectedColor] = useState<string | null>(allColors[0] || null);
   const [selectedSize, setSelectedSize] = useState<string | null>(allSizes[0] || product.size || null);
 
-  // For wholesale category mix-and-match, start at 1 piece so buyers can freely pick small quantities per design
+  // For category-level wholesale minimums, start at 1 piece so buyers can choose quantities per design
   // For wholesale per-item MOQ, start at 1 if matrix/variants exist, or moq if no variants
   const defaultQty = mode === 'wholesale' ? (moqScope === 'item' ? (hasVariants ? 1 : moq) : 1) : 1;
   const [orderQty, setOrderQty] = useState<number>(defaultQty);
@@ -794,8 +840,7 @@ function ProductCard({
     }
   }
 
-  const airFee = Number(product.est_shipping_fee_air ?? product.est_shipping_fee ?? 0);
-  const seaFee = Number(product.est_shipping_fee_sea ?? product.est_shipping_fee ?? 0);
+  const { air: airFee, sea: seaFee } = getProductShippingFees(product);
   const hasAir = airFee > 0;
   const hasSea = seaFee > 0;
 
@@ -917,16 +962,7 @@ function ProductCard({
 
         {/* Product Details */}
         <div className="p-4">
-          <div className="flex items-center justify-between gap-2">
-            {cat && <span className="text-xs font-medium text-stone-500">{cat.name}</span>}
-            {mode === 'wholesale' && (
-              <span className="text-[10px] font-semibold text-amber-900 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                {moqScope === 'category'
-                  ? `Category MOQ: ${moq} pcs total`
-                  : `Item MOQ: ${moq} pcs`}
-              </span>
-            )}
-          </div>
+          {cat && <span className="text-xs font-medium text-stone-500">{cat.name}</span>}
           <h2 className="mt-1 text-base font-semibold text-stone-900">{productTitle}</h2>
 
           {/* Size / Model chips only if sizes exist */}
@@ -1272,7 +1308,7 @@ export default function StorefrontPage() {
     });
   }, [products, selectedCategory, searchQuery]);
 
-  // Group quantities by category to support Category-level MOQ mix & match
+  // Group quantities by category to support category-level wholesale MOQ
   const categoryQtyMap = useMemo(() => {
     const map = new Map<string, number>();
     for (const item of cart) {
@@ -1282,32 +1318,18 @@ export default function StorefrontPage() {
     return map;
   }, [cart]);
 
-  // Check if cart contains any item that cannot be shipped by Air (Sea Only)
+  // A method is unavailable if any item in the cart has a blank or zero estimate for it.
+  // Keep the customer's selected method unchanged; never silently switch to the other method.
   const cartHasSeaOnlyItems = useMemo(() => {
-    return cart.some((item) => {
-      const airFee = Number(item.product.est_shipping_fee_air ?? 0);
-      const seaFee = Number(item.product.est_shipping_fee_sea ?? 0);
-      return airFee <= 0 && seaFee > 0;
-    });
+    return cart.some((item) => getProductShippingFees(item.product).air <= 0);
   }, [cart]);
 
-  // Check if cart contains any item that cannot be shipped by Sea (Air Only)
   const cartHasAirOnlyItems = useMemo(() => {
-    return cart.some((item) => {
-      const airFee = Number(item.product.est_shipping_fee_air ?? 0);
-      const seaFee = Number(item.product.est_shipping_fee_sea ?? 0);
-      return seaFee <= 0 && airFee > 0;
-    });
+    return cart.some((item) => getProductShippingFees(item.product).sea <= 0);
   }, [cart]);
 
-  // Automatically adjust shipping method if cart constraints require it
-  useEffect(() => {
-    if (cartHasSeaOnlyItems && shippingMethod === 'air') {
-      setShippingMethod('sea');
-    } else if (cartHasAirOnlyItems && shippingMethod === 'sea') {
-      setShippingMethod('air');
-    }
-  }, [cartHasSeaOnlyItems, cartHasAirOnlyItems, shippingMethod]);
+  const cartHasUnavailableSelectedMethod =
+    shippingMethod === 'air' ? cartHasSeaOnlyItems : cartHasAirOnlyItems;
 
   function addToCart(
     product: Product,
@@ -1400,8 +1422,7 @@ export default function StorefrontPage() {
   // Shipping fees purely based on per-item estimate, NO weight calculation
   const estimatedShipping = useMemo(() => {
     return cart.reduce((sum, item) => {
-      const airFee = Number(item.product.est_shipping_fee_air ?? 0);
-      const seaFee = Number(item.product.est_shipping_fee_sea ?? 0);
+      const { air: airFee, sea: seaFee } = getProductShippingFees(item.product);
       const perItemFee = shippingMethod === 'air' ? airFee : seaFee;
       return sum + perItemFee * item.quantity;
     }, 0);
@@ -1438,8 +1459,8 @@ export default function StorefrontPage() {
         selectedSize: i.selectedSize || null,
         selectedColor: i.selectedColor || null,
         selectedImage: i.selectedImage || i.product.image_url || (i.product.images && i.product.images[0]) || null,
-        estShippingAir: Number(i.product.est_shipping_fee_air || 0),
-        estShippingSea: Number(i.product.est_shipping_fee_sea || 0),
+        estShippingAir: getProductShippingFees(i.product).air,
+        estShippingSea: getProductShippingFees(i.product).sea,
       })),
       total_pieces: totalCartCount,
       total_amount: subtotal,
@@ -1703,7 +1724,7 @@ export default function StorefrontPage() {
                 type="button"
                 disabled={cartHasSeaOnlyItems}
                 onClick={() => setShippingMethod('air')}
-                title={cartHasSeaOnlyItems ? 'Some items in your cart can only be shipped via Sea Cargo' : 'Air cargo delivery within 3 weeks'}
+                title={cartHasSeaOnlyItems ? 'At least one item has no Air shipping rate and cannot be shipped by air' : 'Air cargo delivery within 3 weeks'}
                 className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition ${
                   cartHasSeaOnlyItems
                     ? 'opacity-40 cursor-not-allowed text-stone-400'
@@ -1719,7 +1740,7 @@ export default function StorefrontPage() {
                 type="button"
                 disabled={cartHasAirOnlyItems}
                 onClick={() => setShippingMethod('sea')}
-                title={cartHasAirOnlyItems ? 'Some items in your cart can only be shipped via Air Cargo' : 'Sea cargo delivery within 3 months'}
+                title={cartHasAirOnlyItems ? 'At least one item has no Sea shipping rate and cannot be shipped by sea' : 'Sea cargo delivery within 3 months'}
                 className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition ${
                   cartHasAirOnlyItems
                     ? 'opacity-40 cursor-not-allowed text-stone-400'
@@ -2227,14 +2248,14 @@ export default function StorefrontPage() {
                         </span>
                       </div>
                       <div className="text-[10px] text-stone-500 mt-0.5 flex flex-wrap gap-1.5">
-                        {Number(item.product.est_shipping_fee_air ?? item.product.est_shipping_fee ?? 0) > 0 ? (
-                          <span>Air: ₦{Number(item.product.est_shipping_fee_air ?? item.product.est_shipping_fee).toLocaleString()}</span>
+                        {getProductShippingFees(item.product).air > 0 ? (
+                          <span>Air: ₦{getProductShippingFees(item.product).air.toLocaleString()}</span>
                         ) : (
                           <span className="text-red-600 font-medium">Can't be shipped by air</span>
                         )}
                         <span>•</span>
-                        {Number(item.product.est_shipping_fee_sea ?? item.product.est_shipping_fee ?? 0) > 0 ? (
-                          <span>Sea: ₦{Number(item.product.est_shipping_fee_sea ?? item.product.est_shipping_fee).toLocaleString()}</span>
+                        {getProductShippingFees(item.product).sea > 0 ? (
+                          <span>Sea: ₦{getProductShippingFees(item.product).sea.toLocaleString()}</span>
                         ) : (
                           <span className="text-red-600 font-medium">Can't be shipped by sea</span>
                         )}
@@ -2286,8 +2307,12 @@ export default function StorefrontPage() {
 
             <div className="flex items-center justify-between text-[11px] text-stone-500">
               <span>Est. Shipping ({shippingMethod.toUpperCase()} Cargo):</span>
-              <span className="font-medium text-stone-700">
-                {estimatedShipping > 0 ? `₦${estimatedShipping.toLocaleString()}` : 'Payable upon arrival'}
+              <span className={`font-medium ${cartHasUnavailableSelectedMethod ? 'text-red-700' : 'text-stone-700'}`}>
+                {cartHasUnavailableSelectedMethod
+                  ? `Can't be shipped by ${shippingMethod}`
+                  : estimatedShipping > 0
+                  ? `₦${estimatedShipping.toLocaleString()}`
+                  : 'Exact fee confirmed upon arrival'}
               </span>
             </div>
 
@@ -2296,15 +2321,21 @@ export default function StorefrontPage() {
               <span className="font-semibold text-stone-800">{shippingTimeline}</span>
             </div>
 
-            <a
-              href={buildWhatsAppLink()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white shadow-md hover:bg-emerald-700 transition active:scale-98"
-            >
-              <MessageCircle className="h-4 w-4" />
-              Send Preorder on WhatsApp
-            </a>
+            {cartHasUnavailableSelectedMethod ? (
+              <div className="mt-1 rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-center text-xs font-semibold text-red-700">
+                Can't be shipped by {shippingMethod}. Remove the unavailable item or choose another available shipping method.
+              </div>
+            ) : (
+              <a
+                href={buildWhatsAppLink()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white shadow-md hover:bg-emerald-700 transition active:scale-98"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Send Preorder on WhatsApp
+              </a>
+            )}
 
             <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 text-[11px] text-stone-600 space-y-1.5 text-left">
               <div className="font-bold text-stone-900 text-xs">China Sourcing & Preorder Terms</div>
