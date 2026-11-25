@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import {
   ArrowLeft,
   Check,
+  Clock,
   Maximize2,
   MessageCircle,
   Minus,
@@ -17,6 +18,7 @@ import {
   ShoppingBag,
   Sparkles,
   Trash2,
+  Truck,
   X,
 } from 'lucide-react';
 
@@ -45,6 +47,12 @@ export type PreorderRecord = {
   customer_name?: string;
   customer_phone?: string;
   created_at?: string;
+  status?: string;
+  payment_date?: string;
+  china_ordered_at?: string;
+  shipped_at?: string;
+  ready_at?: string;
+  delivered_at?: string;
 };
 
 export default function OrderCatalogPage() {
@@ -55,6 +63,34 @@ export default function OrderCatalogPage() {
   const [adminSaveError, setAdminSaveError] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+
+
+  const isPaid = useMemo(() => {
+    if (!order) return false;
+    const s = String(order.status || '').toLowerCase().trim();
+    return ['paid', 'ordered', 'shipped', 'ready_for_delivery', 'delivered'].includes(s) || Boolean(order.payment_date);
+  }, [order]);
+
+  // Real-time status sync when admin updates payment or fulfillment
+  useEffect(() => {
+    if (!orderId) return;
+    const channel = supabase
+      .channel(`order_realtime_${orderId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'preorders', filter: `id=eq.${orderId}` },
+        (payload) => {
+          if (payload.new) {
+            setOrder((prev) => ({ ...prev, ...(payload.new as PreorderRecord) }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orderId]);
 
   // Admin edit mode
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
@@ -262,7 +298,7 @@ export default function OrderCatalogPage() {
     const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
 
     const lines: string[] = [
-      `*China Factory Preorder - Dainty Import*`,
+      `*Dainty Preorder*`,
       `*Order ID:* #${order.id}`,
       '',
       `*Total Items Ordered:* ${activeItems.length} item${activeItems.length === 1 ? '' : 's'}`,
@@ -271,7 +307,7 @@ export default function OrderCatalogPage() {
       `*Shipping Method:* ${activeShippingMethod.toUpperCase()} (Shipping Time Frame: ${shippingTimeline})`,
       `*Est. Shipping Fee:* ${estShippingCost > 0 ? `₦${estShippingCost.toLocaleString()}` : 'To be confirmed upon arrival in Nigeria'}`,
       '',
-      `*View Cart (Click link below to view full cart and all items on website):*`,
+      `*View Order:*`,
       currentUrl,
     ];
 
@@ -321,7 +357,7 @@ export default function OrderCatalogPage() {
 
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[11px] font-bold text-[#b86200]">
-              {orderId ? `#${orderId}` : 'Preorder Sheet'}
+              {orderId ? `#${orderId}` : 'Preorder'}
             </span>
 
             {isAdminUnlocked && (
@@ -347,7 +383,7 @@ export default function OrderCatalogPage() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="h-9 w-9 animate-spin rounded-full border-3 border-stone-300 border-t-[#fa9d26]" />
-            <p className="mt-4 text-xs font-medium text-stone-500">Loading preorder catalog...</p>
+            <p className="mt-4 text-xs font-medium text-stone-500">Loading preorder details...</p>
           </div>
         ) : errorMsg ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
@@ -388,7 +424,7 @@ export default function OrderCatalogPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h1 className="text-lg sm:text-xl font-extrabold text-stone-900 tracking-tight">
-                      China Factory Preorder Sheet
+                      Dainty Preorder
                     </h1>
                   </div>
                   <p className="mt-0.5 text-xs text-stone-500">
@@ -396,13 +432,51 @@ export default function OrderCatalogPage() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-bold text-emerald-700">
-                    <Check className="h-3.5 w-3.5" />
-                    Verified Preorder
-                  </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {isPaid ? (
+                    <>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-300 px-3 py-1 text-xs font-bold text-emerald-800 shadow-2xs">
+                        <Check className="h-3.5 w-3.5 text-emerald-600" />
+                        Payment Confirmed
+                      </span>
+                      <Link
+                        href={`/track?id=${order?.id}`}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-stone-900 px-3.5 py-1 text-xs font-bold text-white shadow-xs hover:bg-stone-800 transition"
+                      >
+                        <Truck className="h-3.5 w-3.5 text-[#fa9d26]" />
+                        <span>Track Order</span>
+                      </Link>
+                    </>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-xs font-semibold text-amber-800">
+                      <Clock className="h-3.5 w-3.5 text-amber-600" />
+                      Pending Payment
+                    </span>
+                  )}
                 </div>
               </div>
+
+              {/* Real-time Tracking Notice when Payment is Confirmed */}
+              {isPaid && (
+                <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/80 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-2xs">
+                      <Truck className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-emerald-950">Payment Confirmed • Tracking Active</div>
+                      <div className="text-[11px] text-emerald-800">Your purchase payment is confirmed! You can now track China procurement and delivery in real time.</div>
+                    </div>
+                  </div>
+                  <Link
+                    href={`/track?id=${order?.id}`}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-800 transition shadow-2xs shrink-0"
+                  >
+                    <Truck className="h-3.5 w-3.5" />
+                    <span>Track Order</span>
+                  </Link>
+                </div>
+              )}
 
               {/* Summary Stats Row */}
               <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -451,7 +525,7 @@ export default function OrderCatalogPage() {
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-bold text-stone-800 uppercase tracking-wider flex items-center gap-2">
                   <ShoppingBag className="h-4 w-4 text-[#fa9d26]" />
-                  <span>Selected Products Catalog ({activeItems.length})</span>
+                  <span>Order Items ({activeItems.length})</span>
                 </h2>
                 <span className="text-xs text-stone-500">{totalPieces} total units</span>
               </div>
@@ -645,6 +719,15 @@ export default function OrderCatalogPage() {
 
             {/* Bottom Actions */}
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              {isPaid && (
+                <Link
+                  href={`/track?id=${order?.id}`}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-stone-900 py-3.5 text-xs font-bold text-white shadow-sm hover:bg-stone-800 transition"
+                >
+                  <Truck className="h-4 w-4 text-[#fa9d26]" />
+                  <span>Track Order</span>
+                </Link>
+              )}
               <a
                 href={buildOrderWhatsAppUrl()}
                 target="_blank"
