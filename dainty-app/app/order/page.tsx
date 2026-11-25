@@ -366,6 +366,16 @@ export default function OrderCatalogPage() {
               </span>
             )}
 
+            <a
+              href={buildOrderWhatsAppUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 hover:bg-emerald-100 transition shadow-2xs"
+              title="Message on WhatsApp"
+            >
+              <MessageCircle className="h-3.5 w-3.5 text-emerald-600" />
+              <span>WhatsApp</span>
+            </a>
             <button
               type="button"
               onClick={handleCopyOrderLink}
