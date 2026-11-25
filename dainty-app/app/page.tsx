@@ -1888,23 +1888,16 @@ export default function StorefrontPage() {
         {/* How Dainty Preorder Works Banner */}
         <section className="mb-6 overflow-hidden rounded-2xl border border-[#fa9d26]/30 bg-gradient-to-br from-[#fce7cc]/90 via-[#fff8f0] to-white p-4 sm:p-6 shadow-xs">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <img
-                src="/logo.png"
-                alt="Dainty Import"
-                className="h-12 w-auto sm:h-14 rounded-xl object-contain shadow-xs border border-[#fa9d26]/30 bg-white p-1"
-              />
-              <div>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fa9d26] px-2.5 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider shadow-2xs">
-                  CHINA FACTORY PRICES
-                </span>
-                <h2 className="mt-1 text-lg sm:text-2xl font-bold tracking-tight text-stone-900">
-                  How Dainty Preorder Works
-                </h2>
-                <p className="mt-1 text-xs sm:text-sm text-stone-600 max-w-xl leading-relaxed">
-                  Shop China factory products. Select <strong>Wholesale</strong> for discounted bulk orders or <strong>Retail</strong> for single items, pick your sizes and colors, and choose <strong>Air Cargo</strong> (shipping time frame: within 3 weeks) or <strong>Sea Cargo</strong> (shipping time frame: within 3 months). Checkout takes you to WhatsApp to complete your order. The initial payment covers the buying price of the item, and shipping fee is confirmed and paid separately when your goods arrive in Nigeria. Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria.
-                </p>
-              </div>
+            <div>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fa9d26] px-2.5 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider shadow-2xs">
+                CHINA FACTORY PRICES
+              </span>
+              <h2 className="mt-1 text-lg sm:text-2xl font-bold tracking-tight text-stone-900">
+                How Dainty Preorder Works
+              </h2>
+              <p className="mt-1 text-xs sm:text-sm text-stone-600 max-w-xl leading-relaxed">
+                Shop China factory products. Select <strong>Wholesale</strong> for discounted bulk orders or <strong>Retail</strong> for single items, pick your sizes and colors, and choose <strong>Air Cargo</strong> (shipping time frame: within 3 weeks) or <strong>Sea Cargo</strong> (shipping time frame: within 3 months). Checkout takes you to WhatsApp to complete your order. The initial payment covers the buying price of the item, and shipping fee is confirmed and paid separately when your goods arrive in Nigeria. Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria.
+              </p>
             </div>
 
             <div className="flex flex-col gap-1.5 shrink-0 w-full sm:w-auto">
