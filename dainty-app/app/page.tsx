@@ -1120,6 +1120,23 @@ function ProductCard({
 
 const CART_STORAGE_KEY = 'dainty_preorder_cart_v1';
 
+
+function WhatsAppIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+    </svg>
+  );
+}
+
+function getCleanWhatsAppPhone(raw?: string | null): string {
+  const digits = (raw || '').replace(/[^0-9]/g, '');
+  if (digits.startsWith('0') && digits.length === 11) {
+    return '234' + digits.slice(1);
+  }
+  return digits;
+}
+
 export default function StorefrontPage() {
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -1141,6 +1158,54 @@ export default function StorefrontPage() {
   const [copiedLink, setCopiedLink] = useState(false);
 
   const [activeOrderId, setActiveOrderId] = useState<string>('');
+  // Custom item sourcing request modal state
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [requestItemName, setRequestItemName] = useState('');
+  const [requestOrderType, setRequestOrderType] = useState<'retail' | 'wholesale'>('wholesale');
+  const [requestQuantity, setRequestQuantity] = useState('');
+  const [requestShipping, setRequestShipping] = useState<'air' | 'sea' | 'either'>('air');
+  const [requestNotes, setRequestNotes] = useState('');
+
+  function buildDirectWhatsAppChatUrl(customText?: string) {
+    const cleanPhone = getCleanWhatsAppPhone(settings?.whatsapp_number);
+    const text = encodeURIComponent(
+      customText || 'Hello Dainty Import, I would like to make an inquiry about China preorders.'
+    );
+    return cleanPhone ? `https://wa.me/${cleanPhone}?text=${text}` : `https://wa.me/?text=${text}`;
+  }
+
+  function handleSendCustomRequest(e: React.FormEvent) {
+    e.preventDefault();
+    if (!requestItemName.trim()) return;
+
+    const lines: string[] = [
+      `*Custom Sourcing Request - Dainty Import*`,
+      '',
+      `*Item Description:* ${requestItemName.trim()}`,
+      `*Order Type:* ${requestOrderType === 'wholesale' ? 'Wholesale (Bulk Purchase)' : 'Retail'}`,
+      requestQuantity.trim() ? `*Quantity Needed:* ${requestQuantity.trim()}` : '',
+      `*Preferred Shipping:* ${
+        requestShipping === 'air'
+          ? 'Air Cargo (Within 3 weeks)'
+          : requestShipping === 'sea'
+          ? 'Sea Cargo (Within 3 months)'
+          : 'Air or Sea (Best rate)'
+      }`,
+      requestNotes.trim() ? `*Reference Link / Notes:* ${requestNotes.trim()}` : '',
+      '',
+      `Hello Dainty Import, please help me source this item from China suppliers and give me a price quotation.`,
+    ].filter(Boolean);
+
+    const cleanPhone = getCleanWhatsAppPhone(settings?.whatsapp_number);
+    const encoded = encodeURIComponent(lines.join('\n'));
+    const url = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setIsRequestModalOpen(false);
+    setRequestItemName('');
+    setRequestNotes('');
+    setRequestQuantity('');
+  }
+
 
   const [orderPaymentConfirmed, setOrderPaymentConfirmed] = useState(false);
 
@@ -1649,7 +1714,7 @@ export default function StorefrontPage() {
   }
 
   function buildWhatsAppLink() {
-    const cleanPhone = (settings?.whatsapp_number || '').replace(/[^0-9]/g, '');
+    const cleanPhone = getCleanWhatsAppPhone(settings?.whatsapp_number);
     const shareableLink = buildShareableCartUrl();
 
     const lines: string[] = [
@@ -1734,7 +1799,41 @@ export default function StorefrontPage() {
             </div>
           </div>
 
-          <a href="/track" className="shrink-0 rounded-lg px-2 py-1.5 text-[11px] font-bold text-stone-600 hover:bg-amber-50 hover:text-amber-800">Track</a>
+          {/* Track order link */}
+          <a
+            href="/track"
+            className="shrink-0 rounded-lg px-2 py-1.5 text-[11px] font-bold text-stone-600 hover:bg-amber-50 hover:text-amber-800 transition"
+          >
+            Track
+          </a>
+
+          {/* Request Item Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setRequestOrderType(mode);
+              setRequestShipping(shippingMethod);
+              setIsRequestModalOpen(true);
+            }}
+            className="shrink-0 inline-flex items-center gap-1 sm:gap-1.5 rounded-lg border border-amber-300 bg-amber-50/80 px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-bold text-amber-950 hover:bg-amber-100 hover:border-amber-400 transition shadow-2xs"
+            title="Request any item to be sourced from China"
+          >
+            <Sparkles className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-[#fa9d26]" />
+            <span>Request Item</span>
+          </button>
+
+          {/* Direct WhatsApp Chat Header Link */}
+          <a
+            href={buildDirectWhatsAppChatUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 inline-flex items-center gap-1 sm:gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-bold text-emerald-900 hover:bg-emerald-100 transition shadow-2xs"
+            title="Chat directly on WhatsApp"
+            aria-label="WhatsApp Chat"
+          >
+            <WhatsAppIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-emerald-600 shrink-0" />
+            <span className="hidden sm:inline">WhatsApp</span>
+          </a>
 
           {/* Mobile Cart Trigger on Top Header */}
           <button
@@ -1969,6 +2068,25 @@ export default function StorefrontPage() {
               </div>
             </div>
           </div>
+
+          {/* Custom Item Sourcing CTA Banner */}
+          <div className="mt-4 pt-3.5 border-t border-amber-200/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+            <div className="text-xs text-stone-700">
+              <span className="font-bold text-stone-900">Can&apos;t find what you are looking for?</span> We source any item directly from 1688 and China manufacturers at direct factory prices.
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setRequestOrderType(mode);
+                setRequestShipping(shippingMethod);
+                setIsRequestModalOpen(true);
+              }}
+              className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-xl bg-stone-900 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-stone-800 transition active:scale-95"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-[#fa9d26]" />
+              <span>Request Any Item</span>
+            </button>
+          </div>
         </section>
 
         {/* Retail vs Wholesale Option & Shipping Selector at the top of All Products */}
@@ -2115,10 +2233,28 @@ export default function StorefrontPage() {
             Connecting to China catalog...
           </div>
         ) : filteredProducts.length === 0 ? (
-          <div className="py-20 text-center text-sm text-stone-500">
-            {searchQuery
-              ? `No products found matching "${searchQuery}".`
-              : 'No products found in this category.'}
+          <div className="py-16 text-center space-y-3">
+            <p className="text-sm font-medium text-stone-600">
+              {searchQuery
+                ? `No products found matching "${searchQuery}".`
+                : 'No products found in this category.'}
+            </p>
+            <p className="text-xs text-stone-500 max-w-md mx-auto">
+              Looking for this or another item? We source any product directly from China suppliers. Click below to request it!
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                if (searchQuery) setRequestItemName(searchQuery);
+                setRequestOrderType(mode);
+                setRequestShipping(shippingMethod);
+                setIsRequestModalOpen(true);
+              }}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#fa9d26] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#e68a15] transition active:scale-95"
+            >
+              <Sparkles className="h-4 w-4" />
+              <span>Request {searchQuery ? `"${searchQuery}"` : 'Any Item'} from China</span>
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -2467,6 +2603,181 @@ export default function StorefrontPage() {
           </div>
         )}
       </aside>
+
+      {/* Floating WhatsApp Action Button (Bottom Left) */}
+      <a
+        href={buildDirectWhatsAppChatUrl()}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-5 left-5 z-40 flex items-center gap-2 rounded-full bg-[#25D366] px-3.5 py-2.5 sm:px-4 sm:py-3 text-white shadow-2xl hover:bg-[#20ba59] transition transform hover:scale-105 active:scale-95 border-2 border-white/80"
+        title="Chat with Dainty Import on WhatsApp"
+        aria-label="Chat on WhatsApp"
+      >
+        <WhatsAppIcon className="h-5 w-5 fill-white shrink-0" />
+        <span className="text-xs font-bold sm:inline hidden">Chat on WhatsApp</span>
+      </a>
+
+      {/* Custom Item Sourcing Request Modal */}
+      {isRequestModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs transition animate-in fade-in"
+          onClick={() => setIsRequestModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-[#b96b0c]">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-stone-900">Request Any Item from China</h3>
+                  <p className="text-[11px] text-stone-500">We source directly from 1688 and China factories</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRequestModalOpen(false)}
+                className="rounded-full p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSendCustomRequest} className="space-y-3.5 text-left text-xs">
+              <div>
+                <label className="block font-bold text-stone-800 mb-1">
+                  What item do you want to source? <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={requestItemName}
+                  onChange={(e) => setRequestItemName(e.target.value)}
+                  placeholder="e.g. Leather Handbags, Acrylic Display Boxes, iPhone 16 Cases..."
+                  className="w-full rounded-xl border border-stone-300 bg-stone-50 px-3.5 py-2.5 text-stone-900 placeholder:text-stone-400 focus:border-[#fa9d26] focus:bg-white focus:outline-hidden"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-stone-800 mb-1">Order Type</label>
+                  <div className="grid grid-cols-2 gap-1 rounded-xl border border-stone-200 bg-stone-100 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setRequestOrderType('retail')}
+                      className={`rounded-lg py-1.5 text-center font-bold transition ${
+                        requestOrderType === 'retail'
+                          ? 'bg-white text-stone-900 shadow-xs'
+                          : 'text-stone-600'
+                      }`}
+                    >
+                      Retail
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRequestOrderType('wholesale')}
+                      className={`rounded-lg py-1.5 text-center font-bold transition ${
+                        requestOrderType === 'wholesale'
+                          ? 'bg-[#fa9d26] text-white shadow-xs'
+                          : 'text-stone-600'
+                      }`}
+                    >
+                      Wholesale (MOQ)
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-stone-800 mb-1">Estimated Quantity</label>
+                  <input
+                    type="text"
+                    value={requestQuantity}
+                    onChange={(e) => setRequestQuantity(e.target.value)}
+                    placeholder="e.g. 50 pcs, 20 pairs, 1 sample..."
+                    className="w-full rounded-xl border border-stone-300 bg-stone-50 px-3.5 py-2 text-stone-900 placeholder:text-stone-400 focus:border-[#fa9d26] focus:bg-white focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-stone-800 mb-1">Preferred Shipping Method</label>
+                <div className="grid grid-cols-3 gap-1.5 rounded-xl border border-stone-200 bg-stone-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setRequestShipping('air')}
+                    className={`flex items-center justify-center gap-1 rounded-lg py-1.5 text-center font-bold transition ${
+                      requestShipping === 'air'
+                        ? 'bg-white text-stone-900 shadow-xs'
+                        : 'text-stone-600'
+                    }`}
+                  >
+                    <Plane className="h-3 w-3 text-emerald-600" />
+                    <span>Air (~3 wks)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRequestShipping('sea')}
+                    className={`flex items-center justify-center gap-1 rounded-lg py-1.5 text-center font-bold transition ${
+                      requestShipping === 'sea'
+                        ? 'bg-white text-stone-900 shadow-xs'
+                        : 'text-stone-600'
+                    }`}
+                  >
+                    <Ship className="h-3 w-3 text-sky-600" />
+                    <span>Sea (~3 mos)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRequestShipping('either')}
+                    className={`rounded-lg py-1.5 text-center font-bold transition ${
+                      requestShipping === 'either'
+                        ? 'bg-white text-stone-900 shadow-xs'
+                        : 'text-stone-600'
+                    }`}
+                  >
+                    Best Rate
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-stone-800 mb-1">
+                  Product Link, Specifications or Color/Sizes (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={requestNotes}
+                  onChange={(e) => setRequestNotes(e.target.value)}
+                  placeholder="Paste 1688/Taobao/Instagram link or note preferred colors, sizes, materials..."
+                  className="w-full rounded-xl border border-stone-300 bg-stone-50 px-3.5 py-2 text-stone-900 placeholder:text-stone-400 focus:border-[#fa9d26] focus:bg-white focus:outline-hidden"
+                />
+              </div>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-[11px] text-amber-900 flex items-start gap-2">
+                <Info className="h-4 w-4 text-[#fa9d26] shrink-0 mt-0.5" />
+                <span>
+                  After clicking below, you can also attach sample pictures or videos of the item directly in our WhatsApp chat!
+                </span>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] hover:bg-[#20ba59] py-3 text-sm font-bold text-white shadow-md transition active:scale-98"
+                >
+                  <WhatsAppIcon className="h-4 w-4 fill-white" />
+                  <span>Send Request to WhatsApp</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
