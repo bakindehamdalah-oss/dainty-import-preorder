@@ -629,13 +629,13 @@ export default function OrderCatalogPage() {
               </h3>
               <div className="space-y-2 text-xs text-stone-600 leading-relaxed border-t border-stone-100 pt-3">
                 <p>
-                  <strong className="text-stone-900">Initial Payment:</strong> The initial payment covers only the cost of purchasing your item. Your order will be shipped once the purchase payment has been completed.
+                  <strong className="text-stone-900">Initial Payment:</strong> The initial payment covers the buying price of the item. Your order will be shipped once the purchase payment has been completed.
                 </p>
                 <p>
-                  <strong className="text-stone-900">Shipping Estimate:</strong> Shipping fees provided are estimates. The exact shipping cost will be confirmed when your order arrives in Nigeria.
+                  <strong className="text-stone-900">Shipping Estimate:</strong> Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria.
                 </p>
                 <p>
-                  <strong className="text-stone-900">Shipping Payment:</strong> Shipping fees are paid separately when your order arrives in Nigeria.
+                  <strong className="text-stone-900">Shipping Payment:</strong> Shipping fee is confirmed and paid separately when your goods arrive in Nigeria.
                 </p>
               </div>
             </div>
