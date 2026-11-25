@@ -1891,7 +1891,7 @@ export default function StorefrontPage() {
 
       {/* Main Content Area */}
       <main className="mx-auto w-full max-w-6xl px-3.5 py-5 sm:px-6 sm:py-8 flex-1">
-        {/* How China Pre-orders Work Banner */}
+        {/* How Dainty Preorder Works Banner */}
         <section className="mb-6 overflow-hidden rounded-2xl border border-[#fa9d26]/30 bg-gradient-to-br from-[#fce7cc]/90 via-[#fff8f0] to-white p-4 sm:p-6 shadow-xs">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
@@ -1902,13 +1902,13 @@ export default function StorefrontPage() {
               />
               <div>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fa9d26] px-2.5 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider shadow-2xs">
-                  China Factory Direct Portal
+                  CHINA FACTORY PRICES
                 </span>
                 <h2 className="mt-1 text-lg sm:text-2xl font-bold tracking-tight text-stone-900">
-                  How China Pre-Orders Work
+                  How Dainty Preorder Works
                 </h2>
-                <p className="text-xs sm:text-sm text-stone-600 max-w-xl">
-                  Source direct from verified China suppliers and factories in Naira. Choose wholesale or retail, pick your exact specifications, and submit your order directly to WhatsApp.
+                <p className="mt-1 text-xs sm:text-sm text-stone-600 max-w-xl leading-relaxed">
+                  Shop China factory products in Naira. Select <strong>Wholesale</strong> for discounted bulk orders or <strong>Retail</strong> for single items, pick your sizes and colors, and choose <strong>Air Cargo</strong> (within 3 weeks) or <strong>Sea Cargo</strong> (within 3 months). Submit your order to WhatsApp—your initial payment covers the product purchase from the factory, while shipping is confirmed and paid separately when your goods arrive in Nigeria.
                 </p>
               </div>
             </div>
