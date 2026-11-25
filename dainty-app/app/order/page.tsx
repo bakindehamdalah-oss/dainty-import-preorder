@@ -273,11 +273,6 @@ export default function OrderCatalogPage() {
       '',
       `*View Cart (Click link below to view full cart and all items on website):*`,
       currentUrl,
-      '',
-      `*China Sourcing & Preorder Terms*`,
-      `• *Initial Payment:* The initial payment covers only the cost of purchasing your item. Your order will be shipped once the purchase payment has been completed.`,
-      `• *Shipping Estimate:* Shipping fees provided are estimates. The exact shipping cost will be confirmed when your order arrives in Nigeria.`,
-      `• *Shipping Payment:* Shipping fees are paid separately when your order arrives in Nigeria.`
     ];
 
     return `https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`;
