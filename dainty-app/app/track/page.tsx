@@ -132,7 +132,24 @@ export default function TrackOrderPage() {
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-2">
           <Link href="/" className="inline-flex items-center gap-1 text-xs font-semibold text-stone-600"><ArrowLeft className="h-4 w-4" />Storefront</Link>
           <div className="flex items-center gap-2"><img src="/logo.png" alt="Dainty Import" className="h-7 w-auto" /><span className="text-xs font-bold">Customer Tracking</span></div>
-          {order ? <button onClick={copyTrackingLink} className="inline-flex items-center gap-1 rounded-lg border border-stone-200 px-2.5 py-1 text-xs font-semibold"> <Share2 className="h-3.5 w-3.5" />{copiedLink ? 'Copied!' : 'Share'}</button> : <span className="w-16" />}
+          <div className="flex items-center gap-1.5">
+            <a
+              href={order ? `https://wa.me/?text=${encodeURIComponent(`Hello Dainty Import, I have a question about my tracking order #${order.id}.`)}` : 'https://wa.me/?text=Hello%20Dainty%20Import'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 hover:bg-emerald-100 transition shadow-2xs"
+              title="Chat on WhatsApp"
+            >
+              <MessageCircle className="h-3.5 w-3.5 text-emerald-600" />
+              <span>WhatsApp</span>
+            </a>
+            {order && (
+              <button onClick={copyTrackingLink} className="inline-flex items-center gap-1 rounded-lg border border-stone-200 px-2.5 py-1 text-xs font-semibold">
+                <Share2 className="h-3.5 w-3.5" />
+                {copiedLink ? 'Copied!' : 'Share'}
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
