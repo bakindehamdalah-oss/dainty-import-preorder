@@ -651,7 +651,7 @@ export default function AdminPage() {
         `Exciting news! Your Preorder *#${order.id}* (${pieces} pcs) has arrived in Nigeria and is ready for pickup or delivery!\n\n` +
         `*Confirmed Shipping Fee:* ₦${finalShip || estShip}\n` +
         `*Delivery Address:* ${order.customer_address || 'As registered'}\n\n` +
-        `Please confirm payment of the shipping fee so we can dispatch your parcel right away! Note that shipping fees must be settled within 7 days of notification, as payments delayed beyond 7 days will attract a daily storage charge.`;
+        `Please confirm payment of the shipping fee so we can dispatch your parcel right away! Note that shipping fees must be settled within 7 days of notification.`;
     } else if (status === 'delivered') {
       message = `*DAINTY IMPORT - ORDER DELIVERED*\n\n` +
         `Hello ${name}!\n` +
