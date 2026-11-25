@@ -1677,7 +1677,7 @@ export default function StorefrontPage() {
             <div>
               <h1 className="text-sm sm:text-base font-bold tracking-tight text-stone-900 leading-tight">Dainty Import</h1>
               <p className="text-[9px] sm:text-[11px] font-semibold text-[#fa9d26] uppercase tracking-wider">
-                China Direct Pre-orders
+                China Direct Preorders
               </p>
             </div>
           </div>
@@ -1902,7 +1902,7 @@ export default function StorefrontPage() {
                   How Dainty Preorder Works
                 </h2>
                 <p className="mt-1 text-xs sm:text-sm text-stone-600 max-w-xl leading-relaxed">
-                  Shop China factory products. Select <strong>Wholesale</strong> for discounted bulk orders or <strong>Retail</strong> for single items, pick your sizes and colors, and choose <strong>Air Cargo</strong> (within 3 weeks) or <strong>Sea Cargo</strong> (within 3 months). Submit your order to WhatsApp—your initial payment covers the product purchase from the factory, while shipping is confirmed and paid separately when your goods arrive in Nigeria.
+                  Shop China factory products. Select <strong>Wholesale</strong> for discounted bulk orders or <strong>Retail</strong> for single items, pick your sizes and colors, and choose <strong>Air Cargo</strong> (within 3 weeks) or <strong>Sea Cargo</strong> (within 3 months). Checkout takes you to WhatsApp to complete your order. The initial payment covers the buying price of the item, and shipping fee is confirmed and paid separately when your goods arrive in Nigeria. Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria.
                 </p>
               </div>
             </div>
@@ -2323,9 +2323,9 @@ export default function StorefrontPage() {
 
             <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 text-[11px] text-stone-600 space-y-1.5 text-left">
               <div className="font-bold text-stone-900 text-xs">China Sourcing & Preorder Terms</div>
-              <div><strong className="text-stone-800">Initial Payment:</strong> The initial payment covers only the cost of purchasing your item. Your order will be shipped once the purchase payment has been completed.</div>
-              <div><strong className="text-stone-800">Shipping Estimate:</strong> Shipping fees provided are estimates. The exact shipping cost will be confirmed when your order arrives in Nigeria.</div>
-              <div><strong className="text-stone-800">Shipping Payment:</strong> Shipping fees are paid separately when your order arrives in Nigeria.</div>
+              <div><strong className="text-stone-800">Initial Payment:</strong> The initial payment covers the buying price of the item. Your order will be shipped once the purchase payment has been completed.</div>
+              <div><strong className="text-stone-800">Shipping Estimate:</strong> Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria.</div>
+              <div><strong className="text-stone-800">Shipping Payment:</strong> Shipping fee is confirmed and paid separately when your goods arrive in Nigeria.</div>
             </div>
           </div>
         )}
