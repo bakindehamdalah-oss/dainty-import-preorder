@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import {
@@ -25,6 +27,7 @@ import {
   Sparkles,
   Tag,
   Trash2,
+  Truck,
   X,
 } from 'lucide-react';
 
@@ -1136,7 +1139,56 @@ export default function StorefrontPage() {
     const [matrixProduct, setMatrixProduct] = useState<Product | null>(null);
   const [loadedOrderNotice, setLoadedOrderNotice] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+
   const [activeOrderId, setActiveOrderId] = useState<string>('');
+
+  const [orderPaymentConfirmed, setOrderPaymentConfirmed] = useState(false);
+
+  // Sync real-time payment status for active preorder
+  useEffect(() => {
+    if (!activeOrderId) {
+      setOrderPaymentConfirmed(false);
+      return;
+    }
+    let active = true;
+    async function checkPaymentStatus() {
+      try {
+        const { data } = await supabase
+          .from('preorders')
+          .select('status, payment_date')
+          .eq('id', activeOrderId)
+          .maybeSingle();
+        if (active && data) {
+          const s = String(data.status || '').toLowerCase().trim();
+          const paid = ['paid', 'ordered', 'shipped', 'ready_for_delivery', 'delivered'].includes(s) || Boolean(data.payment_date);
+          setOrderPaymentConfirmed(paid);
+        }
+      } catch (e) {
+        console.warn('Check payment status error:', e);
+      }
+    }
+    checkPaymentStatus();
+
+    const channel = supabase
+      .channel(`cart_status_${activeOrderId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'preorders', filter: `id=eq.${activeOrderId}` },
+        (payload) => {
+          if (active && payload.new) {
+            const s = String((payload.new as { status?: string }).status || '').toLowerCase().trim();
+            const paid = ['paid', 'ordered', 'shipped', 'ready_for_delivery', 'delivered'].includes(s) || Boolean((payload.new as { payment_date?: string }).payment_date);
+            setOrderPaymentConfirmed(paid);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, [activeOrderId]);
   const isInitialCartLoadRef = useRef(false);
 
   useEffect(() => {
@@ -1601,7 +1653,7 @@ export default function StorefrontPage() {
     const shareableLink = buildShareableCartUrl();
 
     const lines: string[] = [
-      `*China Factory Preorder - Dainty Import*`,
+      `*Dainty Preorder*`,
       activeOrderId ? `*Order Ref:* #${activeOrderId}` : '',
       '',
       `*Total Items Ordered:* ${cart.length} item${cart.length === 1 ? '' : 's'}`,
@@ -1610,7 +1662,7 @@ export default function StorefrontPage() {
       `*Shipping Method:* ${shippingMethod.toUpperCase()} (Shipping Time Frame: ${shippingTimeline})`,
       `*Est. Shipping Fee:* ${estimatedShipping > 0 ? `₦${estimatedShipping.toLocaleString()}` : 'To be confirmed upon arrival in Nigeria'}`,
       '',
-      `*View Full Cart & Catalog (Click link below):*`,
+      `*View Order:*`,
       shareableLink,
     ].filter(Boolean);
 
@@ -2147,13 +2199,22 @@ export default function StorefrontPage() {
           <div className="flex items-center gap-1.5">
             {cart.length > 0 && (
               <>
+                <a
+                  href={buildShareableCartUrl()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-white px-2.5 py-1 text-xs font-semibold text-stone-700 hover:bg-stone-50 transition shadow-2xs"
+                  title="Open direct order page"
+                >
+                  View Order
+                </a>
                 <button
                   type="button"
                   onClick={handleCopyCartLink}
                   className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50/70 px-2.5 py-1 text-xs font-semibold text-amber-950 hover:bg-amber-100 hover:border-amber-300 shadow-2xs transition"
-                  title="Copy direct shareable cart link"
+                  title="Copy shareable order link"
                 >
-                  <span>{copiedLink ? 'Copied' : 'Share Cart'}</span>
+                  <span>{copiedLink ? 'Copied' : 'Share Order'}</span>
                 </button>
                 <button
                   type="button"
@@ -2233,7 +2294,7 @@ export default function StorefrontPage() {
               <ShoppingBag className="h-10 w-10 text-stone-300" />
               <p className="text-sm font-semibold text-stone-700">Your cart is empty</p>
               <p className="text-xs text-stone-400 max-w-[220px]">
-                Browse our China factory products and add items to your preorder sheet.
+                Browse our China factory products and add items to your preorder.
               </p>
               <button
                 type="button"
@@ -2357,6 +2418,28 @@ export default function StorefrontPage() {
               <span>Shipping Time Frame:</span>
               <span className="font-semibold text-stone-800">{shippingTimeline}</span>
             </div>
+
+            {orderPaymentConfirmed && (
+              <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-left">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
+                    <Check className="h-3.5 w-3.5 text-emerald-600" />
+                    Payment Confirmed
+                  </span>
+                  <span className="text-[10px] font-mono font-bold text-emerald-700">#{activeOrderId}</span>
+                </div>
+                <p className="text-[11px] text-emerald-800 mb-2">
+                  Your purchase payment is confirmed! Click below to track your delivery.
+                </p>
+                <Link
+                  href={`/track?id=${activeOrderId}`}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-stone-900 py-2 text-xs font-bold text-white shadow-xs hover:bg-stone-800 transition"
+                >
+                  <Truck className="h-3.5 w-3.5 text-[#fa9d26]" />
+                  <span>Track Order</span>
+                </Link>
+              </div>
+            )}
 
             {cartHasUnavailableSelectedMethod ? (
               <div className="mt-1 rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-center text-xs font-semibold text-red-700">
