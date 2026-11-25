@@ -1612,12 +1612,6 @@ export default function StorefrontPage() {
       '',
       `*View Full Cart & Catalog (Click link below):*`,
       shareableLink,
-      activeOrderId ? `*Track Order:* ${typeof window !== 'undefined' ? window.location.origin : ''}/track?id=${encodeURIComponent(activeOrderId)}` : '',
-      '',
-      `*China Sourcing & Preorder Terms*`,
-      `• *Initial Payment:* The initial payment covers only the cost of purchasing your item. Your order will be shipped once the purchase payment has been completed.`,
-      `• *Shipping Estimate:* Shipping fees provided are estimates. The exact shipping cost will be confirmed when your order arrives in Nigeria.`,
-      `• *Shipping Payment:* Shipping fees are paid separately when your order arrives in Nigeria.`
     ].filter(Boolean);
 
     const encoded = encodeURIComponent(lines.join('\n'));
@@ -1667,7 +1661,7 @@ export default function StorefrontPage() {
 
       {/* China Sourcing Announcement Strip */}
       <div className="bg-[#fa9d26] text-white text-[10px] sm:text-[11px] font-semibold py-1.5 px-3 sm:px-4 text-center tracking-wide leading-tight w-full">
-        China Factory Direct Sourcing • Direct Factory Prices in Naira • Air Cargo ~3 Weeks • Sea Cargo ~3 Months • WhatsApp Order Confirmation
+        China Factory Direct Sourcing • Direct Factory Prices • Air Cargo ~3 Weeks • Sea Cargo ~3 Months • WhatsApp Order Confirmation
       </div>
 
       {/* Main Sticky Header */}
@@ -1908,7 +1902,7 @@ export default function StorefrontPage() {
                   How Dainty Preorder Works
                 </h2>
                 <p className="mt-1 text-xs sm:text-sm text-stone-600 max-w-xl leading-relaxed">
-                  Shop China factory products in Naira. Select <strong>Wholesale</strong> for discounted bulk orders or <strong>Retail</strong> for single items, pick your sizes and colors, and choose <strong>Air Cargo</strong> (within 3 weeks) or <strong>Sea Cargo</strong> (within 3 months). Submit your order to WhatsApp—your initial payment covers the product purchase from the factory, while shipping is confirmed and paid separately when your goods arrive in Nigeria.
+                  Shop China factory products. Select <strong>Wholesale</strong> for discounted bulk orders or <strong>Retail</strong> for single items, pick your sizes and colors, and choose <strong>Air Cargo</strong> (within 3 weeks) or <strong>Sea Cargo</strong> (within 3 months). Submit your order to WhatsApp—your initial payment covers the product purchase from the factory, while shipping is confirmed and paid separately when your goods arrive in Nigeria.
                 </p>
               </div>
             </div>
