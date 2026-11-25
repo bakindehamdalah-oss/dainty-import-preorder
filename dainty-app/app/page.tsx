@@ -1896,7 +1896,7 @@ export default function StorefrontPage() {
                 How Dainty Preorder Works
               </h2>
               <p className="mt-1 text-xs sm:text-sm text-stone-600 max-w-xl leading-relaxed">
-                Shop China factory products. Select <strong>Wholesale</strong> for discounted bulk orders or <strong>Retail</strong> for single items, pick your sizes and colors, and choose <strong>Air Cargo</strong> (shipping time frame: within 3 weeks) or <strong>Sea Cargo</strong> (shipping time frame: within 3 months). Checkout takes you to WhatsApp to complete your order. The initial payment covers the buying price of the item, and shipping fee is confirmed and paid separately when your goods arrive in Nigeria. Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria.
+                Shop China factory products. Select <strong>Wholesale</strong> for discounted bulk orders or <strong>Retail</strong> for single items, pick your sizes and colors, and choose <strong>Air Cargo</strong> (shipping time frame: within 3 weeks) or <strong>Sea Cargo</strong> (shipping time frame: within 3 months). Checkout takes you to WhatsApp to complete your order. The initial payment covers the buying price of the item, and shipping fee is confirmed and paid separately when your goods arrive in Nigeria. Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria. Confirmed shipping fees must be settled within 7 days of notification, after which a daily storage charge applies.
               </p>
             </div>
 
@@ -2379,6 +2379,7 @@ export default function StorefrontPage() {
               <div><strong className="text-stone-800">Initial Payment:</strong> The initial payment covers the buying price of the item. Your order will be shipped once the purchase payment has been completed.</div>
               <div><strong className="text-stone-800">Shipping Estimate:</strong> Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria.</div>
               <div><strong className="text-stone-800">Shipping Payment:</strong> Shipping fee is confirmed and paid separately when your goods arrive in Nigeria.</div>
+              <div><strong className="text-stone-800">Payment Window:</strong> Confirmed shipping fees must be settled within 7 days of notification. Payments delayed beyond 7 days will attract a daily storage charge.</div>
             </div>
           </div>
         )}
