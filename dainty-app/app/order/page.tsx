@@ -268,7 +268,7 @@ export default function OrderCatalogPage() {
       `*Total Items Ordered:* ${activeItems.length} item${activeItems.length === 1 ? '' : 's'}`,
       `*Total Pieces:* ${totalPieces} pcs`,
       `*Total Product Price:* ₦${totalProductCost.toLocaleString()}`,
-      `*Shipping Method:* ${activeShippingMethod.toUpperCase()} (${shippingTimeline})`,
+      `*Shipping Method:* ${activeShippingMethod.toUpperCase()} (Shipping Time Frame: ${shippingTimeline})`,
       `*Est. Shipping Fee:* ${estShippingCost > 0 ? `₦${estShippingCost.toLocaleString()}` : 'To be confirmed upon arrival in Nigeria'}`,
       '',
       `*View Cart (Click link below to view full cart and all items on website):*`,
