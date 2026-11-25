@@ -1607,7 +1607,7 @@ export default function StorefrontPage() {
       `*Total Items Ordered:* ${cart.length} item${cart.length === 1 ? '' : 's'}`,
       `*Total Pieces:* ${totalCartCount} pcs`,
       `*Total Product Price:* ₦${subtotal.toLocaleString()}`,
-      `*Shipping Method:* ${shippingMethod.toUpperCase()} (${shippingTimeline})`,
+      `*Shipping Method:* ${shippingMethod.toUpperCase()} (Shipping Time Frame: ${shippingTimeline})`,
       `*Est. Shipping Fee:* ${estimatedShipping > 0 ? `₦${estimatedShipping.toLocaleString()}` : 'To be confirmed upon arrival in Nigeria'}`,
       '',
       `*View Full Cart & Catalog (Click link below):*`,
@@ -1902,24 +1902,32 @@ export default function StorefrontPage() {
                   How Dainty Preorder Works
                 </h2>
                 <p className="mt-1 text-xs sm:text-sm text-stone-600 max-w-xl leading-relaxed">
-                  Shop China factory products. Select <strong>Wholesale</strong> for discounted bulk orders or <strong>Retail</strong> for single items, pick your sizes and colors, and choose <strong>Air Cargo</strong> (within 3 weeks) or <strong>Sea Cargo</strong> (within 3 months). Checkout takes you to WhatsApp to complete your order. The initial payment covers the buying price of the item, and shipping fee is confirmed and paid separately when your goods arrive in Nigeria. Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria.
+                  Shop China factory products. Select <strong>Wholesale</strong> for discounted bulk orders or <strong>Retail</strong> for single items, pick your sizes and colors, and choose <strong>Air Cargo</strong> (shipping time frame: within 3 weeks) or <strong>Sea Cargo</strong> (shipping time frame: within 3 months). Checkout takes you to WhatsApp to complete your order. The initial payment covers the buying price of the item, and shipping fee is confirmed and paid separately when your goods arrive in Nigeria. Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria.
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap sm:flex-col gap-2 shrink-0 text-xs w-full sm:w-auto">
-              <div className="flex items-center gap-2 rounded-lg bg-white/95 px-3 py-1.5 font-medium text-stone-800 shadow-2xs border border-[#fa9d26]/25">
-                <span><strong>Air Cargo:</strong> Within 3 weeks</span>
+            <div className="flex flex-col gap-1.5 shrink-0 w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-[#b96b0c] uppercase tracking-wider">
+                <Clock className="h-3.5 w-3.5 text-[#fa9d26]" />
+                <span>Shipping Time Frame</span>
               </div>
-              <div className="flex items-center gap-2 rounded-lg bg-white/95 px-3 py-1.5 font-medium text-stone-800 shadow-2xs border border-[#fa9d26]/25">
-                <span><strong>Sea Cargo:</strong> Within 3 months</span>
+              <div className="flex flex-wrap sm:flex-col gap-2 text-xs w-full sm:w-auto">
+                <div className="flex items-center gap-2 rounded-lg bg-white/95 px-3 py-1.5 font-medium text-stone-800 shadow-2xs border border-[#fa9d26]/25">
+                  <Plane className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                  <span><strong>Air Cargo:</strong> Within 3 weeks</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg bg-white/95 px-3 py-1.5 font-medium text-stone-800 shadow-2xs border border-[#fa9d26]/25">
+                  <Ship className="h-3.5 w-3.5 text-sky-600 shrink-0" />
+                  <span><strong>Sea Cargo:</strong> Within 3 months</span>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Retail vs Wholesale Option at the top of All Products */}
-        <div className="mb-4 rounded-2xl border border-stone-200 bg-white p-3.5 shadow-2xs sm:p-4">
+        {/* Retail vs Wholesale Option & Shipping Selector at the top of All Products */}
+        <div className="mb-4 rounded-2xl border border-stone-200 bg-white p-3.5 shadow-2xs sm:p-4 space-y-3.5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
@@ -1959,6 +1967,58 @@ export default function StorefrontPage() {
                 }`}
               >
                 Wholesale
+              </button>
+            </div>
+          </div>
+
+          {/* Shipping Method Option below Wholesale/Retail */}
+          <div className="pt-3 border-t border-stone-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                  Shipping Option
+                </span>
+                <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-[10px] font-bold text-stone-700">
+                  Shipping Time Frame: {shippingTimeline}
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-stone-500">
+                Choose Air Cargo (within 3 weeks) or Sea Cargo (within 3 months)
+              </p>
+            </div>
+
+            <div className="inline-flex shrink-0 rounded-xl border border-stone-200 bg-stone-100 p-1">
+              <button
+                type="button"
+                disabled={cartHasSeaOnlyItems}
+                onClick={() => setShippingMethod('air')}
+                title={cartHasSeaOnlyItems ? 'At least one item in cart cannot be shipped by air' : 'Air Cargo delivery within 3 weeks'}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold transition ${
+                  cartHasSeaOnlyItems
+                    ? 'opacity-40 cursor-not-allowed text-stone-400'
+                    : shippingMethod === 'air'
+                    ? 'bg-white text-stone-900 shadow-xs'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                <Plane className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Air Cargo (3 wks)</span>
+              </button>
+              <button
+                type="button"
+                disabled={cartHasAirOnlyItems}
+                onClick={() => setShippingMethod('sea')}
+                title={cartHasAirOnlyItems ? 'At least one item in cart cannot be shipped by sea' : 'Sea Cargo delivery within 3 months'}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold transition ${
+                  cartHasAirOnlyItems
+                    ? 'opacity-40 cursor-not-allowed text-stone-400'
+                    : shippingMethod === 'sea'
+                    ? 'bg-white text-stone-900 shadow-xs'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                <Ship className="h-3.5 w-3.5 text-sky-600" />
+                <span>Sea Cargo (3 mos)</span>
               </button>
             </div>
           </div>
@@ -2301,7 +2361,7 @@ export default function StorefrontPage() {
             </div>
 
             <div className="flex items-center justify-between text-[11px] text-stone-500">
-              <span>Est. Timeline:</span>
+              <span>Shipping Time Frame:</span>
               <span className="font-semibold text-stone-800">{shippingTimeline}</span>
             </div>
 
@@ -2317,7 +2377,7 @@ export default function StorefrontPage() {
                 className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white shadow-md hover:bg-emerald-700 transition active:scale-98"
               >
                 <MessageCircle className="h-4 w-4" />
-                Send Preorder on WhatsApp
+                Checkout
               </a>
             )}
 
