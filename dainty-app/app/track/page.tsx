@@ -45,7 +45,7 @@ const statusOrder = ['pending', 'paid', 'ordered', 'shipped', 'ready_for_deliver
 export default function TrackOrderPage() {
   const [trackingInput, setTrackingInput] = useState(() => {
     if (typeof window !== 'undefined') {
-      const id = new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('track');
+      const id = new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('order') || new URLSearchParams(window.location.search).get('track');
       return id ? id.trim().replace(/^#/, '') : '';
     }
     return '';
@@ -57,7 +57,7 @@ export default function TrackOrderPage() {
   const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('track');
+    const id = new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('order') || new URLSearchParams(window.location.search).get('track');
     if (id) {
       const cleanId = id.trim().replace(/^#/, '');
       void loadOrder(cleanId);
