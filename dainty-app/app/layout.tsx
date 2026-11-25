@@ -25,13 +25,13 @@ export const metadata: Metadata = {
   ),
   title: "Dainty Import | China Direct Factory Pre-orders & Sourcing",
   description:
-    "Direct factory pre-orders from China in Nigerian Naira. Transparent air & sea cargo estimates, custom sizes and colors, and direct WhatsApp ordering.",
+    "Direct factory pre-orders from China. Transparent air & sea cargo estimates, custom sizes and colors, and direct WhatsApp ordering.",
   applicationName: "Dainty Import",
   keywords: ["China sourcing", "pre-orders", "China factory sourcing", "Nigeria imports", "Dainty Import", "wholesale iPhone cases"],
   openGraph: {
     title: "Dainty Import | China Direct Factory Pre-orders",
     description:
-      "Shop curated China factory products in Naira with clear air and sea shipping estimates.",
+      "Shop curated China factory products with clear air and sea shipping estimates.",
     siteName: "Dainty Import",
     type: "website",
     locale: "en_NG",
