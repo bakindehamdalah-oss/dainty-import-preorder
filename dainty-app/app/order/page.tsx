@@ -637,6 +637,9 @@ export default function OrderCatalogPage() {
                 <p>
                   <strong className="text-stone-900">Shipping Payment:</strong> Shipping fee is confirmed and paid separately when your goods arrive in Nigeria.
                 </p>
+                <p>
+                  <strong className="text-stone-900">Payment Window:</strong> Confirmed shipping fees must be settled within 7 days of notification. Payments delayed beyond 7 days will attract a daily storage charge.
+                </p>
               </div>
             </div>
 
