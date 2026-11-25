@@ -1892,8 +1892,8 @@ export default function StorefrontPage() {
       {/* Main Content Area */}
       <main className="mx-auto w-full max-w-6xl px-3.5 py-5 sm:px-6 sm:py-8 flex-1">
         {/* How China Pre-orders Work Banner */}
-        <section className="mb-8 overflow-hidden rounded-2xl border border-[#fa9d26]/30 bg-gradient-to-br from-[#fce7cc]/90 via-[#fff8f0] to-white p-5 sm:p-7 shadow-xs">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[#fa9d26]/20 pb-5">
+        <section className="mb-6 overflow-hidden rounded-2xl border border-[#fa9d26]/30 bg-gradient-to-br from-[#fce7cc]/90 via-[#fff8f0] to-white p-4 sm:p-6 shadow-xs">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
               <img
                 src="/logo.png"
@@ -1920,49 +1920,6 @@ export default function StorefrontPage() {
               <div className="flex items-center gap-2 rounded-lg bg-white/95 px-3 py-1.5 font-medium text-stone-800 shadow-2xs border border-[#fa9d26]/25">
                 <span><strong>Sea Cargo:</strong> Within 3 months</span>
               </div>
-            </div>
-          </div>
-
-          {/* 4 Step Process Cards */}
-          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border border-stone-200/80 bg-white/90 p-3.5 shadow-2xs">
-              <div className="flex items-center gap-2 text-stone-900 font-bold text-xs">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#fa9d26] text-white text-[11px]">1</span>
-                <span>Wholesale & Retail</span>
-              </div>
-              <p className="mt-1.5 text-[11px] text-stone-600 leading-relaxed">
-                Choose <strong>Wholesale</strong> for factory pricing or <strong>Retail</strong>. Note: There is a minimum order you can order for each item or category for wholesale.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-stone-200/80 bg-white/90 p-3.5 shadow-2xs">
-              <div className="flex items-center gap-2 text-stone-900 font-bold text-xs">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#fa9d26] text-white text-[11px]">2</span>
-                <span>Batch Order Spec Matrix</span>
-              </div>
-              <p className="mt-1.5 text-[11px] text-stone-600 leading-relaxed">
-                Click <strong>Batch Order</strong> to easily select sizes, colors, and quantities for your bulk purchase at direct factory prices.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-stone-200/80 bg-white/90 p-3.5 shadow-2xs">
-              <div className="flex items-center gap-2 text-stone-900 font-bold text-xs">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#fa9d26] text-white text-[11px]">3</span>
-                <span>Select Shipping Cargo</span>
-              </div>
-              <p className="mt-1.5 text-[11px] text-stone-600 leading-relaxed">
-                Pick <strong>Air Cargo (3 weeks)</strong> or <strong>Sea Cargo (3 months)</strong>. Note: Some items can only be shipped via air and some items can only be shipped via sea.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-stone-200/80 bg-white/90 p-3.5 shadow-2xs">
-              <div className="flex items-center gap-2 text-stone-900 font-bold text-xs">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#fa9d26] text-white text-[11px]">4</span>
-                <span>WhatsApp Pre-order Sheet</span>
-              </div>
-              <p className="mt-1.5 text-[11px] text-stone-600 leading-relaxed">
-                Send your order with full pictures and specifications to WhatsApp. Pay product cost now to lock factory orders; shipping fee is paid on arrival in Nigeria.
-              </p>
             </div>
           </div>
         </section>
