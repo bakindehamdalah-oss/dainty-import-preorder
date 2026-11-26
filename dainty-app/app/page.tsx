@@ -2,12 +2,11 @@
 
 import Link from 'next/link';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   PackagePlus,
   AlertCircle,
-  ArrowRight,
   Box,
   Check,
   ChevronLeft,
@@ -15,7 +14,6 @@ import {
   Clock,
   Grid,
   Home,
-  ImageIcon,
   Info,
   Layers,
   Maximize2,
@@ -24,11 +22,9 @@ import {
   Plane,
   Plus,
   Search,
-  ShieldCheck,
   Ship,
   ShoppingBag,
   Sparkles,
-  Tag,
   Trash2,
   Truck,
   X,
@@ -732,7 +728,145 @@ function getProductAllImages(product: Product | null | undefined): string[] {
   return list;
 }
 
-function ProductCard({
+
+function formatCategoryPhrase(count: number, rawName: string): string {
+  const name = (rawName || 'Product').trim();
+  const clean = name.replace(/[’`]/g, "'");
+  const lower = clean.toLowerCase();
+
+  // Special handling for Men / Men's category
+  if (
+    lower === 'men' ||
+    lower === "men's" ||
+    lower === 'mens' ||
+    lower.includes("men's") ||
+    lower.startsWith('men ') ||
+    lower === 'men category'
+  ) {
+    const itemWord = count === 1 ? 'men item' : 'men items';
+    return `${count} different ${itemWord}`;
+  }
+
+  // Special handling for Women / Women's category
+  if (
+    lower === 'women' ||
+    lower === "women's" ||
+    lower === 'womens' ||
+    lower.includes("women's") ||
+    lower.startsWith('women ') ||
+    lower === 'women category'
+  ) {
+    const itemWord = count === 1 ? 'women item' : 'women items';
+    return `${count} different ${itemWord}`;
+  }
+
+  // Special handling for Kids / Children
+  if (['kids', "kid's", 'children', "children's", 'babies', 'baby'].some((k) => lower.includes(k))) {
+    const itemWord = count === 1 ? 'kid item' : 'kids items';
+    return `${count} different ${itemWord}`;
+  }
+
+  // iPhone Cases / Phone cases
+  if (lower.includes('case') || lower.includes('iphone')) {
+    const base = lower.includes('iphone') ? 'iPhone case' : 'case';
+    const itemWord = count === 1 ? base : `${base}s`;
+    return `${count} different ${itemWord}`;
+  }
+
+  // Bags / Handbags / Backpacks
+  if (lower.includes('bag')) {
+    let itemWord = 'bags';
+    if (lower.endsWith('bags')) {
+      itemWord = count === 1 ? lower.slice(0, -1) : lower;
+    } else if (lower.endsWith('bag')) {
+      itemWord = count === 1 ? lower : `${lower}s`;
+    } else {
+      itemWord = count === 1 ? 'bag' : 'bags';
+    }
+    return `${count} different ${itemWord}`;
+  }
+
+  // Shoes / Footwear / Sneakers
+  if (lower.includes('shoe') || lower.includes('sneaker') || lower.includes('heel')) {
+    const itemWord = lower.endsWith('s')
+      ? count === 1
+        ? lower.slice(0, -1)
+        : lower
+      : count === 1
+      ? lower
+      : `${lower}s`;
+    return `${count} different ${itemWord}`;
+  }
+
+  // Watches
+  if (lower.includes('watch')) {
+    const itemWord = count === 1 ? 'watch' : 'watches';
+    return `${count} different ${itemWord}`;
+  }
+
+  // Dresses
+  if (lower.includes('dress')) {
+    const itemWord = count === 1 ? 'dress' : 'dresses';
+    return `${count} different ${itemWord}`;
+  }
+
+  // Clothing / Apparel
+  if (['clothes', 'clothing', 'apparel', 'wear'].includes(lower)) {
+    const itemWord = count === 1 ? 'clothing item' : 'clothing items';
+    return `${count} different ${itemWord}`;
+  }
+
+  // Jewelry
+  if (lower.includes('jewel')) {
+    const itemWord = count === 1 ? 'jewelry item' : 'jewelry items';
+    return `${count} different ${itemWord}`;
+  }
+
+  // Accessories
+  if (lower.includes('accessor')) {
+    const itemWord = count === 1 ? 'accessory' : 'accessories';
+    return `${count} different ${itemWord}`;
+  }
+
+  // Departments or collective nouns (Kitchen, Home, Electronics, Gadgets, Beauty, Hair, Decor)
+  if (['kitchen', 'home', 'electronic', 'beauty', 'hair', 'gadget', 'decor'].some((k) => lower.includes(k))) {
+    let adj = clean;
+    if (adj.endsWith('s') && count === 1) {
+      adj = adj.slice(0, -1);
+    }
+    const itemWord = count === 1 ? `${adj.toLowerCase()} item` : `${adj.toLowerCase()} items`;
+    return `${count} different ${itemWord}`;
+  }
+
+  // General standard plural / singular rule for any new category added in the future
+  let singular = lower;
+  let plural = lower;
+
+  if (lower.endsWith('ies')) {
+    singular = lower.slice(0, -3) + 'y';
+    plural = lower;
+  } else if (lower.endsWith('es') && ['ches', 'shes', 'xes', 'zes'].some((end) => lower.endsWith(end))) {
+    singular = lower.slice(0, -2);
+    plural = lower;
+  } else if (lower.endsWith('s') && !lower.endsWith('ss')) {
+    singular = lower.slice(0, -1);
+    plural = lower;
+  } else {
+    singular = lower;
+    if (lower.endsWith('y') && !/[aeiou]y$/.test(lower)) {
+      plural = lower.slice(0, -1) + 'ies';
+    } else if (['ch', 'sh', 'x', 'z', 's'].some((end) => lower.endsWith(end))) {
+      plural = lower + 'es';
+    } else {
+      plural = lower + 's';
+    }
+  }
+
+  const selectedWord = count === 1 ? singular : plural;
+  return `${count} different ${selectedWord}`;
+}
+
+const ProductCard = React.memo(function ProductCard({
   product,
   mode,
   categoryMap,
@@ -869,6 +1003,7 @@ function ProductCard({
               onClick={() => onZoomImage(activeImage)}
               className="max-h-full max-w-full object-contain cursor-pointer transition-transform duration-300 group-hover:scale-105"
               loading="lazy"
+decoding="async"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-[11px] text-stone-400">
@@ -1135,7 +1270,7 @@ function ProductCard({
       </div>
     </div>
   );
-}
+});
 
 
 const CART_STORAGE_KEY = 'dainty_preorder_cart_v1';
@@ -1175,6 +1310,7 @@ export default function StorefrontPage() {
     return cat?.name || 'Category';
   }, [selectedCategory, categories]);
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
@@ -1238,10 +1374,7 @@ export default function StorefrontPage() {
 
   // Sync real-time payment status for active preorder
   useEffect(() => {
-    if (!activeOrderId) {
-      setOrderPaymentConfirmed(false);
-      return;
-    }
+    if (!activeOrderId) return;
     let active = true;
     async function checkPaymentStatus() {
       try {
@@ -1471,9 +1604,9 @@ export default function StorefrontPage() {
     return products.filter((p) => {
       const matchCat = selectedCategory === 'all' || p.category_id === selectedCategory;
       if (!matchCat) return false;
-      if (!searchQuery.trim()) return true;
+      if (!deferredSearchQuery.trim()) return true;
 
-      const q = searchQuery.toLowerCase();
+      const q = deferredSearchQuery.toLowerCase();
       const title = (p.name || p.title || '').toLowerCase();
       const desc = (p.description || '').toLowerCase();
       const sizeStr = (p.size || '').toLowerCase();
@@ -1481,7 +1614,15 @@ export default function StorefrontPage() {
 
       return title.includes(q) || desc.includes(q) || sizeStr.includes(q) || colorStr.includes(q);
     });
-  }, [products, selectedCategory, searchQuery]);
+  }, [products, selectedCategory, deferredSearchQuery]);
+
+  const handleOpenMatrix = useCallback((p: Product) => {
+    setMatrixProduct(p);
+  }, []);
+
+  const handleZoomImage = useCallback((url: string) => {
+    setZoomedImage(url);
+  }, []);
 
   // Group quantities by category to support category-level wholesale MOQ
   const categoryQtyMap = useMemo(() => {
@@ -1506,38 +1647,41 @@ export default function StorefrontPage() {
   const cartHasUnavailableSelectedMethod =
     shippingMethod === 'air' ? cartHasSeaOnlyItems : cartHasAirOnlyItems;
 
-  function addToCart(
-    product: Product,
-    selectedColor: string | null,
-    selectedSize: string | null,
-    selectedImage: string | null,
-    quantityToAdd: number
-  ) {
-    setIsCartOpen(true);
-    setCart((prev) => {
-      const matchItem = (item: CartItem) =>
-        item.product.id === product.id &&
-        (item.selectedColor || '') === (selectedColor || '') &&
-        (item.selectedSize || '') === (selectedSize || '');
+  const addToCart = useCallback(
+    (
+      product: Product,
+      selectedColor: string | null,
+      selectedSize: string | null,
+      selectedImage: string | null,
+      quantityToAdd: number
+    ) => {
+      setIsCartOpen(true);
+      setCart((prev) => {
+        const matchItem = (item: CartItem) =>
+          item.product.id === product.id &&
+          (item.selectedColor || '') === (selectedColor || '') &&
+          (item.selectedSize || '') === (selectedSize || '');
 
-      const existing = prev.find(matchItem);
-      if (existing) {
-        return prev.map((item) =>
-          matchItem(item) ? { ...item, quantity: item.quantity + quantityToAdd } : item
-        );
-      }
-      return [
-        ...prev,
-        {
-          product,
-          quantity: quantityToAdd,
-          selectedColor: selectedColor || null,
-          selectedSize: selectedSize || product.size || null,
-          selectedImage: selectedImage || product.image_url || null,
-        },
-      ];
-    });
-  }
+        const existing = prev.find(matchItem);
+        if (existing) {
+          return prev.map((item) =>
+            matchItem(item) ? { ...item, quantity: item.quantity + quantityToAdd } : item
+          );
+        }
+        return [
+          ...prev,
+          {
+            product,
+            quantity: quantityToAdd,
+            selectedColor: selectedColor || null,
+            selectedSize: selectedSize || product.size || null,
+            selectedImage: selectedImage || product.image_url || null,
+          },
+        ];
+      });
+    },
+    []
+  );
 
   function handleAddBatchToCart(
     product: Product,
@@ -1811,7 +1955,7 @@ export default function StorefrontPage() {
       <header className="sticky top-0 z-40 w-full border-b border-stone-200 bg-white/95 backdrop-blur-xs">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-3.5 py-2.5 sm:px-6 sm:py-3 gap-3">
           {/* Logo & Brand Title */}
-          <a
+          <Link
             href="/"
             onClick={(e) => {
               if (selectedCategory !== 'all' || isCategoriesOnlyView || searchQuery) {
@@ -1835,7 +1979,7 @@ export default function StorefrontPage() {
                 China Direct Preorders
               </p>
             </div>
-          </a>
+          </Link>
 
           {/* Search Bar */}
           <div className="relative flex-1 max-w-md">
@@ -1876,7 +2020,7 @@ export default function StorefrontPage() {
                   Select a Product Category
                 </h2>
                 <p className="mt-0.5 text-xs sm:text-sm text-stone-600">
-                  Tap any category below to view only the direct China factory items in that category.
+                  Tap any category below to browse items in that category.
                 </p>
               </div>
 
@@ -1958,6 +2102,7 @@ export default function StorefrontPage() {
                           alt={c.name}
                           className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                           loading="lazy"
+decoding="async"
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-stone-300">
@@ -1981,8 +2126,8 @@ export default function StorefrontPage() {
                         <h3 className="text-sm font-bold text-stone-900 group-hover:text-[#fa9d26] transition line-clamp-1">
                           {c.name}
                         </h3>
-                        <p className="mt-0.5 text-[11px] text-stone-500">
-                          {count} direct China item{count === 1 ? '' : 's'}
+                        <p className="mt-0.5 text-[11px] font-medium text-stone-500">
+                          {formatCategoryPhrase(count, c.name)}
                         </p>
                       </div>
 
@@ -2202,8 +2347,8 @@ export default function StorefrontPage() {
                 <h2 className="text-base sm:text-lg font-bold text-stone-900 leading-tight">
                   {selectedCategoryName}
                 </h2>
-                <p className="text-[11px] text-stone-500">
-                  Showing only items in this category ({filteredProducts.length} product{filteredProducts.length === 1 ? '' : 's'})
+                <p className="text-[11px] font-medium text-stone-500">
+                  Showing {formatCategoryPhrase(filteredProducts.length, selectedCategoryName)}
                 </p>
               </div>
             </div>
@@ -2262,8 +2407,8 @@ export default function StorefrontPage() {
                 mode={mode}
                 categoryMap={categoryMap}
                 onAddToCart={addToCart}
-                onOpenMatrix={(p) => setMatrixProduct(p)}
-                onZoomImage={(url) => setZoomedImage(url)}
+                onOpenMatrix={handleOpenMatrix}
+                onZoomImage={handleZoomImage}
               />
             ))}
           </div>
