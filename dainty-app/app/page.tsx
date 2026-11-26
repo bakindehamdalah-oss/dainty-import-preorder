@@ -2535,31 +2535,7 @@ export default function StorefrontPage() {
         )}
 </main>
 
-      {/* Floating Cart Trigger Pill on Mobile & Desktop */}
-      {totalCartCount > 0 && !isCartOpen && (
-        <button
-          type="button"
-          onClick={() => setIsCartOpen(true)}
-          className="fixed bottom-5 right-5 z-40 flex items-center gap-3 rounded-full bg-stone-900 px-4 py-3 text-white shadow-2xl hover:bg-stone-800 transition transform active:scale-95 border-2 border-[#fa9d26] animate-in fade-in slide-in-from-bottom-2"
-          aria-label="Open Preorder Cart"
-        >
-          <div className="relative">
-            <ShoppingBag className="h-5 w-5 text-[#fa9d26]" />
-            <span className="absolute -top-2 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#fa9d26] px-1 text-[9px] font-bold text-white shadow-xs">
-              {totalCartCount}
-            </span>
-          </div>
-          <div className="text-left leading-tight">
-            <div className="text-[10px] font-bold text-[#fa9d26] uppercase tracking-wider">
-              Preorder Cart ({totalCartCount})
-            </div>
-            <div className="text-xs font-extrabold text-white">
-              ₦{subtotal.toLocaleString()}
-            </div>
-          </div>
-          <ChevronRight className="h-4 w-4 text-stone-400 ml-0.5" />
-        </button>
-      )}
+
 
       {/* Backdrop for Collapsible Side Drawer */}
       {isCartOpen && (
@@ -2897,7 +2873,7 @@ export default function StorefrontPage() {
             <div className="flex items-center justify-between border-b border-stone-100 pb-3">
               <div className="flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-[#b96b0c]">
-                  <Sparkles className="h-4 w-4" />
+                  <PackagePlus className="h-4 w-4" />
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-stone-900">Request Any Item from China</h3>
