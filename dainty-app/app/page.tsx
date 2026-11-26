@@ -1953,52 +1953,54 @@ export default function StorefrontPage() {
 
       {/* Main Sticky Header */}
       <header className="sticky top-0 z-40 w-full border-b border-stone-200 bg-white/95 backdrop-blur-xs">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-3.5 py-2.5 sm:px-6 sm:py-3 gap-3">
+        <div className="mx-auto flex max-w-6xl flex-col px-3.5 py-2 sm:px-6 sm:py-2.5 gap-2">
           {/* Logo & Brand Title */}
-          <Link
-            href="/"
-            onClick={(e) => {
-              if (selectedCategory !== 'all' || isCategoriesOnlyView || searchQuery) {
-                e.preventDefault();
-                setSelectedCategory('all');
-                setIsCategoriesOnlyView(false);
-                setSearchQuery('');
-                if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
-              }
-            }}
-            className="flex items-center gap-2.5 shrink-0 hover:opacity-95 transition"
-          >
-            <img
-              src="/logo.png"
-              alt="Dainty Import"
-              className="h-8 w-auto sm:h-9 rounded-md object-contain shadow-xs border border-[#fa9d26]/20"
-            />
-            <div>
-              <h1 className="text-sm sm:text-base font-bold tracking-tight text-stone-900 leading-tight">Dainty Import</h1>
-              <p className="text-[9px] sm:text-[11px] font-semibold text-[#fa9d26] uppercase tracking-wider">
-                China Direct Preorders
-              </p>
-            </div>
-          </Link>
+          <div className="flex items-center justify-between w-full">
+            <Link
+              href="/"
+              onClick={(e) => {
+                if (selectedCategory !== 'all' || isCategoriesOnlyView || searchQuery) {
+                  e.preventDefault();
+                  setSelectedCategory('all');
+                  setIsCategoriesOnlyView(false);
+                  setSearchQuery('');
+                  if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+              }}
+              className="flex items-center gap-2.5 shrink-0 hover:opacity-95 transition"
+            >
+              <img
+                src="/logo.png"
+                alt="Dainty Import"
+                className="h-8 w-auto sm:h-9 rounded-md object-contain shadow-xs border border-[#fa9d26]/20"
+              />
+              <div>
+                <h1 className="text-sm sm:text-base font-bold tracking-tight text-stone-900 leading-tight">Dainty Import</h1>
+                <p className="text-[9px] sm:text-[11px] font-semibold text-[#fa9d26] uppercase tracking-wider">
+                  China Direct Preorders
+                </p>
+              </div>
+            </Link>
+          </div>
 
-          {/* Search Bar */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 sm:h-4 sm:w-4 text-stone-400" />
+          {/* Search Bar (positioned at the bottom of the logo) */}
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-stone-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); if (isCategoriesOnlyView) setIsCategoriesOnlyView(false); }}
               placeholder="Search products, models, categories..."
-              className="w-full rounded-full border border-stone-200 bg-stone-50 pl-8 sm:pl-9 pr-8 py-1.5 text-xs text-stone-800 placeholder:text-stone-400 focus:border-[#fa9d26] focus:bg-white focus:outline-hidden shadow-2xs"
+              className="w-full rounded-full border border-stone-200 bg-stone-50 pl-9 pr-8 py-2 text-xs sm:text-sm text-stone-800 placeholder:text-stone-400 focus:border-[#fa9d26] focus:bg-white focus:outline-hidden shadow-2xs transition"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-2 text-stone-400 hover:text-stone-600 p-0.5"
+                className="absolute right-2.5 top-2.5 text-stone-400 hover:text-stone-600 p-0.5"
                 title="Clear search"
               >
-                <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <X className="h-4 w-4" />
               </button>
             )}
           </div>
