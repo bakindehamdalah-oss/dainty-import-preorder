@@ -1830,7 +1830,7 @@ export default function AdminPage() {
             <img src="/logo.png" alt="Dainty Import" className="h-8 w-auto rounded object-contain border border-[#fa9d26]/30 p-0.5" />
             <div>
               <h1 className="text-sm font-bold text-stone-900 leading-tight">Dainty Import Admin</h1>
-              <span className="text-[10px] font-semibold text-[#fa9d26] uppercase tracking-wider">China Factory Catalog Management</span>
+              <span className="text-[10px] font-semibold text-[#fa9d26] uppercase tracking-wider">China Sourcing Catalog Management</span>
             </div>
           </div>
 

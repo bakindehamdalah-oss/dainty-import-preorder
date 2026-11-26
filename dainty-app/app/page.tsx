@@ -375,14 +375,14 @@ function MatrixOrderModal({
             <div className="flex items-start gap-1.5">
               <Sparkles className="h-4 w-4 text-[#fa9d26] shrink-0 mt-0.5" />
               <div>
-                <strong>Category Bulk Purchase:</strong> Wholesale factory pricing applies once the combined order reaches <strong>{moq} pieces</strong> across this category.
+                <strong>Category Bulk Purchase:</strong> Wholesale pricing applies once the combined order reaches <strong>{moq} pieces</strong> across this category.
               </div>
             </div>
           ) : (
             <div className="flex items-start gap-1.5">
               <Box className="h-4 w-4 text-[#fa9d26] shrink-0 mt-0.5" />
               <div>
-                <strong>Item Minimum Order:</strong> Wholesale factory pricing for this item starts at <strong>{moq} pieces</strong>. Choose the available sizes and colors below.
+                <strong>Item Minimum Order:</strong> Wholesale pricing for this item starts at <strong>{moq} pieces</strong>. Choose the available sizes and colors below.
               </div>
             </div>
           )}
@@ -1067,15 +1067,11 @@ decoding="async"
 
           {/* Product Badges (Temu style tag) */}
           <div className="absolute top-2 left-2 flex flex-col gap-1 items-start z-10">
-            {mode === 'wholesale' ? (
+            {mode === 'wholesale' && (
               <span className="rounded-md bg-[#fa9d26] px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-extrabold text-white shadow-xs tracking-wide uppercase">
                 {moqScope === 'category'
                   ? `Mix MOQ: ${moq}`
                   : `MOQ: ${moq} pcs`}
-              </span>
-            ) : (
-              <span className="rounded-md bg-stone-900/90 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-white shadow-xs tracking-wide uppercase">
-                Factory Direct
               </span>
             )}
             {!hasAir && (
@@ -1948,7 +1944,7 @@ export default function StorefrontPage() {
 
       {/* China Sourcing Announcement Strip */}
       <div className="bg-[#fa9d26] text-white text-[10px] sm:text-[11px] font-semibold py-1.5 px-3 sm:px-4 text-center tracking-wide leading-tight w-full">
-        China Factory Direct Sourcing • Direct Factory Prices • Air Cargo ~3 Weeks • Sea Cargo ~3 Months • WhatsApp Order Confirmation
+        China Sourcing • Sourced from China Suppliers • Air Cargo ~3 Weeks • Sea Cargo ~3 Months • WhatsApp Order Confirmation
       </div>
 
       {/* Main Sticky Header */}
@@ -2151,7 +2147,7 @@ decoding="async"
             <div className="rounded-2xl border border-dashed border-[#fa9d26]/40 bg-amber-50/50 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
               <div>
                 <h4 className="text-sm font-bold text-stone-900">Looking for a category or item not listed here?</h4>
-                <p className="text-xs text-stone-600 mt-0.5">We source any custom products directly from verified China factories.</p>
+                <p className="text-xs text-stone-600 mt-0.5">We source any custom products directly from verified China suppliers.</p>
               </div>
               <button
                 type="button"
@@ -2174,13 +2170,13 @@ decoding="async"
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fa9d26] px-2.5 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider shadow-2xs">
-                CHINA FACTORY PRICES
+                CHINA SOURCING
               </span>
               <h2 className="mt-1 text-lg sm:text-2xl font-bold tracking-tight text-stone-900">
                 How Dainty Preorder Works
               </h2>
               <p className="mt-1 text-xs sm:text-sm text-stone-600 max-w-xl leading-relaxed">
-                Shop China factory products. Select <strong>Wholesale</strong> for discounted bulk orders or <strong>Retail</strong> for single items, pick your sizes and colors, and choose <strong>Air Cargo</strong> (shipping time frame: within 3 weeks) or <strong>Sea Cargo</strong> (shipping time frame: within 3 months). Checkout takes you to WhatsApp to complete your order. The initial payment covers the buying price of the item, and shipping fee is confirmed and paid separately when your goods arrive in Nigeria. Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria. Confirmed shipping fees must be settled within 7 days of notification.
+                Shop products from China suppliers. Select <strong>Wholesale</strong> for discounted bulk orders or <strong>Retail</strong> for single items, pick your sizes and colors, and choose <strong>Air Cargo</strong> (shipping time frame: within 3 weeks) or <strong>Sea Cargo</strong> (shipping time frame: within 3 months). Checkout takes you to WhatsApp to complete your order. The initial payment covers the buying price of the item, and shipping fee is confirmed and paid separately when your goods arrive in Nigeria. Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria. Confirmed shipping fees must be settled within 7 days of notification.
               </p>
             </div>
 
@@ -2205,7 +2201,7 @@ decoding="async"
           {/* Custom Item Sourcing CTA Banner */}
           <div className="mt-4 pt-3.5 border-t border-amber-200/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
             <div className="text-xs text-stone-700">
-              <span className="font-bold text-stone-900">Can&apos;t find what you are looking for?</span> We source any item directly from China manufacturers at direct factory prices.
+              <span className="font-bold text-stone-900">Can&apos;t find what you are looking for?</span> We source any item directly from China suppliers.
             </div>
             <button
               type="button"
@@ -2235,7 +2231,7 @@ decoding="async"
               </div>
               {mode === 'wholesale' && (
                 <p className="mt-1 text-xs text-stone-600">
-                  Direct Factory prices for bulk purchases, minimum order applies
+                  Wholesale prices for bulk purchases, minimum order applies
                 </p>
               )}
             </div>
@@ -2553,7 +2549,7 @@ decoding="async"
               <ShoppingBag className="h-10 w-10 text-stone-300" />
               <p className="text-sm font-semibold text-stone-700">Your cart is empty</p>
               <p className="text-xs text-stone-400 max-w-[220px]">
-                Browse our China factory products and add items to your preorder.
+                Browse our China products and add items to your preorder.
               </p>
               <button
                 type="button"
@@ -2762,7 +2758,7 @@ decoding="async"
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-stone-900">Request Any Item from China</h3>
-                  <p className="text-[11px] text-stone-500">We source directly from China factories and suppliers</p>
+                  <p className="text-[11px] text-stone-500">We source directly from China suppliers</p>
                 </div>
               </div>
               <button

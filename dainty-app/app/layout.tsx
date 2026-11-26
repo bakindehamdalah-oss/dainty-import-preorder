@@ -23,15 +23,15 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_SITE_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://dainty-import-preorder.vercel.app")
   ),
-  title: "Dainty Import | China Direct Factory Preorders & Sourcing",
+  title: "Dainty Import | China Preorders & Sourcing",
   description:
-    "Direct factory preorders from China. Transparent air & sea cargo estimates, custom sizes and colors, and direct WhatsApp ordering.",
+    "Preorders from China suppliers. Transparent air & sea cargo estimates, custom sizes and colors, and direct WhatsApp ordering.",
   applicationName: "Dainty Import",
-  keywords: ["China sourcing", "preorders", "China factory sourcing", "Nigeria imports", "Dainty Import", "wholesale iPhone cases"],
+  keywords: ["China sourcing", "preorders", "China suppliers", "Nigeria imports", "Dainty Import", "wholesale iPhone cases"],
   openGraph: {
-    title: "Dainty Import | China Direct Factory Preorders",
+    title: "Dainty Import | China Preorders",
     description:
-      "Shop curated China factory products with clear air and sea shipping estimates.",
+      "Shop curated products from China suppliers with clear air and sea shipping estimates.",
     siteName: "Dainty Import",
     type: "website",
     locale: "en_NG",
