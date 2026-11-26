@@ -1825,31 +1825,7 @@ export default function StorefrontPage() {
             </div>
           </div>
 
-          {/* Categories directory button */}
-          <button
-            type="button"
-            onClick={() => {
-              setIsCategoriesOnlyView((prev) => !prev);
-              if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            className={`shrink-0 inline-flex items-center gap-1 sm:gap-1.5 rounded-lg px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-bold transition shadow-2xs ${
-              isCategoriesOnlyView
-                ? 'bg-[#fa9d26] text-white shadow-xs'
-                : 'border border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
-            }`}
-            title="Browse all product categories"
-          >
-            <Grid className="h-3 sm:h-3.5 w-3 sm:w-3.5" />
-            <span>Categories</span>
-          </button>
 
-          {/* Track order link */}
-          <a
-            href="/track"
-            className="shrink-0 rounded-lg px-2 py-1.5 text-[11px] font-bold text-stone-600 hover:bg-amber-50 hover:text-amber-800 transition"
-          >
-            Track
-          </a>
 
           {/* Request Item Button */}
           <button
@@ -1975,7 +1951,7 @@ export default function StorefrontPage() {
               </button>
             </div>
 
-            <a href="/track" className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-bold text-stone-700 hover:border-[#fa9d26] hover:text-amber-800">Track Order</a>
+
 
             {/* Desktop Cart Button */}
             <button
@@ -2078,7 +2054,7 @@ export default function StorefrontPage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="mx-auto w-full max-w-6xl px-3 sm:px-6 py-4 sm:py-8 pb-24 sm:pb-8 flex-1">
+      <main className="mx-auto w-full max-w-6xl px-3 sm:px-6 py-4 sm:py-8 pb-24 sm:pb-24 flex-1">
         {/* Dedicated Categories Only View */}
         {isCategoriesOnlyView ? (
           <div className="space-y-6">
@@ -2433,53 +2409,7 @@ export default function StorefrontPage() {
             </button>
           </div>
         )}
-{/* Categories Bar (Temu Style Horizontal Strip) */}
-        <div id="categories-bar" className="mb-6 flex gap-2 overflow-x-auto pb-2 text-xs scrollbar-none">
-          <button
-            type="button"
-            onClick={() => {
-              setIsCategoriesOnlyView(true);
-              if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            className="rounded-full px-3.5 py-1.5 font-bold transition whitespace-nowrap inline-flex items-center gap-1.5 bg-amber-500/10 text-[#b86200] border border-[#fa9d26]/40 hover:bg-[#fa9d26]/20 active:scale-95"
-            title="Browse only categories"
-          >
-            <Grid className="h-3.5 w-3.5 text-[#fa9d26]" />
-            <span>Categories</span>
-          </button>
 
-          <button
-            type="button"
-            onClick={() => setSelectedCategory('all')}
-            className={`rounded-full px-4 py-1.5 font-medium transition whitespace-nowrap ${
-              selectedCategory === 'all'
-                ? 'bg-stone-900 text-white shadow-xs font-semibold'
-                : 'bg-white text-stone-700 border border-stone-200 hover:bg-stone-100'
-            }`}
-          >
-            All Products ({products.length})
-          </button>
-          {categories.map((c) => {
-            const count = products.filter((p) => p.category_id === c.id).length;
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setSelectedCategory(c.id)}
-                className={`rounded-full px-4 py-1.5 font-medium transition whitespace-nowrap flex items-center gap-1.5 ${
-                  selectedCategory === c.id
-                    ? 'bg-stone-900 text-white shadow-xs font-semibold'
-                    : 'bg-white text-stone-700 border border-stone-200 hover:bg-stone-100'
-                }`}
-              >
-                <span>{c.name}</span>
-                <span className="rounded-full bg-stone-200/60 px-1.5 py-0.2 text-[10px] text-stone-600">
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
 
         {errorMsg && (
           <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -3021,8 +2951,9 @@ export default function StorefrontPage() {
         </div>
       )}
 
-          {/* Temu Mobile Bottom Navigation Bar */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200 px-3 py-1.5 flex items-center justify-around shadow-lg">
+      {/* Bottom Navigation Bar */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200 px-4 py-2 shadow-lg">
+        <div className="mx-auto flex max-w-lg items-center justify-around">
         {/* 1. Request (Switched with Shop, star removed) */}
         <button
           type="button"
@@ -3092,6 +3023,7 @@ export default function StorefrontPage() {
           </div>
           <span className="text-[10px] font-bold">Cart</span>
         </button>
+        </div>
       </nav>
 
     </div>
