@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import {
+  PackagePlus,
   AlertCircle,
   ArrowRight,
   Box,
@@ -43,6 +44,7 @@ type StoreSettings = {
 type Category = {
   id: string;
   name: string;
+  description?: string;
   slug: string;
   wholesale_moq?: number;
   moq_scope?: 'category' | 'item';
@@ -1165,6 +1167,13 @@ export default function StorefrontPage() {
   const [mode, setMode] = useState<'retail' | 'wholesale'>('retail');
   const [shippingMethod, setShippingMethod] = useState<'air' | 'sea'>('air');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [isCategoriesOnlyView, setIsCategoriesOnlyView] = useState<boolean>(false);
+
+  const selectedCategoryName = useMemo(() => {
+    if (selectedCategory === 'all') return 'All Products';
+    const cat = categories.find((c) => c.id === selectedCategory);
+    return cat?.name || 'Category';
+  }, [selectedCategory, categories]);
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -1816,6 +1825,24 @@ export default function StorefrontPage() {
             </div>
           </div>
 
+          {/* Categories directory button */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsCategoriesOnlyView((prev) => !prev);
+              if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className={`shrink-0 inline-flex items-center gap-1 sm:gap-1.5 rounded-lg px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-bold transition shadow-2xs ${
+              isCategoriesOnlyView
+                ? 'bg-[#fa9d26] text-white shadow-xs'
+                : 'border border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
+            }`}
+            title="Browse all product categories"
+          >
+            <Grid className="h-3 sm:h-3.5 w-3 sm:w-3.5" />
+            <span>Categories</span>
+          </button>
+
           {/* Track order link */}
           <a
             href="/track"
@@ -1835,7 +1862,6 @@ export default function StorefrontPage() {
             className="shrink-0 inline-flex items-center gap-1 sm:gap-1.5 rounded-lg border border-amber-300 bg-amber-50/80 px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-bold text-amber-950 hover:bg-amber-100 hover:border-amber-400 transition shadow-2xs"
             title="Request any item to be sourced from China"
           >
-            <Sparkles className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-[#fa9d26]" />
             <span>Request Item</span>
           </button>
 
@@ -1874,7 +1900,7 @@ export default function StorefrontPage() {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); if (isCategoriesOnlyView) setIsCategoriesOnlyView(false); }}
               placeholder="Search China products, models, categories (e.g. cases, bags, accessories)..."
               className="w-full rounded-full border border-stone-200 bg-stone-50 pl-9 pr-4 py-1.5 text-xs text-stone-800 placeholder:text-stone-400 focus:border-[#fa9d26] focus:bg-white focus:outline-hidden"
             />
@@ -2034,7 +2060,7 @@ export default function StorefrontPage() {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); if (isCategoriesOnlyView) setIsCategoriesOnlyView(false); }}
               placeholder="Search products, models, categories..."
               className="w-full rounded-full border border-stone-200 bg-white pl-8 pr-4 py-1 text-xs text-stone-800 placeholder:text-stone-400 focus:border-[#fa9d26] focus:outline-hidden shadow-2xs"
             />
@@ -2053,6 +2079,165 @@ export default function StorefrontPage() {
 
       {/* Main Content Area */}
       <main className="mx-auto w-full max-w-6xl px-3 sm:px-6 py-4 sm:py-8 pb-24 sm:pb-8 flex-1">
+        {/* Dedicated Categories Only View */}
+        {isCategoriesOnlyView ? (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-stone-200 pb-4">
+              <div>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fa9d26]/15 px-2.5 py-0.5 text-[10px] font-bold text-[#b86200] uppercase tracking-wider">
+                  <Grid className="h-3 w-3" />
+                  Categories
+                </span>
+                <h2 className="mt-1 text-xl sm:text-2xl font-bold tracking-tight text-stone-900">
+                  Select a Product Category
+                </h2>
+                <p className="mt-0.5 text-xs sm:text-sm text-stone-600">
+                  Tap any category below to view only the direct China factory items in that category.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategory('all');
+                  setIsCategoriesOnlyView(false);
+                  if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="self-start sm:self-auto inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3.5 py-2 text-xs font-bold text-stone-700 shadow-2xs hover:bg-stone-50 transition active:scale-95"
+              >
+                <span>View All Products ({products.length})</span>
+                <ChevronRight className="h-3.5 w-3.5 text-[#fa9d26]" />
+              </button>
+            </div>
+
+            {/* Categories Grid */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 md:grid-cols-4">
+              {/* All Products Card */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategory('all');
+                  setIsCategoriesOnlyView(false);
+                  if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={`group flex flex-col items-center justify-center rounded-2xl border p-4 text-center transition hover:shadow-md active:scale-98 ${
+                  selectedCategory === 'all'
+                    ? 'border-[#fa9d26] bg-[#fa9d26]/5 ring-2 ring-[#fa9d26]/20'
+                    : 'border-stone-200 bg-white hover:border-amber-300'
+                }`}
+              >
+                <div className="mb-3 flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-amber-50 text-[#fa9d26] group-hover:scale-105 transition">
+                  <Grid className="h-7 w-7" />
+                </div>
+                <h3 className="text-sm font-bold text-stone-900 group-hover:text-[#fa9d26] transition">
+                  All Products
+                </h3>
+                <p className="mt-1 text-[11px] font-semibold text-stone-500">
+                  {products.length} total items
+                </p>
+                <span className="mt-3 inline-flex items-center gap-1 text-[10px] font-extrabold text-[#fa9d26]">
+                  Browse All <ChevronRight className="h-3 w-3" />
+                </span>
+              </button>
+
+              {/* Individual Categories Cards */}
+              {categories.map((c) => {
+                const categoryProducts = products.filter((p) => p.category_id === c.id);
+                const count = categoryProducts.length;
+                const previewImg = categoryProducts.find(
+                  (p) => p.image_url || (p.images && p.images.length > 0)
+                );
+                const imgUrl = previewImg?.image_url || previewImg?.images?.[0] || null;
+
+                const isIphoneCases = c.name.toLowerCase().includes('case') || c.name.toLowerCase().includes('iphone');
+                const isSelected = selectedCategory === c.id;
+
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory(c.id);
+                      setIsCategoriesOnlyView(false);
+                      if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className={`group relative flex flex-col overflow-hidden rounded-2xl border text-left transition hover:shadow-md active:scale-98 ${
+                      isSelected
+                        ? 'border-[#fa9d26] bg-[#fa9d26]/5 ring-2 ring-[#fa9d26]/20'
+                        : 'border-stone-200 bg-white hover:border-amber-300'
+                    }`}
+                  >
+                    <div className="relative aspect-4/3 w-full overflow-hidden bg-stone-100">
+                      {imgUrl ? (
+                        <img
+                          src={imgUrl}
+                          alt={c.name}
+                          className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-stone-300">
+                          <Layers className="h-8 w-8" />
+                        </div>
+                      )}
+
+                      {isIphoneCases && (
+                        <div className="absolute top-2 left-2 rounded-md bg-[#fa9d26] px-1.5 py-0.5 text-[9px] font-extrabold text-white shadow-xs">
+                          50 pcs MOQ
+                        </div>
+                      )}
+
+                      <div className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur-xs">
+                        {count} item{count === 1 ? '' : 's'}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-1 flex-col justify-between p-3 sm:p-3.5">
+                      <div>
+                        <h3 className="text-sm font-bold text-stone-900 group-hover:text-[#fa9d26] transition line-clamp-1">
+                          {c.name}
+                        </h3>
+                        <p className="mt-0.5 text-[11px] text-stone-500">
+                          {count} direct China item{count === 1 ? '' : 's'}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between pt-2 border-t border-stone-100">
+                        <span className="text-[11px] font-bold text-[#b86200] group-hover:text-[#fa9d26] flex items-center gap-0.5">
+                          View Items <ChevronRight className="h-3 w-3" />
+                        </span>
+                        {isIphoneCases && mode === 'wholesale' && (
+                          <span className="text-[9px] text-stone-400">Mix & match</span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Custom Sourcing Request Callout */}
+            <div className="rounded-2xl border border-dashed border-[#fa9d26]/40 bg-amber-50/50 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+              <div>
+                <h4 className="text-sm font-bold text-stone-900">Looking for a category or item not listed here?</h4>
+                <p className="text-xs text-stone-600 mt-0.5">We source any custom products directly from verified China factories.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setRequestOrderType(mode);
+                  setRequestShipping(shippingMethod);
+                  setIsRequestModalOpen(true);
+                }}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-stone-900 px-4 py-2 text-xs font-bold text-white hover:bg-stone-800 transition active:scale-95"
+              >
+                <span>Request Custom Item</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div>
+
         {/* How Dainty Preorder Works Banner */}
         <section className="mb-6 overflow-hidden rounded-2xl border border-[#fa9d26]/30 bg-gradient-to-br from-[#fce7cc]/90 via-[#fff8f0] to-white p-4 sm:p-6 shadow-xs">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -2100,7 +2285,6 @@ export default function StorefrontPage() {
               }}
               className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-xl bg-stone-900 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-stone-800 transition active:scale-95"
             >
-              <Sparkles className="h-3.5 w-3.5 text-[#fa9d26]" />
               <span>Request Any Item</span>
             </button>
           </div>
@@ -2204,8 +2388,66 @@ export default function StorefrontPage() {
           </div>
         </div>
 
-        {/* Categories Bar (Temu Style Horizontal Strip) */}
+        
+        {/* Active Category Header (when filtered to a specific category) */}
+        {selectedCategory !== 'all' && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-[#fa9d26]/40 bg-gradient-to-r from-amber-50 to-white p-3.5 sm:p-4 shadow-2xs">
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCategoriesOnlyView(true);
+                  if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-xs font-bold text-stone-700 shadow-2xs hover:bg-stone-50 hover:border-[#fa9d26] transition active:scale-95"
+              >
+                <ChevronLeft className="h-3.5 w-3.5 text-[#fa9d26]" />
+                <span>All Categories</span>
+              </button>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#b86200]">
+                    Active Category
+                  </span>
+                  {selectedCategoryName.toLowerCase().includes('case') && (
+                    <span className="rounded-full bg-[#fa9d26] px-2 py-0.2 text-[9px] font-black text-white">
+                      50 pcs MOQ
+                    </span>
+                  )}
+                </div>
+                <h2 className="text-base sm:text-lg font-bold text-stone-900 leading-tight">
+                  {selectedCategoryName}
+                </h2>
+                <p className="text-[11px] text-stone-500">
+                  Showing only items in this category ({filteredProducts.length} product{filteredProducts.length === 1 ? '' : 's'})
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('all')}
+              className="rounded-lg px-2.5 py-1 text-xs font-bold text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition"
+            >
+              Clear filter (Show all products)
+            </button>
+          </div>
+        )}
+{/* Categories Bar (Temu Style Horizontal Strip) */}
         <div id="categories-bar" className="mb-6 flex gap-2 overflow-x-auto pb-2 text-xs scrollbar-none">
+          <button
+            type="button"
+            onClick={() => {
+              setIsCategoriesOnlyView(true);
+              if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="rounded-full px-3.5 py-1.5 font-bold transition whitespace-nowrap inline-flex items-center gap-1.5 bg-amber-500/10 text-[#b86200] border border-[#fa9d26]/40 hover:bg-[#fa9d26]/20 active:scale-95"
+            title="Browse only categories"
+          >
+            <Grid className="h-3.5 w-3.5 text-[#fa9d26]" />
+            <span>Categories</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setSelectedCategory('all')}
@@ -2288,7 +2530,10 @@ export default function StorefrontPage() {
             ))}
           </div>
         )}
-      </main>
+      
+          </div>
+        )}
+</main>
 
       {/* Floating Cart Trigger Pill on Mobile & Desktop */}
       {totalCartCount > 0 && !isCartOpen && (
@@ -2802,29 +3047,7 @@ export default function StorefrontPage() {
 
           {/* Temu Mobile Bottom Navigation Bar */}
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200 px-3 py-1.5 flex items-center justify-around shadow-lg">
-        <button
-          type="button"
-          onClick={() => {
-            if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
-        >
-          <Home className="h-4 w-4" />
-          <span className="text-[10px] font-bold">Shop</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            const el = document.getElementById('categories-bar');
-            if (el) el.scrollIntoView({ behavior: 'smooth' });
-          }}
-          className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
-        >
-          <Grid className="h-4 w-4" />
-          <span className="text-[10px] font-bold">Categories</span>
-        </button>
-
+        {/* 1. Request (Switched with Shop, star removed) */}
         <button
           type="button"
           onClick={() => {
@@ -2832,12 +3055,43 @@ export default function StorefrontPage() {
             setRequestShipping(shippingMethod);
             setIsRequestModalOpen(true);
           }}
-          className="flex flex-col items-center gap-0.5 text-[#b86200] hover:text-[#fa9d26] transition active:scale-95"
+          className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
         >
-          <Sparkles className="h-4 w-4 text-[#fa9d26]" />
-          <span className="text-[10px] font-extrabold">Request</span>
+          <PackagePlus className="h-4 w-4 text-[#fa9d26]" />
+          <span className="text-[10px] font-bold">Request</span>
         </button>
 
+        {/* 2. Categories (Opens categories-only view) */}
+        <button
+          type="button"
+          onClick={() => {
+            setIsCategoriesOnlyView(true);
+            if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className={`flex flex-col items-center gap-0.5 transition active:scale-95 ${
+            isCategoriesOnlyView ? 'text-[#fa9d26]' : 'text-stone-600 hover:text-[#fa9d26]'
+          }`}
+        >
+          <Grid className="h-4 w-4" />
+          <span className="text-[10px] font-bold">Categories</span>
+        </button>
+
+        {/* 3. Shop (Switched with Request) */}
+        <button
+          type="button"
+          onClick={() => {
+            setIsCategoriesOnlyView(false);
+            if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className={`flex flex-col items-center gap-0.5 transition active:scale-95 ${
+            !isCategoriesOnlyView ? 'text-[#fa9d26]' : 'text-stone-600 hover:text-[#fa9d26]'
+          }`}
+        >
+          <Home className="h-4 w-4" />
+          <span className="text-[10px] font-bold">Shop</span>
+        </button>
+
+        {/* 4. Track */}
         <a
           href="/track"
           className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
@@ -2846,6 +3100,7 @@ export default function StorefrontPage() {
           <span className="text-[10px] font-bold">Track</span>
         </a>
 
+        {/* 5. Cart */}
         <button
           type="button"
           onClick={() => setIsCartOpen(true)}
