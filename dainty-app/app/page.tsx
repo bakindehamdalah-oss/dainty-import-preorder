@@ -1809,9 +1809,21 @@ export default function StorefrontPage() {
 
       {/* Main Sticky Header */}
       <header className="sticky top-0 z-40 w-full border-b border-stone-200 bg-white/95 backdrop-blur-xs">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-3.5 py-2.5 sm:px-6 sm:py-3 gap-2">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-3.5 py-2.5 sm:px-6 sm:py-3 gap-3">
           {/* Logo & Brand Title */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          <a
+            href="/"
+            onClick={(e) => {
+              if (selectedCategory !== 'all' || isCategoriesOnlyView || searchQuery) {
+                e.preventDefault();
+                setSelectedCategory('all');
+                setIsCategoriesOnlyView(false);
+                setSearchQuery('');
+                if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }}
+            className="flex items-center gap-2.5 shrink-0 hover:opacity-95 transition"
+          >
             <img
               src="/logo.png"
               alt="Dainty Import"
@@ -1823,230 +1835,26 @@ export default function StorefrontPage() {
                 China Direct Preorders
               </p>
             </div>
-          </div>
-
-
-
-          {/* Request Item Button */}
-          <button
-            type="button"
-            onClick={() => {
-              setRequestOrderType(mode);
-              setRequestShipping(shippingMethod);
-              setIsRequestModalOpen(true);
-            }}
-            className="shrink-0 inline-flex items-center gap-1 sm:gap-1.5 rounded-lg border border-amber-300 bg-amber-50/80 px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-bold text-amber-950 hover:bg-amber-100 hover:border-amber-400 transition shadow-2xs"
-            title="Request any item to be sourced from China"
-          >
-            <span>Request Item</span>
-          </button>
-
-          {/* Direct WhatsApp Chat Header Link */}
-          <a
-            href={buildDirectWhatsAppChatUrl()}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0 inline-flex items-center gap-1 sm:gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-bold text-emerald-900 hover:bg-emerald-100 transition shadow-2xs"
-            title="Chat directly on WhatsApp"
-            aria-label="WhatsApp Chat"
-          >
-            <WhatsAppIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-emerald-600 shrink-0" />
-            <span className="hidden sm:inline">WhatsApp</span>
           </a>
 
-          {/* Mobile Cart Trigger on Top Header */}
-          <button
-            type="button"
-            onClick={() => setIsCartOpen((prev) => !prev)}
-            className="sm:hidden relative inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-800 shadow-2xs hover:border-[#fa9d26] transition active:scale-95 ml-auto"
-            aria-label="Open Cart"
-          >
-            <ShoppingBag className="h-4 w-4 text-[#fa9d26]" />
-            <span>Cart</span>
-            {totalCartCount > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#fa9d26] px-1 text-[9px] font-bold text-white shadow-xs">
-                {totalCartCount}
-              </span>
-            )}
-          </button>
-
-          {/* Desktop Search Bar */}
-          <div className="relative flex-1 max-w-md hidden md:block">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-stone-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); if (isCategoriesOnlyView) setIsCategoriesOnlyView(false); }}
-              placeholder="Search China products, models, categories (e.g. cases, bags, accessories)..."
-              className="w-full rounded-full border border-stone-200 bg-stone-50 pl-9 pr-4 py-1.5 text-xs text-stone-800 placeholder:text-stone-400 focus:border-[#fa9d26] focus:bg-white focus:outline-hidden"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-2.5 text-stone-400 hover:text-stone-600"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-
-          {/* Desktop Mode & Shipping Switch */}
-          <div className="hidden sm:flex items-center gap-2 text-xs">
-            {/* Mode switch */}
-            <div className="flex rounded-lg border border-stone-200 bg-stone-100 p-0.5">
-              <button
-                type="button"
-                onClick={() => setMode('retail')}
-                className={`rounded-md px-3 py-1.5 font-medium transition ${
-                  mode === 'retail' ? 'bg-white text-stone-900 shadow-xs font-semibold' : 'text-stone-600'
-                }`}
-              >
-                Retail
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('wholesale')}
-                className={`rounded-md px-3 py-1.5 font-medium transition ${
-                  mode === 'wholesale' ? 'bg-[#fa9d26] text-white font-bold shadow-xs' : 'text-stone-600'
-                }`}
-              >
-                Wholesale (MOQ)
-              </button>
-            </div>
-
-            {/* Shipping method switch */}
-            <div className="flex rounded-lg border border-stone-200 bg-stone-100 p-0.5">
-              <button
-                type="button"
-                disabled={cartHasSeaOnlyItems}
-                onClick={() => setShippingMethod('air')}
-                title={cartHasSeaOnlyItems ? 'At least one item has no Air shipping rate and cannot be shipped by air' : 'Air cargo delivery within 3 weeks'}
-                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition ${
-                  cartHasSeaOnlyItems
-                    ? 'opacity-40 cursor-not-allowed text-stone-400'
-                    : shippingMethod === 'air'
-                    ? 'bg-white text-stone-900 shadow-xs font-semibold'
-                    : 'text-stone-600'
-                }`}
-              >
-                <Plane className="h-4 w-4 text-emerald-600" />
-                Air (3 wks)
-              </button>
-              <button
-                type="button"
-                disabled={cartHasAirOnlyItems}
-                onClick={() => setShippingMethod('sea')}
-                title={cartHasAirOnlyItems ? 'At least one item has no Sea shipping rate and cannot be shipped by sea' : 'Sea cargo delivery within 3 months'}
-                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition ${
-                  cartHasAirOnlyItems
-                    ? 'opacity-40 cursor-not-allowed text-stone-400'
-                    : shippingMethod === 'sea'
-                    ? 'bg-white text-stone-900 shadow-xs font-semibold'
-                    : 'text-stone-600'
-                }`}
-              >
-                <Ship className="h-4 w-4 text-blue-600" />
-                Sea (3 mos)
-              </button>
-            </div>
-
-
-
-            {/* Desktop Cart Button */}
-            <button
-              type="button"
-              onClick={() => setIsCartOpen((prev) => !prev)}
-              className="relative inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-1.5 font-semibold text-stone-800 shadow-2xs hover:border-[#fa9d26] hover:bg-amber-50/40 transition active:scale-95"
-              aria-label="View Cart"
-            >
-              <ShoppingBag className="h-4 w-4 text-[#fa9d26]" />
-              <span>Cart</span>
-              {totalCartCount > 0 && (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#fa9d26] px-1 text-[10px] font-bold text-white shadow-xs">
-                  {totalCartCount}
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile Header Sub-Bar: Responsive Controls on Mobile */}
-        <div className="sm:hidden border-t border-stone-100 px-3 py-2 bg-stone-50/90 flex flex-col gap-2">
-          {/* Mobile Mode & Shipping Switches */}
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="flex rounded-lg border border-stone-200 bg-stone-100 p-0.5">
-              <button
-                type="button"
-                onClick={() => setMode('retail')}
-                className={`flex-1 rounded-md py-1 text-center font-medium text-[11px] transition ${
-                  mode === 'retail' ? 'bg-white text-stone-900 shadow-xs font-semibold' : 'text-stone-600'
-                }`}
-              >
-                Retail
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('wholesale')}
-                className={`flex-1 rounded-md py-1 text-center font-bold text-[11px] transition ${
-                  mode === 'wholesale' ? 'bg-[#fa9d26] text-white shadow-xs' : 'text-stone-600'
-                }`}
-              >
-                Wholesale (MOQ)
-              </button>
-            </div>
-
-            <div className="flex rounded-lg border border-stone-200 bg-stone-100 p-0.5">
-              <button
-                type="button"
-                disabled={cartHasSeaOnlyItems}
-                onClick={() => setShippingMethod('air')}
-                className={`flex-1 inline-flex items-center justify-center gap-1 rounded-md py-1 text-center text-[11px] font-medium transition ${
-                  cartHasSeaOnlyItems
-                    ? 'opacity-40 cursor-not-allowed text-stone-400'
-                    : shippingMethod === 'air'
-                    ? 'bg-white text-stone-900 shadow-xs font-semibold'
-                    : 'text-stone-600'
-                }`}
-              >
-                <Plane className="h-3 w-3 text-emerald-600" />
-                Air (3 wks)
-              </button>
-              <button
-                type="button"
-                disabled={cartHasAirOnlyItems}
-                onClick={() => setShippingMethod('sea')}
-                className={`flex-1 inline-flex items-center justify-center gap-1 rounded-md py-1 text-center text-[11px] font-medium transition ${
-                  cartHasAirOnlyItems
-                    ? 'opacity-40 cursor-not-allowed text-stone-400'
-                    : shippingMethod === 'sea'
-                    ? 'bg-white text-stone-900 shadow-xs font-semibold'
-                    : 'text-stone-600'
-                }`}
-              >
-                <Ship className="h-3 w-3 text-blue-600" />
-                Sea (3 mos)
-              </button>
-            </div>
-          </div>
-
-          {/* Mobile Search Input */}
-          <div className="relative w-full">
-            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-stone-400" />
+          {/* Search Bar */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 sm:h-4 sm:w-4 text-stone-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); if (isCategoriesOnlyView) setIsCategoriesOnlyView(false); }}
               placeholder="Search products, models, categories..."
-              className="w-full rounded-full border border-stone-200 bg-white pl-8 pr-4 py-1 text-xs text-stone-800 placeholder:text-stone-400 focus:border-[#fa9d26] focus:outline-hidden shadow-2xs"
+              className="w-full rounded-full border border-stone-200 bg-stone-50 pl-8 sm:pl-9 pr-8 py-1.5 text-xs text-stone-800 placeholder:text-stone-400 focus:border-[#fa9d26] focus:bg-white focus:outline-hidden shadow-2xs"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1.5 text-stone-400 hover:text-stone-600 p-0.5"
+                className="absolute right-2.5 top-2 text-stone-400 hover:text-stone-600 p-0.5"
+                title="Clear search"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </button>
             )}
           </div>
