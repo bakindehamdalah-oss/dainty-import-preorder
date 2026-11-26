@@ -392,13 +392,38 @@ export default function AdminPage() {
     }
 
     try {
+      // Automatically clean up unpaid orders older than 14 days
+      const fourteenDaysAgoMs = Date.now() - 14 * 24 * 60 * 60 * 1000;
+      const fourteenDaysAgoISO = new Date(fourteenDaysAgoMs).toISOString();
+
+      try {
+        await supabase
+          .from('preorders')
+          .delete()
+          .or('status.eq.unpaid,status.is.null')
+          .lt('created_at', fourteenDaysAgoISO);
+      } catch (cleanErr) {
+        console.warn('Auto-cleanup of old unpaid preorders notice:', cleanErr);
+      }
+
       const preordersRes = await supabase
         .from('preorders')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(100);
       if (preordersRes.data) {
-        setPreorders(preordersRes.data);
+        // Double-check filter so unpaid orders older than 14 days never show in admin
+        const activeOrders = preordersRes.data.filter((order) => {
+          const isUnpaid = !order.status || order.status === 'unpaid';
+          if (isUnpaid && order.created_at) {
+            const orderTime = new Date(order.created_at).getTime();
+            if (!isNaN(orderTime) && orderTime < fourteenDaysAgoMs) {
+              return false; // older than 14 days and unpaid
+            }
+          }
+          return true;
+        });
+        setPreorders(activeOrders);
       }
 
       try {
@@ -3318,13 +3343,13 @@ export default function AdminPage() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-stone-100 text-xs">
                             <div className="space-y-1">
                               <label className="text-[10px] font-bold text-stone-500 uppercase">
-                                China Tracking / 1688 Order #:
+                                China Supplier / Tracking Order #:
                               </label>
                               <div className="flex items-center gap-1.5">
                                 <input
                                   type="text"
                                   defaultValue={po.china_order_ref || ''}
-                                  placeholder="e.g. 1688-294029482 or tracking #"
+                                  placeholder="e.g. CN-294029482 or tracking #"
                                   onBlur={(e) => {
                                     if (e.target.value !== (po.china_order_ref || '')) {
                                       handleUpdateOrderStatus(po.id, status, { china_order_ref: e.target.value });

@@ -12,6 +12,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Grid,
+  Home,
   ImageIcon,
   Info,
   Layers,
@@ -853,11 +855,11 @@ function ProductCard({
   const hasAir = airFee > 0;
   const hasSea = seaFee > 0;
 
-  return (
-    <div className="flex flex-col justify-between overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xs transition hover:shadow-md">
+    return (
+    <div className="group flex flex-col justify-between overflow-hidden rounded-xl sm:rounded-2xl border border-stone-200/90 bg-white shadow-2xs hover:shadow-md hover:border-[#fa9d26]/50 transition-all duration-200">
       <div>
-        {/* Crisp product image container with Zoom */}
-        <div className="relative aspect-square w-full overflow-hidden bg-stone-50 flex items-center justify-center p-3 group">
+        {/* Crisp product image container with Temu style badges and Zoom */}
+        <div className="relative aspect-square w-full overflow-hidden bg-stone-50 flex items-center justify-center p-2 sm:p-3 group/img">
           {activeImage ? (
             <img
               src={activeImage}
@@ -867,7 +869,7 @@ function ProductCard({
               loading="lazy"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-xs text-stone-400">
+            <div className="flex h-full w-full items-center justify-center text-[11px] text-stone-400">
               No image
             </div>
           )}
@@ -884,10 +886,10 @@ function ProductCard({
                   setActiveImage(allImages[nextIdx]);
                   if (allColors[nextIdx]) setSelectedColor(allColors[nextIdx]);
                 }}
-                className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-white/90 text-stone-800 shadow-md flex items-center justify-center hover:bg-white hover:scale-110 transition z-10 opacity-90 sm:opacity-0 group-hover:opacity-100 cursor-pointer"
+                className="absolute left-1.5 top-1/2 -translate-y-1/2 h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-white/95 text-stone-800 shadow-md flex items-center justify-center hover:bg-white hover:scale-110 transition z-10 opacity-90 sm:opacity-0 group-hover:opacity-100 cursor-pointer"
                 aria-label="Previous photo"
               >
-                <ChevronLeft className="h-5 w-5" />
+                <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
 
               <button
@@ -899,13 +901,13 @@ function ProductCard({
                   setActiveImage(allImages[nextIdx]);
                   if (allColors[nextIdx]) setSelectedColor(allColors[nextIdx]);
                 }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-white/90 text-stone-800 shadow-md flex items-center justify-center hover:bg-white hover:scale-110 transition z-10 opacity-90 sm:opacity-0 group-hover:opacity-100 cursor-pointer"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-white/95 text-stone-800 shadow-md flex items-center justify-center hover:bg-white hover:scale-110 transition z-10 opacity-90 sm:opacity-0 group-hover:opacity-100 cursor-pointer"
                 aria-label="Next photo"
               >
-                <ChevronRight className="h-5 w-5" />
+                <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
 
-              <span className="absolute top-2.5 right-2.5 rounded-full bg-stone-900/80 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-xs backdrop-blur-xs z-10">
+              <span className="absolute top-2 right-2 rounded-full bg-stone-900/80 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-white shadow-xs backdrop-blur-xs z-10">
                 {Math.max(1, allImages.indexOf(displayActiveImage) + 1)} / {allImages.length}
               </span>
             </>
@@ -919,30 +921,34 @@ function ProductCard({
                 onZoomImage(displayActiveImage);
               }}
               title="Click to view full photo clearly"
-              className="absolute bottom-2.5 right-2.5 inline-flex items-center gap-1 rounded-md bg-stone-900/80 px-2 py-1 text-[11px] font-medium text-white opacity-0 backdrop-blur-xs transition group-hover:opacity-100 hover:bg-stone-900 z-10 cursor-pointer"
+              className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-md bg-stone-900/80 px-1.5 py-0.5 sm:px-2 sm:py-1 text-[10px] sm:text-[11px] font-medium text-white opacity-0 backdrop-blur-xs transition group-hover:opacity-100 hover:bg-stone-900 z-10 cursor-pointer"
             >
               <Maximize2 className="h-3 w-3" />
-              Zoom
+              <span className="hidden sm:inline">Zoom</span>
             </button>
           )}
 
-          {/* Product Badges */}
-          <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 items-start">
-            {mode === 'wholesale' && (
-              <span className="rounded-md bg-[#fa9d26] px-2 py-0.5 text-[10px] font-bold text-white shadow-xs tracking-wide">
+          {/* Product Badges (Temu style tag) */}
+          <div className="absolute top-2 left-2 flex flex-col gap-1 items-start z-10">
+            {mode === 'wholesale' ? (
+              <span className="rounded-md bg-[#fa9d26] px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-extrabold text-white shadow-xs tracking-wide uppercase">
                 {moqScope === 'category'
-                  ? `Category MOQ: ${moq} pcs (mix & match)`
+                  ? `Mix MOQ: ${moq}`
                   : `MOQ: ${moq} pcs`}
+              </span>
+            ) : (
+              <span className="rounded-md bg-stone-900/90 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-white shadow-xs tracking-wide uppercase">
+                Factory Direct
               </span>
             )}
             {!hasAir && (
-              <span className="rounded-md bg-stone-900/90 px-2 py-0.5 text-[10px] font-medium text-white shadow-xs">
-                Can&apos;t ship by air
+              <span className="rounded-md bg-red-600/90 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-medium text-white shadow-xs">
+                No Air
               </span>
             )}
             {!hasSea && (
-              <span className="rounded-md bg-stone-900/90 px-2 py-0.5 text-[10px] font-medium text-white shadow-xs">
-                Can&apos;t ship by sea
+              <span className="rounded-md bg-red-600/90 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-medium text-white shadow-xs">
+                No Sea
               </span>
             )}
           </div>
@@ -950,7 +956,7 @@ function ProductCard({
 
         {/* Thumbnail switcher if multiple images exist */}
         {allImages.length > 1 && (
-          <div className="flex items-center gap-1.5 overflow-x-auto border-t border-stone-100 bg-stone-50/50 p-2">
+          <div className="flex items-center gap-1 overflow-x-auto border-t border-stone-100 bg-stone-50/60 p-1.5 sm:p-2">
             {allImages.map((img, idx) => (
               <button
                 key={idx}
@@ -959,7 +965,7 @@ function ProductCard({
                   setActiveImage(img);
                   if (allColors[idx]) setSelectedColor(allColors[idx]);
                 }}
-                className={`relative h-11 w-11 shrink-0 overflow-hidden rounded-md border bg-white p-0.5 transition ${
+                className={`relative h-8 w-8 sm:h-10 sm:w-10 shrink-0 overflow-hidden rounded-md border bg-white p-0.5 transition ${
                   activeImage === img ? 'border-[#fa9d26] ring-2 ring-[#fa9d26]/20' : 'border-stone-200 opacity-70 hover:opacity-100'
                 }`}
               >
@@ -969,24 +975,59 @@ function ProductCard({
           </div>
         )}
 
-        {/* Product Details */}
-        <div className="p-4">
-          {cat && <span className="text-xs font-medium text-stone-500">{cat.name}</span>}
-          <h2 className="mt-1 text-base font-semibold text-stone-900">{productTitle}</h2>
+        {/* Product Details (Temu High-Density Typography) */}
+        <div className="p-2.5 sm:p-4">
+          {cat && (
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-[#b86200] block">
+              {cat.name}
+            </span>
+          )}
+          <h2 className="mt-0.5 text-xs sm:text-sm font-semibold text-stone-900 line-clamp-2 leading-snug group-hover:text-[#fa9d26] transition-colors min-h-[2rem] sm:min-h-[2.5rem]">
+            {productTitle}
+          </h2>
+
+          {/* Temu Style Price Highlight */}
+          <div className="mt-1.5">
+            <div className="flex items-baseline gap-1 flex-wrap">
+              <span className="text-sm sm:text-lg font-black text-[#fa9d26] tracking-tight">
+                ₦{Number(displayPrice).toLocaleString()}
+              </span>
+              {mode === 'wholesale' ? (
+                <span className="text-[10px] sm:text-xs font-semibold text-stone-500">/ piece (bulk)</span>
+              ) : (
+                <span className="text-[10px] sm:text-xs font-medium text-stone-400">retail</span>
+              )}
+            </div>
+
+            {/* Compact Shipping Estimates */}
+            <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] sm:text-[11px]">
+              {hasAir ? (
+                <span className="text-stone-600 font-medium">Air: ₦{airFee.toLocaleString()}</span>
+              ) : (
+                <span className="text-red-500 font-medium">No Air shipping</span>
+              )}
+              <span className="text-stone-300">•</span>
+              {hasSea ? (
+                <span className="text-stone-600 font-medium">Sea: ₦{seaFee.toLocaleString()}</span>
+              ) : (
+                <span className="text-red-500 font-medium">No Sea shipping</span>
+              )}
+            </div>
+          </div>
 
           {/* Size / Model chips only if sizes exist */}
           {allSizes.length > 1 ? (
-            <div className="mt-3">
-              <span className="text-[11px] font-medium text-stone-600 block mb-1.5">
-                Size / Model: <span className="font-bold text-stone-900">{selectedSize || 'Select'}</span>
+            <div className="mt-2.5">
+              <span className="text-[10px] sm:text-[11px] font-medium text-stone-600 block mb-1">
+                Size: <span className="font-bold text-stone-900">{selectedSize || 'Select'}</span>
               </span>
-              <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+              <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto pr-0.5">
                 {allSizes.map((sz, idx) => (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => setSelectedSize(sz)}
-                    className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                    className={`rounded-md px-2 py-0.5 text-[10px] sm:text-xs font-medium transition ${
                       selectedSize === sz
                         ? 'bg-[#fa9d26] text-white shadow-xs font-semibold'
                         : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
@@ -998,30 +1039,30 @@ function ProductCard({
               </div>
             </div>
           ) : allSizes.length === 1 ? (
-            <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-md bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-800 border border-stone-200">
-              <span className="text-stone-500 font-normal">Size / Model:</span>
+            <div className="mt-2 inline-flex items-center gap-1 rounded-md bg-stone-100 px-2 py-0.5 text-[10px] sm:text-xs font-medium text-stone-800 border border-stone-200">
+              <span className="text-stone-500">Size:</span>
               <span className="font-bold text-stone-900">{allSizes[0]}</span>
             </div>
           ) : product.size ? (
-            <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-md bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-800 border border-stone-200">
-              <span className="text-stone-500 font-normal">Size / Model:</span>
+            <div className="mt-2 inline-flex items-center gap-1 rounded-md bg-stone-100 px-2 py-0.5 text-[10px] sm:text-xs font-medium text-stone-800 border border-stone-200">
+              <span className="text-stone-500">Size:</span>
               <span className="font-bold text-stone-900">{product.size}</span>
             </div>
           ) : null}
 
           {/* Color chips only if colors exist */}
           {allColors.length > 0 && (
-            <div className="mt-3">
-              <span className="text-[11px] font-medium text-stone-600 block mb-1.5">
+            <div className="mt-2">
+              <span className="text-[10px] sm:text-[11px] font-medium text-stone-600 block mb-1">
                 Color: <span className="font-bold text-stone-900">{selectedColor || 'Select'}</span>
               </span>
-              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+              <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto pr-0.5">
                 {allColors.map((col, idx) => (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => handleSelectColor(col, idx)}
-                    className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                    className={`rounded-md px-2 py-0.5 text-[10px] sm:text-xs font-medium transition ${
                       selectedColor === col
                         ? 'bg-stone-900 text-white shadow-xs font-semibold'
                         : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
@@ -1035,51 +1076,32 @@ function ProductCard({
           )}
 
           {cleanDescription ? (
-            <p className="mt-2.5 line-clamp-2 text-xs text-stone-600">{cleanDescription}</p>
+            <p className="mt-2 line-clamp-2 text-[10px] sm:text-xs text-stone-500">{cleanDescription}</p>
           ) : null}
         </div>
       </div>
 
       {/* Pricing & Actions */}
-      <div className="border-t border-stone-100 px-4 py-3 bg-stone-50/50 space-y-2.5">
+      <div className="border-t border-stone-100 p-2 sm:p-3 bg-stone-50/70 space-y-2">
+        {/* Quantity Stepper */}
         <div className="flex items-center justify-between">
-          <div>
-            <div className="text-base font-bold text-stone-900">
-              ₦{Number(displayPrice).toLocaleString()}
-              {mode === 'wholesale' && <span className="text-xs font-normal text-stone-500 ml-1">/ piece</span>}
-            </div>
-            <div className="text-[11px] flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-              {hasAir ? (
-                <span className="text-stone-600 font-medium">Air: ₦{airFee.toLocaleString()}</span>
-              ) : (
-                <span className="text-red-600 font-medium">Can&apos;t be shipped by air</span>
-              )}
-              <span className="text-stone-300">•</span>
-              {hasSea ? (
-                <span className="text-stone-600 font-medium">Sea: ₦{seaFee.toLocaleString()}</span>
-              ) : (
-                <span className="text-red-600 font-medium">Can&apos;t be shipped by sea</span>
-              )}
-            </div>
-          </div>
-
-          {/* Quantity Stepper for Single Add - 1 piece steps */}
-          <div className="flex items-center rounded-lg border border-stone-200 bg-white p-0.5">
+          <span className="text-[10px] sm:text-xs font-bold text-stone-600">Qty</span>
+          <div className="flex items-center rounded-lg border border-stone-200 bg-white p-0.5 shadow-2xs">
             <button
               type="button"
               onClick={() => setOrderQty((q) => Math.max(1, q - 1))}
-              className="h-6 w-6 flex items-center justify-center rounded text-stone-600 hover:bg-stone-100"
+              className="h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center rounded text-stone-600 hover:bg-stone-100 active:scale-95"
               title="Decrease quantity"
             >
               <Minus className="h-3 w-3" />
             </button>
-            <span className="text-xs font-bold text-stone-900 px-2 min-w-[30px] text-center">
+            <span className="text-[11px] sm:text-xs font-bold text-stone-900 px-1.5 sm:px-2 min-w-[22px] sm:min-w-[28px] text-center">
               {orderQty}
             </span>
             <button
               type="button"
               onClick={() => setOrderQty((q) => q + 1)}
-              className="h-6 w-6 flex items-center justify-center rounded text-stone-600 hover:bg-stone-100"
+              className="h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center rounded text-stone-600 hover:bg-stone-100 active:scale-95"
               title="Increase quantity"
             >
               <Plus className="h-3 w-3" />
@@ -1092,25 +1114,21 @@ function ProductCard({
           <button
             type="button"
             onClick={() => onOpenMatrix(product)}
-            className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-[#fa9d26] py-2 text-xs font-bold text-white hover:bg-[#e68c1d] transition shadow-xs active:scale-98"
+            className="w-full flex items-center justify-center gap-1 rounded-lg sm:rounded-xl bg-stone-900 hover:bg-stone-800 text-white py-1.5 sm:py-2 text-[11px] sm:text-xs font-bold transition shadow-xs active:scale-98"
           >
-            <Layers className="h-3.5 w-3.5" />
-            Batch Order (Pick Sizes, Colors & Qty)
+            <Layers className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-[#fa9d26]" />
+            <span>Batch Order</span>
           </button>
         )}
 
-        {/* Standard Add to Cart button */}
+        {/* Temu Style Orange Add to Preorder Cart Button */}
         <button
           type="button"
           onClick={() => onAddToCart(product, selectedColor, selectedSize, displayActiveImage, orderQty)}
-          className={`w-full flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold transition shadow-xs active:scale-98 ${
-            mode === 'wholesale' && hasVariants
-              ? 'bg-stone-100 text-stone-800 hover:bg-stone-200'
-              : 'bg-stone-900 text-white hover:bg-[#fa9d26]'
-          }`}
+          className="w-full flex items-center justify-center gap-1 rounded-lg sm:rounded-xl bg-[#fa9d26] hover:bg-[#e68a15] text-white py-1.5 sm:py-2 text-[11px] sm:text-xs font-bold transition shadow-xs active:scale-98"
         >
           <Plus className="h-3.5 w-3.5" />
-          Add {orderQty} to Preorder Cart
+          <span>Add {orderQty} to Cart</span>
         </button>
       </div>
     </div>
@@ -1191,7 +1209,7 @@ export default function StorefrontPage() {
           ? 'Sea Cargo (Within 3 months)'
           : 'Air or Sea (Best rate)'
       }`,
-      requestNotes.trim() ? `*Reference Link / Notes:* ${requestNotes.trim()}` : '',
+      requestNotes.trim() ? `*Details / Specifications:* ${requestNotes.trim()}` : '',
       '',
       `Hello Dainty Import, please help me source this item from China suppliers and give me a price quotation.`,
     ].filter(Boolean);
@@ -1596,11 +1614,12 @@ export default function StorefrontPage() {
   }, [cart, activeOrderId]);
 
   // Sync active preorder to Supabase preorders table and localStorage for short catalog link
-  useEffect(() => {
-    if (!activeOrderId || cart.length === 0) return;
+    // Save order to Supabase ONLY when customer explicitly clicks Checkout
+  async function saveCheckoutOrderToSupabase(orderId: string) {
+    if (!orderId || cart.length === 0) return;
 
     const orderRecord = {
-      id: activeOrderId,
+      id: orderId,
       items: cart.map((i) => ({
         productId: i.product.id,
         title: i.product.name || i.product.title || 'Product',
@@ -1618,24 +1637,22 @@ export default function StorefrontPage() {
       shipping_method: shippingMethod,
       est_shipping_fee: estimatedShipping,
       shipping_timeline: shippingTimeline,
+      status: 'unpaid',
       created_at: new Date().toISOString(),
     };
 
     try {
-      localStorage.setItem(`dainty_order_${activeOrderId}`, JSON.stringify(orderRecord));
+      localStorage.setItem(`dainty_order_${orderId}`, JSON.stringify(orderRecord));
     } catch (e) {
       console.warn('LocalStorage order save error:', e);
     }
 
-    async function syncToSupabase() {
-      try {
-        await supabase.from('preorders').upsert([orderRecord]);
-      } catch (err) {
-        console.warn('Supabase preorders notice:', err);
-      }
+    try {
+      await supabase.from('preorders').upsert([orderRecord]);
+    } catch (err) {
+      console.warn('Supabase preorders notice:', err);
     }
-    syncToSupabase();
-  }, [cart, activeOrderId, mode, shippingMethod, subtotal, totalCartCount, estimatedShipping, shippingTimeline]);
+  }
 
   // Check Wholesale MOQ requirements for Item-Level (default) and Category-Level scopes
   const wholesaleMoqWarnings = useMemo(() => {
@@ -2035,7 +2052,7 @@ export default function StorefrontPage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="mx-auto w-full max-w-6xl px-3.5 py-5 sm:px-6 sm:py-8 flex-1">
+      <main className="mx-auto w-full max-w-6xl px-3 sm:px-6 py-4 sm:py-8 pb-24 sm:pb-8 flex-1">
         {/* How Dainty Preorder Works Banner */}
         <section className="mb-6 overflow-hidden rounded-2xl border border-[#fa9d26]/30 bg-gradient-to-br from-[#fce7cc]/90 via-[#fff8f0] to-white p-4 sm:p-6 shadow-xs">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -2072,7 +2089,7 @@ export default function StorefrontPage() {
           {/* Custom Item Sourcing CTA Banner */}
           <div className="mt-4 pt-3.5 border-t border-amber-200/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
             <div className="text-xs text-stone-700">
-              <span className="font-bold text-stone-900">Can&apos;t find what you are looking for?</span> We source any item directly from 1688 and China manufacturers at direct factory prices.
+              <span className="font-bold text-stone-900">Can&apos;t find what you are looking for?</span> We source any item directly from China manufacturers at direct factory prices.
             </div>
             <button
               type="button"
@@ -2187,8 +2204,8 @@ export default function StorefrontPage() {
           </div>
         </div>
 
-        {/* Categories Bar */}
-        <div className="mb-6 flex gap-2 overflow-x-auto pb-2 text-xs">
+        {/* Categories Bar (Temu Style Horizontal Strip) */}
+        <div id="categories-bar" className="mb-6 flex gap-2 overflow-x-auto pb-2 text-xs scrollbar-none">
           <button
             type="button"
             onClick={() => setSelectedCategory('all')}
@@ -2257,7 +2274,7 @@ export default function StorefrontPage() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {filteredProducts.map((product) => (
               <ProductCard
                 key={product.id}
@@ -2586,7 +2603,12 @@ export default function StorefrontPage() {
                 href={buildWhatsAppLink()}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white shadow-md hover:bg-emerald-700 transition active:scale-98"
+                onClick={async () => {
+                  const ordId = activeOrderId || ('ORD-' + Math.floor(100000 + Math.random() * 900000));
+                  if (!activeOrderId) setActiveOrderId(ordId);
+                  await saveCheckoutOrderToSupabase(ordId);
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] hover:bg-[#20ba59] py-3 text-sm font-bold text-white shadow-md transition active:scale-98"
               >
                 <MessageCircle className="h-4 w-4" />
                 Checkout
@@ -2609,7 +2631,7 @@ export default function StorefrontPage() {
         href={buildDirectWhatsAppChatUrl()}
         target="_blank"
         rel="noopener noreferrer"
-        className="fixed bottom-5 left-5 z-40 flex items-center gap-2 rounded-full bg-[#25D366] px-3.5 py-2.5 sm:px-4 sm:py-3 text-white shadow-2xl hover:bg-[#20ba59] transition transform hover:scale-105 active:scale-95 border-2 border-white/80"
+        className="fixed bottom-16 sm:bottom-6 left-3 sm:left-5 z-40 flex items-center gap-2 rounded-full bg-[#25D366] px-3 py-2 sm:px-4 sm:py-3 text-white shadow-2xl hover:bg-[#20ba59] transition transform hover:scale-105 active:scale-95 border-2 border-white/80"
         title="Chat with Dainty Import on WhatsApp"
         aria-label="Chat on WhatsApp"
       >
@@ -2634,7 +2656,7 @@ export default function StorefrontPage() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-stone-900">Request Any Item from China</h3>
-                  <p className="text-[11px] text-stone-500">We source directly from 1688 and China factories</p>
+                  <p className="text-[11px] text-stone-500">We source directly from China factories and suppliers</p>
                 </div>
               </div>
               <button
@@ -2746,14 +2768,14 @@ export default function StorefrontPage() {
 
               <div>
                 <label className="block font-bold text-stone-800 mb-1">
-                  Product Link, Specifications or Color/Sizes (Optional)
+                  More Information / Description <span className="font-normal text-stone-500">(tell us more about what you want)</span>
                 </label>
                 <textarea
-                  rows={2}
+                  rows={3}
                   value={requestNotes}
                   onChange={(e) => setRequestNotes(e.target.value)}
-                  placeholder="Paste 1688/Taobao/Instagram link or note preferred colors, sizes, materials..."
-                  className="w-full rounded-xl border border-stone-300 bg-stone-50 px-3.5 py-2 text-stone-900 placeholder:text-stone-400 focus:border-[#fa9d26] focus:bg-white focus:outline-hidden"
+                  placeholder="Describe the product details, specifications, preferred colors, sizes, materials, brand or style..."
+                  className="w-full rounded-xl border border-stone-300 bg-stone-50 px-3.5 py-2.5 text-stone-900 placeholder:text-stone-400 focus:border-[#fa9d26] focus:bg-white focus:outline-hidden"
                 />
               </div>
 
@@ -2777,6 +2799,69 @@ export default function StorefrontPage() {
           </div>
         </div>
       )}
+
+          {/* Temu Mobile Bottom Navigation Bar */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200 px-3 py-1.5 flex items-center justify-around shadow-lg">
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
+        >
+          <Home className="h-4 w-4" />
+          <span className="text-[10px] font-bold">Shop</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const el = document.getElementById('categories-bar');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          }}
+          className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
+        >
+          <Grid className="h-4 w-4" />
+          <span className="text-[10px] font-bold">Categories</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setRequestOrderType(mode);
+            setRequestShipping(shippingMethod);
+            setIsRequestModalOpen(true);
+          }}
+          className="flex flex-col items-center gap-0.5 text-[#b86200] hover:text-[#fa9d26] transition active:scale-95"
+        >
+          <Sparkles className="h-4 w-4 text-[#fa9d26]" />
+          <span className="text-[10px] font-extrabold">Request</span>
+        </button>
+
+        <a
+          href="/track"
+          className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
+        >
+          <Truck className="h-4 w-4" />
+          <span className="text-[10px] font-bold">Track</span>
+        </a>
+
+        <button
+          type="button"
+          onClick={() => setIsCartOpen(true)}
+          className="relative flex flex-col items-center gap-0.5 text-stone-900 hover:text-[#fa9d26] transition active:scale-95"
+        >
+          <div className="relative">
+            <ShoppingBag className="h-4 w-4 text-[#fa9d26]" />
+            {totalCartCount > 0 && (
+              <span className="absolute -top-1 -right-2 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-[#fa9d26] px-0.5 text-[8px] font-black text-white">
+                {totalCartCount}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] font-bold">Cart</span>
+        </button>
+      </nav>
 
     </div>
   );
