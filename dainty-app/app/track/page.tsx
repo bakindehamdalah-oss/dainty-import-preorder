@@ -307,11 +307,11 @@ export default function TrackOrderPage() {
       )}
 
       {/* Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200 px-3 py-2 shadow-lg">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200 px-4 py-2 shadow-lg">
         <div className="mx-auto flex max-w-lg items-center justify-around">
-          <Link href="/track" className="flex flex-col items-center gap-0.5 text-[#fa9d26] font-bold transition active:scale-95">
-            <Truck className="h-4 w-4" />
-            <span className="text-[10px]">Track</span>
+          <Link href="/me" className="flex flex-col items-center gap-0.5 text-[#fa9d26] font-bold transition active:scale-95">
+            <User className="h-4 w-4" />
+            <span className="text-[10px]">Me</span>
           </Link>
           <Link href="/?categories=1" className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95">
             <Grid className="h-4 w-4" />
@@ -328,10 +328,6 @@ export default function TrackOrderPage() {
           <Link href="/?openCart=1" className="flex flex-col items-center gap-0.5 text-stone-900 hover:text-[#fa9d26] transition active:scale-95">
             <ShoppingBag className="h-4 w-4 text-[#fa9d26]" />
             <span className="text-[10px] font-bold">Cart</span>
-          </Link>
-          <Link href="/me" className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95">
-            <User className="h-4 w-4" />
-            <span className="text-[10px] font-bold">Me</span>
           </Link>
         </div>
       </nav>

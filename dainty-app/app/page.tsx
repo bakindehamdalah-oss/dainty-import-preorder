@@ -2916,86 +2916,77 @@ decoding="async"
       )}
 
       {/* Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200 px-3 py-2 shadow-lg">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200 px-4 py-2 shadow-lg">
         <div className="mx-auto flex max-w-lg items-center justify-around">
-        {/* 1. Track (Switched with Request) */}
-        <a
-          href="/track"
-          className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
-        >
-          <Truck className="h-4 w-4" />
-          <span className="text-[10px] font-bold">Track</span>
-        </a>
+          {/* 1. Me (where Request was) */}
+          <a
+            href="/me"
+            className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
+          >
+            <User className="h-4 w-4" />
+            <span className="text-[10px] font-bold">Me</span>
+          </a>
 
-        {/* 2. Categories (Opens categories-only view) */}
-        <button
-          type="button"
-          onClick={() => {
-            setIsCategoriesOnlyView(true);
-            if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          className={`flex flex-col items-center gap-0.5 transition active:scale-95 ${
-            isCategoriesOnlyView ? 'text-[#fa9d26]' : 'text-stone-600 hover:text-[#fa9d26]'
-          }`}
-        >
-          <Grid className="h-4 w-4" />
-          <span className="text-[10px] font-bold">Categories</span>
-        </button>
+          {/* 2. Categories */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsCategoriesOnlyView(true);
+              if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className={`flex flex-col items-center gap-0.5 transition active:scale-95 ${
+              isCategoriesOnlyView ? 'text-[#fa9d26]' : 'text-stone-600 hover:text-[#fa9d26]'
+            }`}
+          >
+            <Grid className="h-4 w-4" />
+            <span className="text-[10px] font-bold">Categories</span>
+          </button>
 
-        {/* 3. Shop */}
-        <button
-          type="button"
-          onClick={() => {
-            setIsCategoriesOnlyView(false);
-            if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          className={`flex flex-col items-center gap-0.5 transition active:scale-95 ${
-            !isCategoriesOnlyView ? 'text-[#fa9d26]' : 'text-stone-600 hover:text-[#fa9d26]'
-          }`}
-        >
-          <Home className="h-4 w-4" />
-          <span className="text-[10px] font-bold">Shop</span>
-        </button>
+          {/* 3. Shop */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsCategoriesOnlyView(false);
+              if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className={`flex flex-col items-center gap-0.5 transition active:scale-95 ${
+              !isCategoriesOnlyView ? 'text-[#fa9d26]' : 'text-stone-600 hover:text-[#fa9d26]'
+            }`}
+          >
+            <Home className="h-4 w-4" />
+            <span className="text-[10px] font-bold">Shop</span>
+          </button>
 
-        {/* 4. Request (Switched with Track) */}
-        <button
-          type="button"
-          onClick={() => {
-            setRequestOrderType(mode);
-            setRequestShipping(shippingMethod);
-            setIsRequestModalOpen(true);
-          }}
-          className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
-        >
-          <PackagePlus className="h-4 w-4 text-[#fa9d26]" />
-          <span className="text-[10px] font-bold">Request</span>
-        </button>
+          {/* 4. Request (where Track was, Track is now under Me) */}
+          <button
+            type="button"
+            onClick={() => {
+              setRequestOrderType(mode);
+              setRequestShipping(shippingMethod);
+              setIsRequestModalOpen(true);
+            }}
+            className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
+          >
+            <PackagePlus className="h-4 w-4 text-[#fa9d26]" />
+            <span className="text-[10px] font-bold">Request</span>
+          </button>
 
-        {/* 5. Cart */}
-        <button
-          type="button"
-          onClick={() => setIsCartOpen(true)}
-          className="relative flex flex-col items-center gap-0.5 text-stone-900 hover:text-[#fa9d26] transition active:scale-95"
-        >
-          <div className="relative">
-            <ShoppingBag className="h-4 w-4 text-[#fa9d26]" />
-            {totalCartCount > 0 && (
-              <span className="absolute -top-1 -right-2 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-[#fa9d26] px-0.5 text-[8px] font-black text-white">
-                {totalCartCount}
-              </span>
-            )}
-          </div>
-          <span className="text-[10px] font-bold">Cart</span>
-        </button>
-
-        {/* 6. Me (New Me Page) */}
-        <a
-          href="/me"
-          className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
-        >
-          <User className="h-4 w-4" />
-          <span className="text-[10px] font-bold">Me</span>
-        </a>
+          {/* 5. Cart */}
+          <button
+            type="button"
+            onClick={() => setIsCartOpen(true)}
+            className="relative flex flex-col items-center gap-0.5 text-stone-900 hover:text-[#fa9d26] transition active:scale-95"
+          >
+            <div className="relative">
+              <ShoppingBag className="h-4 w-4 text-[#fa9d26]" />
+              {totalCartCount > 0 && (
+                <span className="absolute -top-1 -right-2 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-[#fa9d26] px-0.5 text-[8px] font-black text-white">
+                  {totalCartCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] font-bold">Cart</span>
+          </button>
         </div>
       </nav>
 

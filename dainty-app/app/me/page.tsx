@@ -846,13 +846,13 @@ export default function MePage() {
       {/* Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200 px-4 py-2 shadow-lg">
         <div className="mx-auto flex max-w-lg items-center justify-around">
-          {/* 1. Track (Switched with Request) */}
+          {/* 1. Me (where Request was) */}
           <Link
-            href="/track"
-            className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
+            href="/me"
+            className="flex flex-col items-center gap-0.5 text-[#fa9d26] font-bold transition active:scale-95"
           >
-            <Truck className="h-4 w-4" />
-            <span className="text-[10px] font-bold">Track</span>
+            <User className="h-4 w-4" />
+            <span className="text-[10px] font-bold">Me</span>
           </Link>
 
           {/* 2. Categories */}
@@ -873,7 +873,7 @@ export default function MePage() {
             <span className="text-[10px] font-bold">Shop</span>
           </Link>
 
-          {/* 4. Request (Switched with Track) */}
+          {/* 4. Request (where Track was, Track is now under Me) */}
           <Link
             href="/?request=1"
             className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
@@ -889,15 +889,6 @@ export default function MePage() {
           >
             <ShoppingBag className="h-4 w-4 text-[#fa9d26]" />
             <span className="text-[10px] font-bold">Cart</span>
-          </Link>
-
-          {/* 6. Me (Active) */}
-          <Link
-            href="/me"
-            className="flex flex-col items-center gap-0.5 text-[#fa9d26] font-bold transition active:scale-95"
-          >
-            <User className="h-4 w-4" />
-            <span className="text-[10px] font-bold">Me</span>
           </Link>
         </div>
       </nav>
