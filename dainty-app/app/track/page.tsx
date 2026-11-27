@@ -3,7 +3,6 @@
 import React, { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
-import { getShippingBatch } from '../../lib/shippingBatches';
 import { AlertCircle, AlertTriangle, ArrowLeft, Calendar, CheckCircle2, Clock, ExternalLink, Grid, Home, Maximize2, MessageCircle, Package, PackagePlus, Plane, Search, Share2, Ship, ShoppingBag, Sparkles, Star, Truck, User, X, XCircle } from 'lucide-react';
 import ReviewModal from '../components/ReviewModal';
 import { addPastItemToCart, getAllSavedReviews, getReviewKey, ProductReview } from '../../lib/reviews';
@@ -151,9 +150,7 @@ export default function TrackOrderPage() {
     return date.toLocaleDateString('en-NG', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
   }, [order]);
 
-  const orderMethod = (order?.shipping_method === 'sea' ? 'sea' : 'air') as 'air' | 'sea';
-  const activeBatch = getShippingBatch(orderMethod, order?.created_at ? new Date(order.created_at) : null);
-  const displayBatchName = order?.shipping_batch || activeBatch.batchName;
+
 
   const steps = [
     { id: 'pending', label: 'Preorder placed', date: order?.created_at, icon: Clock },
@@ -227,17 +224,12 @@ export default function TrackOrderPage() {
                   {order.shipping_method === 'sea' ? <Ship className="h-5 w-5" /> : <Plane className="h-5 w-5" />}
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-amber-800">Estimated arrival in Nigeria</p>
-                    <span className="rounded-md bg-amber-200/80 px-2 py-0.5 text-[10px] font-bold text-amber-900">
-                      Batch: {displayBatchName}
-                    </span>
-                  </div>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-amber-800">Estimated arrival in Nigeria</p>
                   <p className="mt-0.5 text-lg font-extrabold">{order.revised_arrival_date || arrival}</p>
                   <p className="text-xs text-stone-600">
                     {order.shipping_method === 'sea'
-                      ? `Sea Cargo: ${displayBatchName} (month-end departure). Approximately 3 months from dispatch.`
-                      : `Air Cargo: ${displayBatchName} (${activeBatch.dispatchSchedule}). Approximately 3 weeks from dispatch.`}
+                      ? 'Sea Cargo: Approximately 3 months from dispatch.'
+                      : 'Air Cargo: Approximately 3 weeks from dispatch.'}
                   </p>
                 </div>
                 <span className="text-xs font-bold uppercase text-stone-700">{order.shipping_method === 'sea' ? 'Sea' : 'Air'}</span>

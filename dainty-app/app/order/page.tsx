@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
-import { getShippingBatch } from '../../lib/shippingBatches';
 import {
   ArrowLeft,
   Check,
@@ -230,9 +229,7 @@ export default function OrderCatalogPage() {
   }, [activeItems, activeShippingMethod]);
 
   const shippingTimeline = activeShippingMethod === 'air' ? '~3 weeks' : '~3 months';
-  const orderDate = order?.created_at ? new Date(order.created_at) : null;
-  const activeBatch = getShippingBatch(activeShippingMethod, orderDate);
-  const displayBatchName = order?.shipping_batch || activeBatch.batchName;
+
 
   // Admin quantity & item controls
   function handleQuantityChange(index: number, delta: number) {
@@ -310,7 +307,6 @@ export default function OrderCatalogPage() {
       `*Total Pieces:* ${totalPieces} pcs`,
       `*Total Product Price:* ₦${totalProductCost.toLocaleString()}`,
       `*Shipping Method:* ${activeShippingMethod.toUpperCase()}`,
-      `*Shipping Batch:* ${displayBatchName} (${activeBatch.dispatchSchedule} · ${activeBatch.timeline})`,
       `*Est. Shipping Fee:* ${estShippingCost > 0 ? `₦${estShippingCost.toLocaleString()}` : 'To be confirmed upon arrival in Nigeria'}`,
       '',
       `*View Order:*`,
@@ -518,7 +514,7 @@ export default function OrderCatalogPage() {
                 </div>
 
                 <div className="rounded-xl bg-stone-50 p-3 border border-stone-100">
-                  <div className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider">Shipping & Batch</div>
+                  <div className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider">Shipping Method</div>
                   <div className="mt-1 text-xs font-bold text-stone-800 flex items-center gap-1">
                     {activeShippingMethod === 'air' ? (
                       <>
@@ -531,7 +527,6 @@ export default function OrderCatalogPage() {
                         <span>Sea (~3 mos)</span>
                       </>
                     )}
-                    <span className="text-[11px] text-stone-500 font-normal">• {displayBatchName}</span>
                   </div>
                 </div>
               </div>

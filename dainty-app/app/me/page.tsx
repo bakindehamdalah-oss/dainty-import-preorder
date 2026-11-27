@@ -736,7 +736,7 @@ export default function MePage() {
                         <span>•</span>
                         <span className="text-[10px] font-bold text-stone-600">
                           <span className="uppercase">{order.shipping_method || 'Air'}</span>
-                          {order.shipping_batch ? ` • ${order.shipping_batch}` : ''}
+                          
                         </span>
                       </div>
                     </div>
