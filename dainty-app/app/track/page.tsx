@@ -3,7 +3,9 @@
 import React, { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
-import { AlertCircle, AlertTriangle, ArrowLeft, Calendar, CheckCircle2, Clock, ExternalLink, Maximize2, MessageCircle, Package, Plane, Search, Share2, Ship, ShoppingBag, Sparkles, Truck, User, X, XCircle } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowLeft, Calendar, CheckCircle2, Clock, ExternalLink, Grid, Home, Maximize2, MessageCircle, Package, PackagePlus, Plane, Search, Share2, Ship, ShoppingBag, Sparkles, Star, Truck, User, X, XCircle } from 'lucide-react';
+import ReviewModal from '../components/ReviewModal';
+import { addPastItemToCart, getAllSavedReviews, getReviewKey, ProductReview } from '../../lib/reviews';
 
 type OrderItem = {
   productId: string;
@@ -55,6 +57,41 @@ export default function TrackOrderPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [activeReviewItem, setActiveReviewItem] = useState<{ orderId: string; item: OrderItem } | null>(null);
+  const [savedReviews, setSavedReviews] = useState<Record<string, ProductReview>>({});
+  const [reorderNotice, setReorderNotice] = useState<string | null>(null);
+  const [whatsappNumber, setWhatsappNumber] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSavedReviews(getAllSavedReviews());
+    async function fetchStoreSettings() {
+      try {
+        const { data } = await supabase.from('store_settings').select('whatsapp_number').eq('id', 1).maybeSingle();
+        if (data?.whatsapp_number) setWhatsappNumber(data.whatsapp_number);
+      } catch (e) {
+        console.warn('Failed to load whatsapp number in track page:', e);
+      }
+    }
+    void fetchStoreSettings();
+  }, []);
+
+  function handleOrderAgain(item: OrderItem) {
+    const success = addPastItemToCart({
+      productId: item.productId,
+      title: item.title,
+      price: item.price,
+      quantity: item.quantity || 1,
+      selectedSize: item.selectedSize,
+      selectedColor: item.selectedColor,
+      selectedImage: item.selectedImage,
+    });
+    if (success) {
+      setReorderNotice(`Added "${item.title}" to your cart!`);
+      setTimeout(() => {
+        window.location.href = '/?openCart=1';
+      }, 700);
+    }
+  }
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('order') || new URLSearchParams(window.location.search).get('track');
@@ -188,13 +225,116 @@ export default function TrackOrderPage() {
           <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"><h2 className="mb-3 flex items-center gap-2 border-b border-stone-100 pb-3 text-xs font-bold uppercase tracking-wide"><User className="h-4 w-4 text-[#fa9d26]" />Customer information</h2><div className="grid gap-3 text-sm sm:grid-cols-3"><div><p className="text-[10px] font-bold uppercase text-stone-400">Name</p><p className="font-semibold">{order.customer_name || 'Not provided'}</p></div><div><p className="text-[10px] font-bold uppercase text-stone-400">Phone / WhatsApp</p><p>{maskedPhone}</p></div><div><p className="text-[10px] font-bold uppercase text-stone-400">Delivery address</p><p>{order.customer_city || (order.customer_address ? 'Address on file (shown privately by the admin)' : 'To be confirmed')}</p></div></div></section>
 
           <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"><div className="mb-2 flex items-center justify-between border-b border-stone-100 pb-3"><h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide"><ShoppingBag className="h-4 w-4 text-[#fa9d26]" />Full order ({order.total_pieces || 0} pcs)</h2><Link href={`/order?id=${order.id}`} className="inline-flex items-center gap-1 text-xs font-bold text-amber-800">View order <ExternalLink className="h-3 w-3" /></Link></div>
-            <div className="divide-y divide-stone-100">{(order.items || []).map((item, i) => <div key={`${item.productId}-${i}`} className="flex items-center justify-between gap-3 py-3"><div className="flex items-center gap-3">{item.selectedImage ? <button onClick={() => setZoomedImage(item.selectedImage || null)} className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-stone-200"><img src={item.selectedImage} alt={item.title} className="h-full w-full object-cover" /></button> : <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-stone-100"><Package className="h-5 w-5 text-stone-400" /></div>}<div><p className="text-sm font-bold">{item.title}</p><p className="text-xs text-stone-500">{item.selectedColor ? `Color: ${item.selectedColor} · ` : ''}{item.selectedSize ? `Size: ${item.selectedSize} · ` : ''}Qty: {item.quantity}</p></div></div><p className="shrink-0 text-sm font-extrabold text-amber-800">₦{(Number(item.price) * Number(item.quantity)).toLocaleString()}</p></div>)}</div>
+            <div className="divide-y divide-stone-100">{(order.items || []).map((item, i) => {
+              const reviewKey = getReviewKey(item.productId, order.id, item.selectedColor, item.selectedSize);
+              const savedReview = savedReviews[reviewKey];
+              return (
+                <div key={`${item.productId}-${i}`} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    {item.selectedImage ? (
+                      <button onClick={() => setZoomedImage(item.selectedImage || null)} className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-stone-200">
+                        <img src={item.selectedImage} alt={item.title} className="h-full w-full object-cover" />
+                      </button>
+                    ) : (
+                      <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-stone-100"><Package className="h-5 w-5 text-stone-400" /></div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-stone-900 line-clamp-1">{item.title}</p>
+                      <p className="text-xs text-stone-500">{item.selectedColor ? `Color: ${item.selectedColor} · ` : ''}{item.selectedSize ? `Size: ${item.selectedSize} · ` : ''}Qty: {item.quantity}</p>
+                      <p className="text-xs font-black text-amber-800 mt-0.5">₦{(Number(item.price) * Number(item.quantity)).toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    <button
+                      type="button"
+                      onClick={() => handleOrderAgain(item)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-bold text-stone-700 hover:bg-stone-100 transition active:scale-95"
+                    >
+                      <ShoppingBag className="h-3 w-3 text-[#fa9d26]" />
+                      <span>Order Again</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveReviewItem({ orderId: order.id, item })}
+                      className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition active:scale-95 ${savedReview ? 'bg-amber-50 text-amber-900 border border-amber-200' : 'bg-stone-900 text-white hover:bg-stone-800'}`}
+                    >
+                      <Star className={`h-3 w-3 ${savedReview ? 'fill-amber-400 text-amber-500' : 'fill-white text-white'}`} />
+                      <span>{savedReview ? `${savedReview.rating}★ Reviewed` : 'Review Item'}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}</div>
             <div className="mt-3 space-y-2 rounded-xl bg-stone-50 p-3 text-xs"><div className="flex justify-between"><span>Product total</span><strong>₦{Number(order.total_amount || 0).toLocaleString()}</strong></div><div className="flex justify-between"><span>Estimated {order.shipping_method === 'sea' ? 'sea' : 'air'} shipping</span><strong>₦{Number(order.est_shipping_fee || 0).toLocaleString()}</strong></div>{order.final_shipping_fee != null && <div className="flex justify-between border-t border-stone-200 pt-2 font-bold text-purple-800"><span>Confirmed shipping</span><strong>₦{Number(order.final_shipping_fee).toLocaleString()}</strong></div>}</div>
           </section>
 
           <section className="rounded-2xl border border-stone-200 bg-white p-5 text-xs text-stone-600"><h2 className="mb-2 flex items-center gap-2 font-bold text-stone-900"><Sparkles className="h-4 w-4 text-[#fa9d26]" />China Sourcing & Preorder Terms</h2><ul className="list-disc space-y-1 pl-4"><li>The initial payment covers the buying price of the item.</li><li>Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria.</li><li>Shipping fee is confirmed and paid separately when your goods arrive in Nigeria.</li><li>Confirmed shipping fees must be settled within 7 days of notification.</li></ul></section>
         </div>}
       </main>
+
+      {/* Review Modal */}
+      {activeReviewItem && (
+        <ReviewModal
+          isOpen={!!activeReviewItem}
+          onClose={() => setActiveReviewItem(null)}
+          orderId={activeReviewItem.orderId}
+          productId={activeReviewItem.item.productId}
+          productTitle={activeReviewItem.item.title}
+          selectedColor={activeReviewItem.item.selectedColor}
+          selectedSize={activeReviewItem.item.selectedSize}
+          selectedImage={activeReviewItem.item.selectedImage}
+          whatsappNumber={whatsappNumber}
+          initialReview={
+            savedReviews[
+              getReviewKey(
+                activeReviewItem.item.productId,
+                activeReviewItem.orderId,
+                activeReviewItem.item.selectedColor,
+                activeReviewItem.item.selectedSize
+              )
+            ] || null
+          }
+          onReviewSaved={() => setSavedReviews(getAllSavedReviews())}
+        />
+      )}
+
+      {/* Reorder Notification Toast */}
+      {reorderNotice && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-2xl bg-stone-900 px-4 py-2.5 text-xs font-bold text-white shadow-xl animate-fade-in border border-stone-700">
+          <ShoppingBag className="h-4 w-4 text-[#fa9d26]" />
+          <span>{reorderNotice}</span>
+        </div>
+      )}
+
+      {/* Bottom Navigation Bar */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200 px-3 py-2 shadow-lg">
+        <div className="mx-auto flex max-w-lg items-center justify-around">
+          <Link href="/track" className="flex flex-col items-center gap-0.5 text-[#fa9d26] font-bold transition active:scale-95">
+            <Truck className="h-4 w-4" />
+            <span className="text-[10px]">Track</span>
+          </Link>
+          <Link href="/?categories=1" className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95">
+            <Grid className="h-4 w-4" />
+            <span className="text-[10px] font-bold">Categories</span>
+          </Link>
+          <Link href="/" className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95">
+            <Home className="h-4 w-4" />
+            <span className="text-[10px] font-bold">Shop</span>
+          </Link>
+          <Link href="/?request=1" className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95">
+            <PackagePlus className="h-4 w-4 text-[#fa9d26]" />
+            <span className="text-[10px] font-bold">Request</span>
+          </Link>
+          <Link href="/?openCart=1" className="flex flex-col items-center gap-0.5 text-stone-900 hover:text-[#fa9d26] transition active:scale-95">
+            <ShoppingBag className="h-4 w-4 text-[#fa9d26]" />
+            <span className="text-[10px] font-bold">Cart</span>
+          </Link>
+          <Link href="/me" className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95">
+            <User className="h-4 w-4" />
+            <span className="text-[10px] font-bold">Me</span>
+          </Link>
+        </div>
+      </nav>
     </div>
   );
 }

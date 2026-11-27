@@ -27,6 +27,7 @@ import {
   Sparkles,
   Trash2,
   Truck,
+  User,
   X,
 } from 'lucide-react';
 
@@ -1475,6 +1476,15 @@ export default function StorefrontPage() {
 
     // 1. Check if there is a shared order in the URL (?order=... or ?cart=...)
     const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('openCart') === '1' || urlParams.get('cart') === 'open') {
+      setIsCartOpen(true);
+    }
+    if (urlParams.get('categories') === '1') {
+      setIsCategoriesOnlyView(true);
+    }
+    if (urlParams.get('request') === '1') {
+      setIsRequestModalOpen(true);
+    }
     const orderParam = urlParams.get('order') || urlParams.get('cart');
 
     if (orderParam) {
@@ -1792,6 +1802,12 @@ export default function StorefrontPage() {
 
     try {
       localStorage.setItem(`dainty_order_${orderId}`, JSON.stringify(orderRecord));
+      const savedIdsStr = localStorage.getItem('dainty_customer_order_ids');
+      const savedIds: string[] = savedIdsStr ? JSON.parse(savedIdsStr) : [];
+      if (!savedIds.includes(orderId)) {
+        savedIds.unshift(orderId);
+        localStorage.setItem('dainty_customer_order_ids', JSON.stringify(savedIds));
+      }
     } catch (e) {
       console.warn('LocalStorage order save error:', e);
     }
@@ -2124,9 +2140,6 @@ decoding="async"
                         <h3 className="text-sm font-bold text-stone-900 group-hover:text-[#fa9d26] transition line-clamp-1">
                           {c.name}
                         </h3>
-                        <p className="mt-0.5 text-[11px] font-medium text-stone-500">
-                          {formatCategoryPhrase(count, c.name)}
-                        </p>
                       </div>
 
                       <div className="mt-3 flex items-center justify-between pt-2 border-t border-stone-100">
@@ -2903,21 +2916,16 @@ decoding="async"
       )}
 
       {/* Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200 px-4 py-2 shadow-lg">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200 px-3 py-2 shadow-lg">
         <div className="mx-auto flex max-w-lg items-center justify-around">
-        {/* 1. Request (Switched with Shop, star removed) */}
-        <button
-          type="button"
-          onClick={() => {
-            setRequestOrderType(mode);
-            setRequestShipping(shippingMethod);
-            setIsRequestModalOpen(true);
-          }}
+        {/* 1. Track (Switched with Request) */}
+        <a
+          href="/track"
           className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
         >
-          <PackagePlus className="h-4 w-4 text-[#fa9d26]" />
-          <span className="text-[10px] font-bold">Request</span>
-        </button>
+          <Truck className="h-4 w-4" />
+          <span className="text-[10px] font-bold">Track</span>
+        </a>
 
         {/* 2. Categories (Opens categories-only view) */}
         <button
@@ -2934,7 +2942,7 @@ decoding="async"
           <span className="text-[10px] font-bold">Categories</span>
         </button>
 
-        {/* 3. Shop (Switched with Request) */}
+        {/* 3. Shop */}
         <button
           type="button"
           onClick={() => {
@@ -2949,14 +2957,19 @@ decoding="async"
           <span className="text-[10px] font-bold">Shop</span>
         </button>
 
-        {/* 4. Track */}
-        <a
-          href="/track"
+        {/* 4. Request (Switched with Track) */}
+        <button
+          type="button"
+          onClick={() => {
+            setRequestOrderType(mode);
+            setRequestShipping(shippingMethod);
+            setIsRequestModalOpen(true);
+          }}
           className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
         >
-          <Truck className="h-4 w-4" />
-          <span className="text-[10px] font-bold">Track</span>
-        </a>
+          <PackagePlus className="h-4 w-4 text-[#fa9d26]" />
+          <span className="text-[10px] font-bold">Request</span>
+        </button>
 
         {/* 5. Cart */}
         <button
@@ -2974,6 +2987,15 @@ decoding="async"
           </div>
           <span className="text-[10px] font-bold">Cart</span>
         </button>
+
+        {/* 6. Me (New Me Page) */}
+        <a
+          href="/me"
+          className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
+        >
+          <User className="h-4 w-4" />
+          <span className="text-[10px] font-bold">Me</span>
+        </a>
         </div>
       </nav>
 
