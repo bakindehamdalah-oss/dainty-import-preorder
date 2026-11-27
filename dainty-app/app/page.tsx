@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  HelpCircle,
   Grid,
   Home,
   Info,
@@ -1321,6 +1322,7 @@ export default function StorefrontPage() {
   const [activeOrderId, setActiveOrderId] = useState<string>('');
   // Custom item sourcing request modal state
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [isHowItWorksOpen, setIsHowItWorksOpen] = useState(false);
   const [requestItemName, setRequestItemName] = useState('');
   const [requestOrderType, setRequestOrderType] = useState<'retail' | 'wholesale'>('wholesale');
   const [requestQuantity, setRequestQuantity] = useState('');
@@ -2004,6 +2006,18 @@ export default function StorefrontPage() {
                 </p>
               </div>
             </Link>
+
+            {/* Quick How It Works Button in Header */}
+            <button
+              type="button"
+              onClick={() => setIsHowItWorksOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50/95 px-3 py-1.5 text-[11px] sm:text-xs font-bold text-amber-900 shadow-2xs hover:bg-amber-100 transition active:scale-95 shrink-0"
+              title="How Dainty Preorder Works"
+            >
+              <HelpCircle className="h-3.5 w-3.5 text-[#fa9d26]" />
+              <span className="hidden sm:inline">HOW DAINTY PREORDER WORKS</span>
+              <span className="sm:hidden">How It Works</span>
+            </button>
           </div>
 
           {/* Search Bar (positioned at the bottom of the logo) */}
@@ -2189,59 +2203,38 @@ decoding="async"
         ) : (
           <div>
 
-        {/* How Dainty Preorder Works Banner */}
-        <section className="mb-6 overflow-hidden rounded-2xl border border-[#fa9d26]/30 bg-gradient-to-br from-[#fce7cc]/90 via-[#fff8f0] to-white p-4 sm:p-6 shadow-xs">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fa9d26] px-2.5 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider shadow-2xs">
-                CHINA SOURCING
-              </span>
-              <h2 className="mt-1 text-lg sm:text-2xl font-bold tracking-tight text-stone-900">
-                How Dainty Preorder Works
-              </h2>
-              <p className="mt-1 text-xs sm:text-sm text-stone-600 max-w-xl leading-relaxed">
-                Shop products from China suppliers. Select <strong>Wholesale</strong> for discounted bulk orders or <strong>Retail</strong> for single items, pick your sizes and colors, and choose <strong>Air Cargo</strong> (~3 weeks) or <strong>Sea Cargo</strong> (~3 months). Checkout takes you to WhatsApp to complete your order. Initial payment covers the buying price of the item, and exact shipping is confirmed and paid separately when your goods arrive in Nigeria within 7 days of notification.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-1.5 shrink-0 w-full sm:w-auto">
-              <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-[#b96b0c] uppercase tracking-wider">
-                <Clock className="h-3.5 w-3.5 text-[#fa9d26]" />
-                <span>Shipping Time Frame</span>
+        {/* HOW DAINTY PREORDER WORKS Top Button */}
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={() => setIsHowItWorksOpen(true)}
+            className="w-full group flex items-center justify-between gap-3 rounded-2xl border border-[#fa9d26]/40 bg-gradient-to-r from-[#fff3e3] via-[#fffbf5] to-[#fff3e3] p-3.5 sm:p-4 shadow-2xs hover:border-[#fa9d26] hover:shadow-xs transition active:scale-[0.99] text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#fa9d26] to-[#e08312] text-white shadow-xs">
+                <HelpCircle className="h-5 w-5" />
               </div>
-              <div className="flex flex-wrap sm:flex-col gap-2 text-xs w-full sm:w-auto">
-                <div className="flex items-center gap-2 rounded-lg bg-white/95 px-3 py-1.5 text-stone-800 shadow-2xs border border-[#fa9d26]/25">
-                  <Plane className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                  <span className="font-bold">Air Cargo:</span>
-                  <span className="text-stone-600">Within 3 weeks</span>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs sm:text-sm font-extrabold uppercase tracking-wide text-stone-900 group-hover:text-[#b86200] transition">
+                    HOW DAINTY PREORDER WORKS
+                  </span>
+                  <span className="rounded-full bg-[#fa9d26]/20 px-2 py-0.5 text-[10px] font-bold text-[#b86200]">
+                    Tap to Read
+                  </span>
                 </div>
-                <div className="flex items-center gap-2 rounded-lg bg-white/95 px-3 py-1.5 text-stone-800 shadow-2xs border border-[#fa9d26]/25">
-                  <Ship className="h-3.5 w-3.5 text-sky-600 shrink-0" />
-                  <span className="font-bold">Sea Cargo:</span>
-                  <span className="text-stone-600">Within 3 months</span>
-                </div>
+                <p className="text-[11px] sm:text-xs text-stone-600 mt-0.5">
+                  Two-step payment · Shipping timeframes · Wholesale & Retail
+                </p>
               </div>
             </div>
-          </div>
 
-          {/* Custom Item Sourcing CTA Banner */}
-          <div className="mt-4 pt-3.5 border-t border-amber-200/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-            <div className="text-xs text-stone-700">
-              <span className="font-bold text-stone-900">Can&apos;t find what you are looking for?</span> We source any item directly from China suppliers.
+            <div className="flex items-center gap-1 text-xs font-bold text-[#b86200] shrink-0">
+              <span className="hidden sm:inline">View Guide</span>
+              <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setRequestOrderType(mode);
-                setRequestShipping(shippingMethod);
-                setIsRequestModalOpen(true);
-              }}
-              className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-xl bg-stone-900 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-stone-800 transition active:scale-95"
-            >
-              <span>Request Any Item</span>
-            </button>
-          </div>
-        </section>
+          </button>
+        </div>
 
         {/* Retail vs Wholesale Option & Shipping Selector at the top of All Products */}
         <div className="mb-4 rounded-2xl border border-stone-200 bg-white p-3.5 shadow-2xs sm:p-4 space-y-3.5">
@@ -2768,6 +2761,171 @@ decoding="async"
         <WhatsAppIcon className="h-5 w-5 fill-white shrink-0" />
         <span className="text-xs font-bold sm:inline hidden">Chat on WhatsApp</span>
       </a>
+
+      {/* Detailed How Dainty Preorder Works Modal */}
+      {isHowItWorksOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-xs transition animate-in fade-in"
+          onClick={() => setIsHowItWorksOpen(false)}
+        >
+          <div
+            className="w-full max-w-xl rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-[#b96b0c]">
+                  <HelpCircle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-extrabold text-stone-900">
+                    How Dainty Preorder Works
+                  </h3>
+                  <p className="text-[11px] text-stone-500">
+                    Complete guide to China preorders, shipping, and payments
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsHowItWorksOpen(false)}
+                className="rounded-full p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-700 transition"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Step-by-Step Detailed Content */}
+            <div className="space-y-4 text-xs sm:text-sm text-stone-700">
+              {/* 1. Direct China Sourcing & Pricing Modes */}
+              <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3.5 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-stone-900">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#fa9d26] text-[11px] font-black text-white">1</span>
+                  <span>Direct China Sourcing & Pricing Modes</span>
+                </div>
+                <p className="text-xs text-stone-600 leading-relaxed pl-7">
+                  We source quality products directly from verified China suppliers at direct supplier prices. You can choose between two pricing modes:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-7 pt-1">
+                  <div className="rounded-lg bg-white p-2.5 border border-stone-200/80">
+                    <p className="text-xs font-bold text-stone-900">Retail Mode</p>
+                    <p className="text-[11px] text-stone-500 mt-0.5">Shop single items for personal use at affordable preorder rates.</p>
+                  </div>
+                  <div className="rounded-lg bg-white p-2.5 border border-stone-200/80">
+                    <p className="text-xs font-bold text-[#b86200]">Wholesale Mode</p>
+                    <p className="text-[11px] text-stone-500 mt-0.5">Discounted bulk factory rates for resellers. Minimum order quantities apply (e.g. mix & match iPhone cases at 50 pcs MOQ).</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Selecting Sizes, Colors & Custom Sourcing */}
+              <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3.5 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-stone-900">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#fa9d26] text-[11px] font-black text-white">2</span>
+                  <span>Selecting Variants & Custom Requests</span>
+                </div>
+                <p className="text-xs text-stone-600 leading-relaxed pl-7">
+                  Select your exact sizes, colors, and quantities on any product. If you cannot find what you want on the website, tap the <strong>Request Any Item</strong> button to tell us what you need, and we will source it directly from China suppliers for you.
+                </p>
+              </div>
+
+              {/* 3. Shipping Options & Time Frames */}
+              <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3.5 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-stone-900">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#fa9d26] text-[11px] font-black text-white">3</span>
+                  <span>Shipping Options & Time Frames</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-7">
+                  <div className="rounded-lg bg-white p-2.5 border border-emerald-200">
+                    <div className="flex items-center gap-1.5 font-bold text-emerald-800 text-xs">
+                      <Plane className="h-3.5 w-3.5 text-emerald-600" />
+                      <span>Air Cargo</span>
+                    </div>
+                    <p className="text-xs font-semibold text-stone-900 mt-1">Within 3 weeks</p>
+                    <p className="text-[11px] text-stone-500 mt-0.5">Fast delivery. Note: items that cannot be shipped by air must travel by sea.</p>
+                  </div>
+                  <div className="rounded-lg bg-white p-2.5 border border-sky-200">
+                    <div className="flex items-center gap-1.5 font-bold text-sky-800 text-xs">
+                      <Ship className="h-3.5 w-3.5 text-sky-600" />
+                      <span>Sea Cargo</span>
+                    </div>
+                    <p className="text-xs font-semibold text-stone-900 mt-1">Within 3 months</p>
+                    <p className="text-[11px] text-stone-500 mt-0.5">Economical shipping for heavier, bulky, or liquid items.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Two-Step Payment Terms (Crucial) */}
+              <div className="rounded-xl border-2 border-amber-300 bg-amber-50/60 p-3.5 space-y-2.5">
+                <div className="flex items-center gap-2 font-bold text-amber-950">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#fa9d26] text-[11px] font-black text-white">4</span>
+                  <span>Two-Step Payment System (Important)</span>
+                </div>
+                <div className="space-y-2 pl-7 text-xs text-stone-700">
+                  <div className="flex items-start gap-2">
+                    <Check className="h-3.5 w-3.5 text-[#fa9d26] shrink-0 mt-0.5" />
+                    <p>
+                      <strong>Initial Payment:</strong> Covers only the buying price of the item from China suppliers. Your order is purchased and processed once this payment is confirmed.
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Check className="h-3.5 w-3.5 text-[#fa9d26] shrink-0 mt-0.5" />
+                    <p>
+                      <strong>Estimated Shipping Fee:</strong> The shipping fee shown on the site is an estimate. Exact shipping cost is confirmed when your order arrives in Nigeria based on actual weight/size.
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Check className="h-3.5 w-3.5 text-[#fa9d26] shrink-0 mt-0.5" />
+                    <p>
+                      <strong>Shipping Payment on Arrival:</strong> Shipping fees are paid separately when your goods arrive in Nigeria.
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Check className="h-3.5 w-3.5 text-amber-700 shrink-0 mt-0.5" />
+                    <p className="text-amber-900 font-semibold">
+                      <strong>7-Day Payment Deadline:</strong> Shipping fee payment must be made within 7 days after the exact shipping cost notification is issued before pickup or delivery.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. Checkout & Order Tracking */}
+              <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3.5 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-stone-900">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#fa9d26] text-[11px] font-black text-white">5</span>
+                  <span>Checkout & Tracking Your Order</span>
+                </div>
+                <p className="text-xs text-stone-600 leading-relaxed pl-7">
+                  Clicking <strong>Checkout</strong> in your cart takes you directly to WhatsApp with your full order summary. Your unique <strong>Order ID</strong> lets you track your order progress anytime from the <strong>Me</strong> tab. Once your items are delivered, you can review individual items or reorder them anytime.
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-2 border-t border-stone-100 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+              <a
+                href={settings?.whatsapp_number ? `https://wa.me/${getCleanWhatsAppPhone(settings.whatsapp_number)}` : '#'}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-bold text-[#b86200] hover:underline flex items-center gap-1.5"
+              >
+                <MessageCircle className="h-4 w-4" />
+                <span>Have questions? Chat on WhatsApp</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setIsHowItWorksOpen(false)}
+                className="w-full sm:w-auto rounded-xl bg-stone-900 px-5 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-stone-800 transition active:scale-95"
+              >
+                Got It, Let&apos;s Shop
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Custom Item Sourcing Request Modal */}
       {isRequestModalOpen && (
