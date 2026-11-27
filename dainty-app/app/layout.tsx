@@ -25,13 +25,13 @@ export const metadata: Metadata = {
   ),
   title: "Dainty Import | China Preorders & Sourcing",
   description:
-    "Preorders from China suppliers. Transparent air & sea cargo estimates, custom sizes and colors, and direct WhatsApp ordering.",
+    "Preorders from Chinese suppliers. Transparent air & sea cargo estimates, custom sizes and colors, and direct WhatsApp ordering.",
   applicationName: "Dainty Import",
-  keywords: ["China sourcing", "preorders", "China suppliers", "Nigeria imports", "Dainty Import", "wholesale iPhone cases"],
+  keywords: ["China sourcing", "preorders", "Chinese suppliers", "Nigeria imports", "Dainty Import", "wholesale iPhone cases"],
   openGraph: {
     title: "Dainty Import | China Preorders",
     description:
-      "Shop curated products from China suppliers with clear air and sea shipping estimates.",
+      "Shop curated products from Chinese suppliers with clear air and sea shipping estimates.",
     siteName: "Dainty Import",
     type: "website",
     locale: "en_NG",

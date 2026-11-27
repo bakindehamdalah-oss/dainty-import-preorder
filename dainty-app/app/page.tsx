@@ -1356,7 +1356,7 @@ export default function StorefrontPage() {
       }`,
       requestNotes.trim() ? `*Details / Specifications:* ${requestNotes.trim()}` : '',
       '',
-      `Hello Dainty Import, please help me source this item from China suppliers and give me a price quotation.`,
+      `Hello Dainty Import, please help me source this item from Chinese suppliers and give me a price quotation.`,
     ].filter(Boolean);
 
     const cleanPhone = getCleanWhatsAppPhone(settings?.whatsapp_number);
@@ -1385,7 +1385,7 @@ export default function StorefrontPage() {
           .maybeSingle();
         if (active && data) {
           const s = String(data.status || '').toLowerCase().trim();
-          const paid = ['paid', 'ordered', 'shipped', 'ready_for_delivery', 'delivered'].includes(s) || Boolean(data.payment_date);
+          const paid = ['paid', 'ordered', 'shipped', 'waiting_for_clearance', 'ready_for_delivery', 'delivered'].includes(s) || Boolean(data.payment_date);
           setOrderPaymentConfirmed(paid);
         }
       } catch (e) {
@@ -1402,7 +1402,7 @@ export default function StorefrontPage() {
         (payload) => {
           if (active && payload.new) {
             const s = String((payload.new as { status?: string }).status || '').toLowerCase().trim();
-            const paid = ['paid', 'ordered', 'shipped', 'ready_for_delivery', 'delivered'].includes(s) || Boolean((payload.new as { payment_date?: string }).payment_date);
+            const paid = ['paid', 'ordered', 'shipped', 'waiting_for_clearance', 'ready_for_delivery', 'delivered'].includes(s) || Boolean((payload.new as { payment_date?: string }).payment_date);
             setOrderPaymentConfirmed(paid);
           }
         }
@@ -1973,7 +1973,7 @@ export default function StorefrontPage() {
 
       {/* China Sourcing Announcement Strip */}
       <div className="bg-[#fa9d26] text-white text-[10px] sm:text-[11px] font-semibold py-1.5 px-3 sm:px-4 text-center tracking-wide leading-tight w-full">
-        China Sourcing • Sourced from China Suppliers • Air Cargo ~3 Weeks • Sea Cargo ~3 Months • WhatsApp Order Confirmation
+        China Sourcing • Sourced from Chinese Suppliers • Air Cargo ~3 Weeks • Sea Cargo ~3 Months • WhatsApp Order Confirmation
       </div>
 
       {/* Main Sticky Header */}
@@ -2185,7 +2185,7 @@ decoding="async"
             <div className="rounded-2xl border border-dashed border-[#fa9d26]/40 bg-amber-50/50 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
               <div>
                 <h4 className="text-sm font-bold text-stone-900">Looking for a category or item not listed here?</h4>
-                <p className="text-xs text-stone-600 mt-0.5">We source any custom products directly from verified China suppliers.</p>
+                <p className="text-xs text-stone-600 mt-0.5">We source from China to you from verified Chinese suppliers.</p>
               </div>
               <button
                 type="button"
@@ -2401,7 +2401,7 @@ decoding="async"
                 : 'No products found in this category.'}
             </p>
             <p className="text-xs text-stone-500 max-w-md mx-auto">
-              Looking for this or another item? We source any product directly from China suppliers. Click below to request it!
+              Looking for this or another item? We source from China to you from verified Chinese suppliers. Click below to request it!
             </p>
             <button
               type="button"
@@ -2742,8 +2742,8 @@ decoding="async"
               <div className="font-bold text-stone-900 text-xs">China Sourcing & Preorder Terms</div>
               <div><strong className="text-stone-800">Initial Payment:</strong> The initial payment covers the buying price of the item. Your order will be shipped once the purchase payment has been completed.</div>
               <div><strong className="text-stone-800">Shipping Estimate:</strong> Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria.</div>
-              <div><strong className="text-stone-800">Shipping Payment:</strong> Shipping fee is confirmed and paid separately when your goods arrive in Nigeria.</div>
-              <div><strong className="text-stone-800">Payment Window:</strong> Confirmed shipping fees must be settled within 7 days of notification.</div>
+              <div><strong className="text-stone-800">Shipping Payment:</strong> Shipping fee is confirmed and paid separately when your goods arrive in Nigeria. Shipping fee has to be paid for us to be able to clear it from our shipping company.</div>
+              <div><strong className="text-stone-800">Payment Window:</strong> Confirmed shipping fees must be settled within 7 days of notification to allow clearance.</div>
             </div>
           </div>
         )}
@@ -2806,7 +2806,7 @@ decoding="async"
                   <span>Direct China Sourcing & Pricing Modes</span>
                 </div>
                 <p className="text-xs text-stone-600 leading-relaxed pl-7">
-                  We source quality products directly from verified China suppliers at direct supplier prices. You can choose between two pricing modes:
+                  We source quality products directly from verified Chinese suppliers at direct supplier prices. You can choose between two pricing modes:
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-7 pt-1">
                   <div className="rounded-lg bg-white p-2.5 border border-stone-200/80">
@@ -2867,7 +2867,7 @@ decoding="async"
                   <div className="flex items-start gap-2">
                     <Check className="h-3.5 w-3.5 text-[#fa9d26] shrink-0 mt-0.5" />
                     <p>
-                      <strong>Initial Payment:</strong> Covers only the buying price of the item from China suppliers. Your order is purchased and processed once this payment is confirmed.
+                      <strong>Initial Payment:</strong> Covers only the buying price of the item from Chinese suppliers. Your order is purchased and processed once this payment is confirmed.
                     </p>
                   </div>
                   <div className="flex items-start gap-2">
@@ -2879,13 +2879,13 @@ decoding="async"
                   <div className="flex items-start gap-2">
                     <Check className="h-3.5 w-3.5 text-[#fa9d26] shrink-0 mt-0.5" />
                     <p>
-                      <strong>Shipping Payment on Arrival:</strong> Shipping fees are paid separately when your goods arrive in Nigeria.
+                      <strong>Shipping Payment on Arrival:</strong> Shipping fees are paid separately when your goods arrive in Nigeria. The shipping fee has to be paid for us to be able to clear it from our shipping company.
                     </p>
                   </div>
                   <div className="flex items-start gap-2">
                     <Check className="h-3.5 w-3.5 text-amber-700 shrink-0 mt-0.5" />
                     <p className="text-amber-900 font-semibold">
-                      <strong>7-Day Payment Deadline:</strong> Shipping fee payment must be made within 7 days after the exact shipping cost notification is issued before pickup or delivery.
+                      <strong>7-Day Payment Deadline:</strong> Shipping fee payment must be made within 7 days after the exact shipping cost notification is issued so we can clear your goods from our shipping company for pickup or delivery.
                     </p>
                   </div>
                 </div>
@@ -2898,7 +2898,7 @@ decoding="async"
                   <span>Checkout & Tracking Your Order</span>
                 </div>
                 <p className="text-xs text-stone-600 leading-relaxed pl-7">
-                  Clicking <strong>Checkout</strong> in your cart takes you directly to WhatsApp with your full order summary. Your unique <strong>Order ID</strong> lets you track your order progress anytime from the <strong>Me</strong> tab. Once your items are delivered, you can review individual items or reorder them anytime.
+                  Clicking <strong>Checkout</strong> in your cart takes you directly to WhatsApp with your full order summary. Your unique <strong>Order ID</strong> lets you track order progress anytime from the <strong>Me</strong> tab (including when your goods arrive in Nigeria waiting for clearance, when shipping fees can be paid). Once your items are delivered, you can review individual items or reorder them anytime.
                 </p>
               </div>
             </div>
@@ -2944,7 +2944,7 @@ decoding="async"
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-stone-900">Request Any Item from China</h3>
-                  <p className="text-[11px] text-stone-500">We source directly from China suppliers</p>
+                  <p className="text-[11px] text-stone-500">We source from China to you</p>
                 </div>
               </div>
               <button

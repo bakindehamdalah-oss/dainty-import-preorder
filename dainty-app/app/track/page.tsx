@@ -43,7 +43,7 @@ type Preorder = {
   revised_arrival_date?: string;
 };
 
-const statusOrder = ['pending', 'paid', 'ordered', 'shipped', 'ready_for_delivery', 'delivered'];
+const statusOrder = ['pending', 'paid', 'ordered', 'shipped', 'waiting_for_clearance', 'ready_for_delivery', 'delivered'];
 
 export default function TrackOrderPage() {
   const [trackingInput, setTrackingInput] = useState(() => {
@@ -157,7 +157,8 @@ export default function TrackOrderPage() {
     { id: 'paid', label: 'Payment confirmed', date: order?.payment_date, icon: CheckCircle2 },
     { id: 'ordered', label: 'Ordered from China', date: order?.china_ordered_at, icon: Package },
     { id: 'shipped', label: delayed ? 'Shipped (delayed)' : 'Shipped / in transit', date: order?.shipped_at, icon: order?.shipping_method === 'sea' ? Ship : Plane },
-    { id: 'ready_for_delivery', label: 'Arrived in Nigeria', date: order?.ready_at, icon: Truck },
+    { id: 'waiting_for_clearance', label: 'Waiting for clearance (Pay shipping)', date: order?.ready_at, icon: Clock },
+    { id: 'ready_for_delivery', label: 'Cleared & ready for delivery', date: order?.ready_at, icon: Truck },
     { id: 'delivered', label: 'Delivered', date: order?.delivered_at, icon: CheckCircle2 },
   ];
   const currentStep = status === 'delayed' ? 3 : statusOrder.indexOf(status);
@@ -215,7 +216,7 @@ export default function TrackOrderPage() {
           <section className="space-y-5 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
             <div className="flex flex-col justify-between gap-2 border-b border-stone-100 pb-4 sm:flex-row sm:items-center">
               <div><p className="text-[10px] font-bold uppercase tracking-wide text-stone-400">Customer Tracking ID</p><h1 className="font-mono text-xl font-extrabold">#{order.id}</h1><p className="text-xs text-stone-500">Order placed {order.created_at ? new Date(order.created_at).toLocaleDateString() : 'recently'}</p></div>
-              <span className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${cancelled ? 'bg-red-100 text-red-800' : delayed ? 'bg-amber-100 text-amber-900' : status === 'delivered' ? 'bg-stone-900 text-white' : 'bg-amber-100 text-amber-900'}`}>{cancelled ? 'Cancelled' : delayed ? 'Delayed in transit' : status === 'pending' ? 'Pending payment' : status.replaceAll('_', ' ')}</span>
+              <span className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${cancelled ? 'bg-red-100 text-red-800' : delayed ? 'bg-amber-100 text-amber-900' : status === 'waiting_for_clearance' ? 'bg-amber-100 text-amber-900 border border-amber-300' : status === 'delivered' ? 'bg-stone-900 text-white' : 'bg-amber-100 text-amber-900'}`}>{cancelled ? 'Cancelled' : delayed ? 'Delayed in transit' : status === 'waiting_for_clearance' ? 'Waiting for clearance' : status === 'ready_for_delivery' ? 'Ready for delivery' : status === 'pending' ? 'Pending payment' : status.replaceAll('_', ' ')}</span>
             </div>
 
             {!cancelled && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
@@ -235,6 +236,54 @@ export default function TrackOrderPage() {
                 <span className="text-xs font-bold uppercase text-stone-700">{order.shipping_method === 'sea' ? 'Sea' : 'Air'}</span>
               </div>
             </div>}
+
+            {!cancelled && status === 'waiting_for_clearance' && (
+              <div className="rounded-2xl border-2 border-[#fa9d26] bg-amber-50/80 p-5 shadow-xs space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-xl bg-[#fa9d26] p-2.5 text-white shrink-0 mt-0.5">
+                    <Clock className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-900">
+                        Action Required
+                      </span>
+                      <span className="text-xs font-bold text-amber-950">Arrived in Nigeria</span>
+                    </div>
+                    <h3 className="text-base font-extrabold text-stone-900">
+                      Waiting for Clearance — Pay Shipping Fee
+                    </h3>
+                    <p className="text-xs text-stone-700 leading-relaxed">
+                      Your shipment has arrived in Nigeria and is currently waiting for clearance from our shipping company. <strong>Shipping fee has to be paid for us to be able to clear it from our shipping company.</strong>
+                    </p>
+                    <p className="text-xs text-stone-700 leading-relaxed">
+                      Confirmed shipping fees must be settled within <strong>7 days</strong> of notification so we can clear your goods from the shipping company and dispatch your order.
+                    </p>
+
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white border border-amber-200 p-3.5 shadow-2xs">
+                      <div>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-stone-500 block">Confirmed Shipping Fee</span>
+                        <span className="text-lg font-black text-[#b86200]">
+                          ₦{Number(order.final_shipping_fee || order.est_shipping_fee || 0).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <a
+                        href={`https://wa.me/${whatsappNumber ? whatsappNumber.replace(/[^0-9]/g, '') : ''}?text=${encodeURIComponent(
+                          `Hello Dainty Import, I would like to pay my shipping fee for Order #${order.id} (Waiting for clearance).`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 transition shadow-xs active:scale-95"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        <span>Pay Shipping Fee on WhatsApp</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {!cancelled && <div className="space-y-3"><h2 className="text-xs font-bold uppercase tracking-wide">Order progress</h2><div className="space-y-4">{steps.map((step, index) => {const Icon = step.icon; const done = currentStep >= index; return <div key={step.id} className="flex gap-3"><div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${done ? delayed && index === 3 ? 'bg-amber-500 text-white' : 'bg-[#fa9d26] text-white' : 'border border-stone-300 text-stone-400'}`}><Icon className="h-4 w-4" /></div><div className="flex-1"><div className="flex flex-wrap justify-between gap-1"><p className={`text-sm font-bold ${done ? 'text-stone-900' : 'text-stone-400'}`}>{step.label}</p>{step.date && done && <span className="text-[11px] text-stone-400">{new Date(step.date).toLocaleDateString()}</span>}</div>{step.id === 'shipped' && delayed && order.delay_reason && <p className="mt-1 text-xs text-amber-800">{order.delay_reason}</p>}</div></div>})}</div></div>}
           </section>
@@ -287,7 +336,7 @@ export default function TrackOrderPage() {
             <div className="mt-3 space-y-2 rounded-xl bg-stone-50 p-3 text-xs"><div className="flex justify-between"><span>Product total</span><strong>₦{Number(order.total_amount || 0).toLocaleString()}</strong></div><div className="flex justify-between"><span>Estimated {order.shipping_method === 'sea' ? 'sea' : 'air'} shipping</span><strong>₦{Number(order.est_shipping_fee || 0).toLocaleString()}</strong></div>{order.final_shipping_fee != null && <div className="flex justify-between border-t border-stone-200 pt-2 font-bold text-purple-800"><span>Confirmed shipping</span><strong>₦{Number(order.final_shipping_fee).toLocaleString()}</strong></div>}</div>
           </section>
 
-          <section className="rounded-2xl border border-stone-200 bg-white p-5 text-xs text-stone-600"><h2 className="mb-2 flex items-center gap-2 font-bold text-stone-900"><Sparkles className="h-4 w-4 text-[#fa9d26]" />China Sourcing & Preorder Terms</h2><ul className="list-disc space-y-1 pl-4"><li>The initial payment covers the buying price of the item.</li><li>Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria.</li><li>Shipping fee is confirmed and paid separately when your goods arrive in Nigeria.</li><li>Confirmed shipping fees must be settled within 7 days of notification.</li></ul></section>
+          <section className="rounded-2xl border border-stone-200 bg-white p-5 text-xs text-stone-600"><h2 className="mb-2 flex items-center gap-2 font-bold text-stone-900"><Sparkles className="h-4 w-4 text-[#fa9d26]" />China Sourcing & Preorder Terms</h2><ul className="list-disc space-y-1 pl-4"><li>The initial payment covers the buying price of the item.</li><li>Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria.</li><li>Shipping fee is confirmed and paid separately when your goods arrive in Nigeria. <strong>Shipping fee has to be paid for us to be able to clear it from our shipping company.</strong></li><li>Confirmed shipping fees must be settled within 7 days of notification to allow clearance.</li></ul></section>
         </div>}
       </main>
 

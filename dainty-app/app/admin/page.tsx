@@ -666,7 +666,7 @@ export default function AdminPage() {
     if (newStatus === 'paid') statusTimestamps.payment_date = timeNow;
     if (newStatus === 'ordered') statusTimestamps.china_ordered_at = timeNow;
     if (newStatus === 'shipped') statusTimestamps.shipped_at = timeNow;
-    if (newStatus === 'ready_for_delivery') statusTimestamps.ready_at = timeNow;
+    if (newStatus === 'waiting_for_clearance' || newStatus === 'ready_for_delivery') statusTimestamps.ready_at = timeNow;
     if (newStatus === 'delivered') statusTimestamps.delivered_at = timeNow;
     if (newStatus === 'cancelled') statusTimestamps.cancelled_at = timeNow;
 
@@ -711,13 +711,13 @@ export default function AdminPage() {
       message = `*DAINTY IMPORT - PREORDER PAYMENT CONFIRMED*\n\n` +
         `Hello ${name}!\n` +
         `We have received your payment of ₦${amount} for Preorder *#${order.id}* (${pieces} pcs).\n\n` +
-        `Next Step: We are processing and placing the order with our China supplier now!\n\n` +
+        `Next Step: We are processing and placing the order with our Chinese supplier now!\n\n` +
         `View your order catalog here: https://${typeof window !== 'undefined' ? window.location.host : ''}/order?id=${order.id}\n\n` +
         `Thank you for choosing Dainty Import!`;
     } else if (status === 'ordered') {
       message = `*DAINTY IMPORT - ORDERED FROM CHINA*\n\n` +
         `Hello ${name}!\n` +
-        `Your Preorder *#${order.id}* (${pieces} pcs) has been ordered from our China supplier and is being prepared for overseas shipping (${order.shipping_method || 'Air'}).\n\n` +
+        `Your Preorder *#${order.id}* (${pieces} pcs) has been ordered from our Chinese supplier and is being prepared for overseas shipping (${order.shipping_method || 'Air'}).\n\n` +
         `View your order catalog: https://${typeof window !== 'undefined' ? window.location.host : ''}/order?id=${order.id}\n\n` +
         `We will notify you once your package is in transit!`;
     } else if (status === 'shipped' && order.is_delayed) {
@@ -732,13 +732,19 @@ export default function AdminPage() {
         `Your Preorder *#${order.id}* has been shipped from China via ${order.shipping_method || 'Air'} shipping!\n` +
         `Timeline: ${order.shipping_timeline || (order.shipping_method === 'sea' ? 'Within 3 months' : 'Within 3 weeks')}.\n\n` +
         `View order details: https://${typeof window !== 'undefined' ? window.location.host : ''}/order?id=${order.id}`;
-    } else if (status === 'ready_for_delivery') {
-      message = `*DAINTY IMPORT - ARRIVED IN NIGERIA*\n\n` +
+    } else if (status === 'waiting_for_clearance') {
+      message = `*DAINTY IMPORT - ARRIVED IN NIGERIA (WAITING FOR CLEARANCE)*\n\n` +
         `Hello ${name}!\n` +
-        `Exciting news! Your Preorder *#${order.id}* (${pieces} pcs) has arrived in Nigeria and is ready for pickup or delivery!\n\n` +
-        `*Confirmed Shipping Fee:* ₦${finalShip || estShip}\n` +
+        `Good news! Your Preorder *#${order.id}* (${pieces} pcs) has arrived in Nigeria and is currently waiting for clearance from our shipping company.\n\n` +
+        `*Confirmed Shipping Fee:* ₦${finalShip || estShip}\n\n` +
+        `You can now pay your shipping fee. Shipping fee has to be paid for us to be able to clear it from our shipping company. Confirmed shipping fees must be settled within 7 days of notification.\n\n` +
+        `Once paid, we will clear your package immediately and prepare it for pickup or delivery!`;
+    } else if (status === 'ready_for_delivery') {
+      message = `*DAINTY IMPORT - CLEARED & READY FOR DELIVERY*\n\n` +
+        `Hello ${name}!\n` +
+        `Great news! Your Preorder *#${order.id}* (${pieces} pcs) has been cleared from our shipping company and is now ready for pickup or delivery!\n\n` +
         `*Delivery Address:* ${order.customer_address || 'As registered'}\n\n` +
-        `Please confirm payment of the shipping fee so we can dispatch your parcel right away! Note that shipping fees must be settled within 7 days of notification.`;
+        `We are dispatching your parcel right away!`;
     } else if (status === 'delivered') {
       message = `*DAINTY IMPORT - ORDER DELIVERED*\n\n` +
         `Hello ${name}!\n` +
@@ -3134,6 +3140,7 @@ export default function AdminPage() {
                   { id: 'paid', label: 'Paid', count: preorders.filter(p => p.status === 'paid').length, icon: '' },
                   { id: 'ordered', label: 'Ordered (China)', count: preorders.filter(p => p.status === 'ordered').length, icon: '' },
                   { id: 'shipped', label: 'Shipped (In Transit)', count: preorders.filter(p => p.status === 'shipped').length, icon: '' },
+                  { id: 'waiting_for_clearance', label: 'Waiting Clearance', count: preorders.filter(p => p.status === 'waiting_for_clearance').length, icon: '' },
                   { id: 'ready_for_delivery', label: 'Ready in Nigeria', count: preorders.filter(p => p.status === 'ready_for_delivery').length, icon: '' },
                   { id: 'delivered', label: 'Delivered', count: preorders.filter(p => p.status === 'delivered').length, icon: '' },
                   { id: 'cancelled', label: 'Cancelled', count: preorders.filter(p => p.status === 'cancelled').length, icon: '' },
@@ -3259,6 +3266,7 @@ export default function AdminPage() {
                         paid: { label: 'Paid', bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200', icon: '' },
                         ordered: { label: 'Ordered from China', bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-blue-200', icon: '' },
                         shipped: { label: 'Shipped (In Transit)', bg: 'bg-indigo-50', text: 'text-indigo-800', border: 'border-indigo-200', icon: '' },
+                        waiting_for_clearance: { label: 'Waiting Clearance', bg: 'bg-amber-100', text: 'text-amber-900', border: 'border-amber-300', icon: '' },
                         ready_for_delivery: { label: 'Ready in Nigeria', bg: 'bg-purple-50', text: 'text-purple-800', border: 'border-purple-200', icon: '' },
                         delivered: { label: 'Delivered', bg: 'bg-stone-100', text: 'text-stone-700', border: 'border-stone-300', icon: '' },
                         cancelled: { label: 'Cancelled', bg: 'bg-red-50', text: 'text-red-800', border: 'border-red-200', icon: '' },
@@ -3448,7 +3456,7 @@ export default function AdminPage() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-stone-100 text-xs">
                             <div className="space-y-1">
                               <label className="text-[10px] font-bold text-stone-500 uppercase">
-                                China Supplier / Tracking Order #:
+                                Chinese Supplier / Tracking Order #:
                               </label>
                               <div className="flex items-center gap-1.5">
                                 <input
@@ -3539,7 +3547,8 @@ export default function AdminPage() {
                                 <option value="paid">Paid (Payment Confirmed)</option>
                                 <option value="ordered">Ordered from China</option>
                                 <option value="shipped">Shipped (In Transit)</option>
-                                <option value="ready_for_delivery">Ready in Nigeria</option>
+                                <option value="waiting_for_clearance">Waiting for Clearance (Arrived in Nigeria)</option>
+                                <option value="ready_for_delivery">Ready in Nigeria (Cleared)</option>
                                 <option value="delivered">Delivered</option>
                                 {status === 'cancelled' && <option value="cancelled">Cancelled</option>}
                               </select>
@@ -3596,10 +3605,19 @@ export default function AdminPage() {
                               {status === 'shipped' && (
                                 <button
                                   type="button"
+                                  onClick={() => handleUpdateOrderStatus(po.id, 'waiting_for_clearance')}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 shadow-2xs transition"
+                                >
+                                  <span>Mark Waiting Clearance</span>
+                                </button>
+                              )}
+                              {status === 'waiting_for_clearance' && (
+                                <button
+                                  type="button"
                                   onClick={() => handleUpdateOrderStatus(po.id, 'ready_for_delivery')}
                                   className="inline-flex items-center gap-1 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-purple-700 shadow-2xs transition"
                                 >
-                                  <span>Mark Ready in Nigeria</span>
+                                  <span>Mark Cleared & Ready</span>
                                 </button>
                               )}
                               {status === 'ready_for_delivery' && (

@@ -395,11 +395,19 @@ export default function MePage() {
         </span>
       );
     }
+    if (s === 'waiting_for_clearance') {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-2.5 py-0.5 text-[11px] font-bold text-amber-900">
+          <Clock className="h-3 w-3 text-amber-700" />
+          Waiting for Clearance
+        </span>
+      );
+    }
     if (order.ready_at || s === 'ready_for_delivery') {
       return (
         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-900">
           <Truck className="h-3 w-3 text-emerald-600" />
-          Arrived in Nigeria
+          Ready in Nigeria
         </span>
       );
     }
@@ -691,7 +699,7 @@ export default function MePage() {
             </h3>
             <p className="mx-auto mt-1 max-w-sm text-xs text-stone-500">
               {activeTab === 'all'
-                ? 'Browse direct China supplier items, add to your cart, and checkout to start your first preorder.'
+                ? 'Browse different items available on preorder.'
                 : 'When an order status updates, it will automatically appear here.'}
             </p>
             <Link
@@ -853,6 +861,26 @@ export default function MePage() {
                       );
                     })}
                   </div>
+
+                  {String(order.status || '').toLowerCase().trim() === 'waiting_for_clearance' && (
+                    <div className="mt-2 mb-1 rounded-xl border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <p className="font-bold flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-amber-500 inline-block"></span>
+                          <span>Arrived in Nigeria · Waiting for Clearance</span>
+                        </p>
+                        <p className="text-[11px] text-stone-600 mt-0.5">
+                          Shipping fee has to be paid for us to be able to clear it from our shipping company.
+                        </p>
+                      </div>
+                      <Link
+                        href={`/track?id=${order.id}`}
+                        className="shrink-0 inline-flex items-center justify-center gap-1 rounded-lg bg-[#fa9d26] px-3 py-1.5 text-[11px] font-bold text-white shadow-2xs hover:bg-[#e08819] transition active:scale-95"
+                      >
+                        <span>Pay Shipping Fee</span>
+                      </Link>
+                    </div>
+                  )}
 
                   {/* Order Footer Actions */}
                   <div className="mt-2 pt-2.5 border-t border-stone-100 flex items-center justify-between text-xs">

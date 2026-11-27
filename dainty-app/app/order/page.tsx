@@ -69,7 +69,7 @@ export default function OrderCatalogPage() {
   const isPaid = useMemo(() => {
     if (!order) return false;
     const s = String(order.status || '').toLowerCase().trim();
-    return ['paid', 'ordered', 'shipped', 'ready_for_delivery', 'delivered'].includes(s) || Boolean(order.payment_date);
+    return ['paid', 'ordered', 'shipped', 'waiting_for_clearance', 'ready_for_delivery', 'delivered'].includes(s) || Boolean(order.payment_date);
   }, [order]);
 
   // Real-time status sync when admin updates payment or fulfillment
@@ -721,10 +721,10 @@ export default function OrderCatalogPage() {
                   <strong className="text-stone-900">Shipping Estimate:</strong> Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria.
                 </p>
                 <p>
-                  <strong className="text-stone-900">Shipping Payment:</strong> Shipping fee is confirmed and paid separately when your goods arrive in Nigeria.
+                  <strong className="text-stone-900">Shipping Payment:</strong> Shipping fee is confirmed and paid separately when your goods arrive in Nigeria. Shipping fee has to be paid for us to be able to clear it from our shipping company.
                 </p>
                 <p>
-                  <strong className="text-stone-900">Payment Window:</strong> Confirmed shipping fees must be settled within 7 days of notification.
+                  <strong className="text-stone-900">Payment Window:</strong> Confirmed shipping fees must be settled within 7 days of notification to allow clearance from our shipping company.
                 </p>
               </div>
             </div>
