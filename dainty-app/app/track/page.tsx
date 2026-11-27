@@ -244,24 +244,26 @@ export default function TrackOrderPage() {
                       <p className="text-xs font-black text-amber-800 mt-0.5">₦{(Number(item.price) * Number(item.quantity)).toLocaleString()}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                    <button
-                      type="button"
-                      onClick={() => handleOrderAgain(item)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-bold text-stone-700 hover:bg-stone-100 transition active:scale-95"
-                    >
-                      <ShoppingBag className="h-3 w-3 text-[#fa9d26]" />
-                      <span>Order Again</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveReviewItem({ orderId: order.id, item })}
-                      className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition active:scale-95 ${savedReview ? 'bg-amber-50 text-amber-900 border border-amber-200' : 'bg-stone-900 text-white hover:bg-stone-800'}`}
-                    >
-                      <Star className={`h-3 w-3 ${savedReview ? 'fill-amber-400 text-amber-500' : 'fill-white text-white'}`} />
-                      <span>{savedReview ? `${savedReview.rating}★ Reviewed` : 'Review Item'}</span>
-                    </button>
-                  </div>
+                  {status === 'delivered' || !!order.delivered_at ? (
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                      <button
+                        type="button"
+                        onClick={() => handleOrderAgain(item)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-bold text-stone-700 hover:bg-stone-100 transition active:scale-95"
+                      >
+                        <ShoppingBag className="h-3 w-3 text-[#fa9d26]" />
+                        <span>Order Again</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveReviewItem({ orderId: order.id, item })}
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition active:scale-95 ${savedReview ? 'bg-amber-50 text-amber-900 border border-amber-200' : 'bg-stone-900 text-white hover:bg-stone-800'}`}
+                      >
+                        <Star className={`h-3 w-3 ${savedReview ? 'fill-amber-400 text-amber-500' : 'fill-white text-white'}`} />
+                        <span>{savedReview ? `${savedReview.rating}★ Reviewed` : 'Review Item'}</span>
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               );
             })}</div>

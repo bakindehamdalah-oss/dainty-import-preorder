@@ -24,12 +24,12 @@ type ReviewModalProps = {
 };
 
 const QUICK_TAGS = [
-  'Great Quality 🔥',
-  'True to Size 👌',
-  'Fast Shipping 🚀',
-  'Affordable 💰',
-  '100% Recommended ✨',
-  'Matches Pictures 📸',
+  'Great Quality',
+  'True to Size',
+  'Fast Shipping',
+  'Affordable',
+  '100% Recommended',
+  'Matches Pictures',
 ];
 
 const RATING_LABELS: Record<number, string> = {

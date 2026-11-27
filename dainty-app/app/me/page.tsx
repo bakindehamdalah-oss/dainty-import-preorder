@@ -134,9 +134,41 @@ export default function MePage() {
       const localOrdersMap = new Map<string, Preorder>();
       const trackedIds = new Set<string>();
 
+      // Nov 27, 2026 cutoff: practice orders placed before today are cleared
+      const CUTOFF_TIMESTAMP = new Date('2026-11-27T00:00:00Z').getTime();
+
       if (typeof window !== 'undefined') {
         const cachedName = localStorage.getItem('dainty_customer_name');
         if (cachedName) setCustomerName(cachedName);
+
+        // Purge any local orders placed before today (Nov 27, 2026)
+        try {
+          const removedOrderIds = new Set<string>();
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('dainty_order_')) {
+              const raw = localStorage.getItem(key);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                const orderTime = parsed.created_at ? new Date(parsed.created_at).getTime() : 0;
+                if (orderTime > 0 && orderTime < CUTOFF_TIMESTAMP) {
+                  removedOrderIds.add(parsed.id || key.replace('dainty_order_', ''));
+                  localStorage.removeItem(key);
+                }
+              }
+            }
+          }
+          const idsRaw = localStorage.getItem('dainty_customer_order_ids');
+          if (idsRaw) {
+            const arr = JSON.parse(idsRaw);
+            if (Array.isArray(arr)) {
+              const cleanIds = arr.filter((id) => !removedOrderIds.has(String(id)));
+              localStorage.setItem('dainty_customer_order_ids', JSON.stringify(cleanIds));
+            }
+          }
+        } catch (e) {
+          console.warn('Error clearing practice orders before today:', e);
+        }
 
         // A. From saved order IDs array
         try {
@@ -523,7 +555,7 @@ export default function MePage() {
                   {customerName}
                 </h1>
                 <p className="text-[11px] text-stone-300">
-                  Passwordless account • Saved on this phone
+                  Orders saved on this phone
                 </p>
               </div>
             </div>
@@ -772,47 +804,49 @@ export default function MePage() {
                             </div>
                           </div>
 
-                          {/* Individual Item Actions: Order Again & Review */}
-                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                            {/* Order Again Button */}
-                            <button
-                              type="button"
-                              onClick={() => handleOrderAgain(item)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 text-[11px] font-bold text-stone-700 hover:bg-stone-100 transition active:scale-95"
-                              title="Add this item to cart again"
-                            >
-                              <ShoppingBag className="h-3 w-3 text-[#fa9d26]" />
-                              <span>Order Again</span>
-                            </button>
+                          {/* Individual Item Actions: Order Again & Review (Only for delivered orders) */}
+                          {(order.delivered_at || String(order.status || '').toLowerCase().trim() === 'delivered') && (
+                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                              {/* Order Again Button */}
+                              <button
+                                type="button"
+                                onClick={() => handleOrderAgain(item)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 text-[11px] font-bold text-stone-700 hover:bg-stone-100 transition active:scale-95"
+                                title="Add this item to cart again"
+                              >
+                                <ShoppingBag className="h-3 w-3 text-[#fa9d26]" />
+                                <span>Order Again</span>
+                              </button>
 
-                            {/* Review Item Button */}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setActiveReviewItem({
-                                  orderId: order.id,
-                                  item,
-                                })
-                              }
-                              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition active:scale-95 ${
-                                savedReview
-                                  ? 'bg-amber-50 text-amber-900 border border-amber-200'
-                                  : 'bg-stone-900 text-white hover:bg-stone-800'
-                              }`}
-                              title="Review this individual item"
-                            >
-                              <Star
-                                className={`h-3 w-3 ${
+                              {/* Review Item Button */}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setActiveReviewItem({
+                                    orderId: order.id,
+                                    item,
+                                  })
+                                }
+                                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition active:scale-95 ${
                                   savedReview
-                                    ? 'fill-amber-400 text-amber-500'
-                                    : 'fill-white text-white'
-                               }`}
-                              />
-                              <span>
-                                {savedReview ? `${savedReview.rating}★ Reviewed` : 'Review Item'}
-                              </span>
-                            </button>
-                          </div>
+                                    ? 'bg-amber-50 text-amber-900 border border-amber-200'
+                                    : 'bg-stone-900 text-white hover:bg-stone-800'
+                                }`}
+                                title="Review this individual item"
+                              >
+                                <Star
+                                  className={`h-3 w-3 ${
+                                    savedReview
+                                      ? 'fill-amber-400 text-amber-500'
+                                      : 'fill-white text-white'
+                                 }`}
+                                />
+                                <span>
+                                  {savedReview ? `${savedReview.rating}★ Reviewed` : 'Review Item'}
+                                </span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

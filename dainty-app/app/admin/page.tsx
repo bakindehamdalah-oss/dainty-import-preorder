@@ -406,18 +406,32 @@ export default function AdminPage() {
         console.warn('Auto-cleanup of old unpaid preorders notice:', cleanErr);
       }
 
+      // Purge practice orders placed before today (Nov 27, 2026)
+      const nov27CutoffMs = new Date('2026-11-27T00:00:00.000Z').getTime();
+      try {
+        await supabase
+          .from('preorders')
+          .delete()
+          .lt('created_at', '2026-11-27T00:00:00.000Z');
+      } catch (cleanPracticeErr) {
+        console.warn('Auto-cleanup of practice orders before Nov 27 notice:', cleanPracticeErr);
+      }
+
       const preordersRes = await supabase
         .from('preorders')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(100);
       if (preordersRes.data) {
-        // Double-check filter so unpaid orders older than 14 days never show in admin
+        // Exclude practice orders placed before today (Nov 27, 2026) and unpaid orders older than 14 days
         const activeOrders = preordersRes.data.filter((order) => {
-          const isUnpaid = !order.status || order.status === 'unpaid';
-          if (isUnpaid && order.created_at) {
+          if (order.created_at) {
             const orderTime = new Date(order.created_at).getTime();
-            if (!isNaN(orderTime) && orderTime < fourteenDaysAgoMs) {
+            if (!isNaN(orderTime) && orderTime < nov27CutoffMs) {
+              return false; // practice order placed before today
+            }
+            const isUnpaid = !order.status || order.status === 'unpaid';
+            if (isUnpaid && !isNaN(orderTime) && orderTime < fourteenDaysAgoMs) {
               return false; // older than 14 days and unpaid
             }
           }
@@ -515,6 +529,34 @@ export default function AdminPage() {
   // =========================================================
   // CUSTOMER MANAGEMENT & ORDER STATUS PIPELINE HANDLERS
   // =========================================================
+  async function handlePurgePracticeOrders() {
+    if (!confirm('Are you sure you want to delete all practice/test preorders placed before today (Nov 27, 2026)?')) {
+      return;
+    }
+    try {
+      const nov27ISO = '2026-11-27T00:00:00.000Z';
+      const { error } = await supabase
+        .from('preorders')
+        .delete()
+        .lt('created_at', nov27ISO);
+
+      if (error) {
+        console.warn('Practice purge error:', error);
+      }
+
+      const nov27Ms = new Date(nov27ISO).getTime();
+      setPreorders((prev) =>
+        prev.filter((o) => {
+          const t = o.created_at ? new Date(o.created_at).getTime() : 0;
+          return t === 0 || t >= nov27Ms;
+        })
+      );
+      setStatusMsg('Practice orders placed before today (Nov 27) have been deleted.');
+    } catch (err: any) {
+      setErrorMsg(`Could not delete practice orders: ${err?.message || 'Check database permissions'}`);
+    }
+  }
+
   async function handleSaveCustomer(e: FormEvent) {
     e.preventDefault();
     if (!custFormName.trim() || !custFormPhone.trim()) {
@@ -3034,6 +3076,16 @@ export default function AdminPage() {
                   Customers ({customers.length})
                 </button>
               </div>
+
+              <button
+                type="button"
+                onClick={handlePurgePracticeOrders}
+                className="inline-flex items-center gap-1 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 shadow-2xs transition active:scale-95"
+                title="Delete practice preorders placed before today (Nov 27, 2026)"
+              >
+                <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                <span>Delete Practice Orders (&lt; Today)</span>
+              </button>
 
               <button
                 type="button"
