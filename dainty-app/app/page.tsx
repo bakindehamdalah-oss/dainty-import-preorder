@@ -4,6 +4,7 @@ import Link from 'next/link';
 
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { getShippingBatch } from '../lib/shippingBatches';
 import {
   PackagePlus,
   AlertCircle,
@@ -1755,6 +1756,15 @@ export default function StorefrontPage() {
 
   // Shipping timelines: Air within 3 weeks, Sea within 3 months
   const shippingTimeline = shippingMethod === 'air' ? 'Within 3 weeks' : 'Within 3 months';
+  const [clientDate, setClientDate] = useState<Date | null>(null);
+  useEffect(() => {
+    setClientDate(new Date());
+  }, []);
+
+  const activeShippingBatch = useMemo(
+    () => getShippingBatch(shippingMethod, clientDate),
+    [shippingMethod, clientDate]
+  );
 
   // Generate unique short order reference ID for active cart
   useEffect(() => {
@@ -1794,6 +1804,7 @@ export default function StorefrontPage() {
       total_amount: subtotal,
       mode,
       shipping_method: shippingMethod,
+      shipping_batch: activeShippingBatch.batchName,
       est_shipping_fee: estimatedShipping,
       shipping_timeline: shippingTimeline,
       status: 'unpaid',
@@ -1906,7 +1917,8 @@ export default function StorefrontPage() {
       `*Total Items Ordered:* ${cart.length} item${cart.length === 1 ? '' : 's'}`,
       `*Total Pieces:* ${totalCartCount} pcs`,
       `*Total Product Price:* ₦${subtotal.toLocaleString()}`,
-      `*Shipping Method:* ${shippingMethod.toUpperCase()} (Shipping Time Frame: ${shippingTimeline})`,
+      `*Shipping Method:* ${shippingMethod.toUpperCase()}`,
+      `*Shipping Batch:* ${activeShippingBatch.batchName} (${activeShippingBatch.dispatchSchedule} · ${activeShippingBatch.timeline})`,
       `*Est. Shipping Fee:* ${estimatedShipping > 0 ? `₦${estimatedShipping.toLocaleString()}` : 'To be confirmed upon arrival in Nigeria'}`,
       '',
       `*View Order:*`,
@@ -2189,23 +2201,29 @@ decoding="async"
                 How Dainty Preorder Works
               </h2>
               <p className="mt-1 text-xs sm:text-sm text-stone-600 max-w-xl leading-relaxed">
-                Shop products from China suppliers. Select <strong>Wholesale</strong> for discounted bulk orders or <strong>Retail</strong> for single items, pick your sizes and colors, and choose <strong>Air Cargo</strong> (shipping time frame: within 3 weeks) or <strong>Sea Cargo</strong> (shipping time frame: within 3 months). Checkout takes you to WhatsApp to complete your order. The initial payment covers the buying price of the item, and shipping fee is confirmed and paid separately when your goods arrive in Nigeria. Estimated shipping fee is shown, but the exact shipping cost will be given when the shipment arrives in Nigeria. Confirmed shipping fees must be settled within 7 days of notification.
+                Shop products from China suppliers. Select <strong>Wholesale</strong> for discounted bulk orders or <strong>Retail</strong> for single items, pick your sizes and colors, and choose <strong>Air Cargo</strong> or <strong>Sea Cargo</strong>. Shipments depart in scheduled batches: Air Cargo dispatches twice monthly (Batch A by mid-month, Batch B by month-end) with delivery within 3 weeks of dispatch. Sea Cargo dispatches monthly at month-end with delivery within 3 months of dispatch. Checkout takes you to WhatsApp to complete your order. Initial payment covers the buying price of the item, and exact shipping is confirmed and paid separately when your goods arrive in Nigeria within 7 days of notification.
               </p>
             </div>
 
             <div className="flex flex-col gap-1.5 shrink-0 w-full sm:w-auto">
               <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-[#b96b0c] uppercase tracking-wider">
                 <Clock className="h-3.5 w-3.5 text-[#fa9d26]" />
-                <span>Shipping Time Frame</span>
+                <span>Scheduled Shipping Batches</span>
               </div>
               <div className="flex flex-wrap sm:flex-col gap-2 text-xs w-full sm:w-auto">
-                <div className="flex items-center gap-2 rounded-lg bg-white/95 px-3 py-1.5 font-medium text-stone-800 shadow-2xs border border-[#fa9d26]/25">
-                  <Plane className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                  <span><strong>Air Cargo:</strong> Within 3 weeks</span>
+                <div className="flex flex-col gap-0.5 rounded-lg bg-white/95 px-3 py-1.5 text-stone-800 shadow-2xs border border-[#fa9d26]/25">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <Plane className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                    <span>Air Cargo: Twice Monthly</span>
+                  </div>
+                  <span className="text-[11px] text-stone-600">Batch A (Mid-Month) & Batch B (Month-End) • Within 3 wks</span>
                 </div>
-                <div className="flex items-center gap-2 rounded-lg bg-white/95 px-3 py-1.5 font-medium text-stone-800 shadow-2xs border border-[#fa9d26]/25">
-                  <Ship className="h-3.5 w-3.5 text-sky-600 shrink-0" />
-                  <span><strong>Sea Cargo:</strong> Within 3 months</span>
+                <div className="flex flex-col gap-0.5 rounded-lg bg-white/95 px-3 py-1.5 text-stone-800 shadow-2xs border border-[#fa9d26]/25">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <Ship className="h-3.5 w-3.5 text-sky-600 shrink-0" />
+                    <span>Sea Cargo: Monthly</span>
+                  </div>
+                  <span className="text-[11px] text-stone-600">Month-End Batch • Within 3 months from dispatch</span>
                 </div>
               </div>
             </div>
@@ -2278,16 +2296,21 @@ decoding="async"
           {/* Shipping Method Option below Wholesale/Retail */}
           <div className="pt-3 border-t border-stone-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
                   Shipping Option
                 </span>
-                <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-[10px] font-bold text-stone-700">
-                  Shipping Time Frame: {shippingTimeline}
+                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-900">
+                  Current Batch: {activeShippingBatch.batchName} ({activeShippingBatch.dispatchSchedule})
+                </span>
+                <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-stone-600">
+                  {shippingTimeline} from dispatch
                 </span>
               </div>
               <p className="mt-0.5 text-xs text-stone-500">
-                Choose Air Cargo (within 3 weeks) or Sea Cargo (within 3 months)
+                {shippingMethod === 'air'
+                  ? 'Air Cargo dispatches twice monthly (Batch A by mid-month, Batch B by month-end)'
+                  : 'Sea Cargo dispatches monthly at month-end'}
               </p>
             </div>
 

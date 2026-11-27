@@ -60,6 +60,7 @@ type Preorder = {
   est_shipping_fee?: number;
   final_shipping_fee?: number;
   shipping_timeline?: string;
+  shipping_batch?: string;
   status?: string;
   customer_name?: string;
   customer_phone?: string;
@@ -733,8 +734,9 @@ export default function MePage() {
                           ₦{Number(order.total_amount || 0).toLocaleString()}
                         </span>
                         <span>•</span>
-                        <span className="uppercase text-[10px] font-bold text-stone-600">
-                          {order.shipping_method || 'Air'}
+                        <span className="text-[10px] font-bold text-stone-600">
+                          <span className="uppercase">{order.shipping_method || 'Air'}</span>
+                          {order.shipping_batch ? ` • ${order.shipping_batch}` : ''}
                         </span>
                       </div>
                     </div>

@@ -2,8 +2,9 @@
 
 import { ChangeEvent, FormEvent, useEffect, useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import { getShippingBatch, getNextBatchName } from '../../lib/shippingBatches';
 import { Session } from '@supabase/supabase-js';
-import { Upload, Trash2, Plus, LogOut, Check, FolderPlus, RefreshCw, X, ShieldAlert, Sparkles, Layers, Image as ImageIcon, Ship, Plane, Tag, Box, Package, Info, Pencil, Save, Settings, Phone, Search, Sliders, Edit2, CheckSquare, ExternalLink, User, UserPlus, MapPin, Truck, CheckCircle2, Clock, CreditCard, MessageCircle, AlertCircle, ChevronRight, Eye } from 'lucide-react';
+import { Upload, Trash2, Plus, LogOut, Check, FolderPlus, RefreshCw, X, ShieldAlert, Sparkles, Layers, Image as ImageIcon, Ship, Plane, Tag, Box, Package, Info, Pencil, Save, Settings, Phone, Search, Sliders, Edit2, CheckSquare, ExternalLink, User, UserPlus, MapPin, Truck, CheckCircle2, Clock, CreditCard, MessageCircle, AlertCircle, ChevronRight, Eye , ArrowRight } from 'lucide-react';
 
 type Category = {
   id: string;
@@ -102,6 +103,7 @@ type PreorderAdminRecord = {
   est_shipping_fee?: number;
   final_shipping_fee?: number;
   shipping_timeline?: string;
+  shipping_batch?: string | null;
   admin_notes?: string;
   created_at?: string;
   status?: string;
@@ -279,6 +281,7 @@ export default function AdminPage() {
   const [adminActiveSubTab, setAdminActiveSubTab] = useState<'pipeline' | 'customers'>('pipeline');
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
   const [orderCustomerFilter, setOrderCustomerFilter] = useState<string>('all');
+  const [orderBatchFilter, setOrderBatchFilter] = useState<string>('all');
   const [orderSearchQuery, setOrderSearchQuery] = useState<string>('');
 
   // Customer Modal & Assignment
@@ -554,6 +557,23 @@ export default function AdminPage() {
       setStatusMsg('Practice orders placed before today (Nov 27) have been deleted.');
     } catch (err: any) {
       setErrorMsg(`Could not delete practice orders: ${err?.message || 'Check database permissions'}`);
+    }
+  }
+
+  async function handleMoveOrderToNextBatch(orderId: string, currentBatchName: string, method?: 'air' | 'sea') {
+    const nextBatch = getNextBatchName(currentBatchName, method);
+    if (!confirm(`Move Order #${orderId} to next batch: "${nextBatch}"?`)) {
+      return;
+    }
+    setPreorders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, shipping_batch: nextBatch } : o))
+    );
+    try {
+      await supabase.from('preorders').update({ shipping_batch: nextBatch }).eq('id', orderId);
+      setStatusMsg(`Order #${orderId} moved to ${nextBatch}.`);
+    } catch (err: any) {
+      console.warn('Update batch error:', err);
+      setErrorMsg(`Could not update batch: ${err?.message || 'Database error'}`);
     }
   }
 
@@ -3143,14 +3163,14 @@ export default function AdminPage() {
               </div>
 
               {/* Filters & Search Bar */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div className="relative">
                   <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-stone-400" />
                   <input
                     type="text"
                     value={orderSearchQuery}
                     onChange={(e) => setOrderSearchQuery(e.target.value)}
-                    placeholder="Search by Order ID (#ORD-...), customer name, or phone..."
+                    placeholder="Search by Order ID, customer, phone..."
                     className="w-full rounded-xl border border-stone-200 bg-stone-50/50 pl-9 pr-3 py-2 text-xs focus:border-stone-900 focus:bg-white focus:outline-hidden"
                   />
                   {orderSearchQuery && (
@@ -3164,16 +3184,31 @@ export default function AdminPage() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div>
                   <select
                     value={orderCustomerFilter}
                     onChange={(e) => setOrderCustomerFilter(e.target.value)}
                     className="w-full rounded-xl border border-stone-200 bg-stone-50/50 px-3 py-2 text-xs text-stone-700 focus:border-stone-900 focus:bg-white focus:outline-hidden"
                   >
-                    <option value="all">Filter by Customer (All Customers)</option>
+                    <option value="all">Filter by Customer (All)</option>
                     {customers.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name} ({c.phone})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <select
+                    value={orderBatchFilter}
+                    onChange={(e) => setOrderBatchFilter(e.target.value)}
+                    className="w-full rounded-xl border border-stone-200 bg-stone-50/50 px-3 py-2 text-xs text-stone-700 focus:border-stone-900 focus:bg-white focus:outline-hidden"
+                  >
+                    <option value="all">Filter by Batch (All Batches)</option>
+                    {Array.from(new Set(preorders.map(p => p.shipping_batch || getShippingBatch(p.shipping_method || 'air', new Date(p.created_at || Date.now())).batchName))).filter(Boolean).sort().map((batchName) => (
+                      <option key={batchName} value={batchName}>
+                        {batchName} ({preorders.filter(p => (p.shipping_batch || getShippingBatch(p.shipping_method || 'air', new Date(p.created_at || Date.now())).batchName) === batchName).length} orders)
                       </option>
                     ))}
                   </select>
@@ -3184,8 +3219,10 @@ export default function AdminPage() {
               {(() => {
                 const filteredOrders = preorders.filter((po) => {
                   const status = po.status || 'pending';
+                  const poBatch = po.shipping_batch || getShippingBatch(po.shipping_method || 'air', new Date(po.created_at || Date.now())).batchName;
                   if (orderStatusFilter !== 'all' && status !== orderStatusFilter) return false;
                   if (orderCustomerFilter !== 'all' && po.customer_id !== orderCustomerFilter) return false;
+                  if (orderBatchFilter !== 'all' && poBatch !== orderBatchFilter) return false;
                   if (orderSearchQuery.trim()) {
                     const q = orderSearchQuery.toLowerCase();
                     const matchId = (po.id || '').toLowerCase().includes(q);
@@ -3246,8 +3283,24 @@ export default function AdminPage() {
                                 <span>{currStyle.label}</span>
                               </span>
                               <span className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide">
-                                {po.mode || 'Wholesale'} • {isAir ? 'Air (3 wks)' : 'Sea (3 mos)'}
+                                {po.mode || 'Wholesale'} • {isAir ? 'Air' : 'Sea'}
                               </span>
+                              <span className="inline-flex items-center gap-1 rounded-md bg-amber-100/80 px-2 py-0.5 text-[10px] font-bold text-amber-900">
+                                <span>Batch: {po.shipping_batch || getShippingBatch(po.shipping_method || 'air', new Date(po.created_at || Date.now())).batchName}</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleMoveOrderToNextBatch(
+                                  po.id,
+                                  po.shipping_batch || getShippingBatch(po.shipping_method || 'air', new Date(po.created_at || Date.now())).batchName,
+                                  po.shipping_method
+                                )}
+                                className="inline-flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2 py-0.5 text-[10px] font-bold text-stone-700 hover:bg-stone-50 hover:border-amber-300 transition active:scale-95"
+                                title="Move order to the next batch (e.g. if moving to next shipment)"
+                              >
+                                <ArrowRight className="h-2.5 w-2.5 text-[#fa9d26]" />
+                                <span>Move to Next Batch</span>
+                              </button>
                             </div>
 
                             <div className="text-[11px] text-stone-400">
