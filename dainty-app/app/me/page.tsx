@@ -779,6 +779,8 @@ export default function MePage() {
                                   <img
                                     src={item.selectedImage}
                                     alt={item.title}
+                                    loading="lazy"
+                                    decoding="async"
                                     className="h-full w-full object-cover cursor-zoom-in"
                                     onClick={() => setZoomedImage(item.selectedImage || null)}
                                   />

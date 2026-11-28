@@ -299,7 +299,7 @@ export default function TrackOrderPage() {
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     {item.selectedImage ? (
                       <button onClick={() => setZoomedImage(item.selectedImage || null)} className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-stone-200">
-                        <img src={item.selectedImage} alt={item.title} className="h-full w-full object-cover" />
+                        <img src={item.selectedImage} alt={item.title} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                       </button>
                     ) : (
                       <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-stone-100"><Package className="h-5 w-5 text-stone-400" /></div>

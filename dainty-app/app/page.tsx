@@ -1105,7 +1105,7 @@ decoding="async"
                   activeImage === img ? 'border-[#fa9d26] ring-2 ring-[#fa9d26]/20' : 'border-stone-200 opacity-70 hover:opacity-100'
                 }`}
               >
-                <img src={img} alt={`Angle ${idx + 1}`} className="h-full w-full object-contain" />
+                <img src={img} alt={`Angle ${idx + 1}`} loading="lazy" decoding="async" className="h-full w-full object-contain" />
               </button>
             ))}
           </div>
@@ -1624,6 +1624,38 @@ export default function StorefrontPage() {
       return title.includes(q) || desc.includes(q) || sizeStr.includes(q) || colorStr.includes(q);
     });
   }, [products, selectedCategory, deferredSearchQuery]);
+
+  // Zero-cost bandwidth optimization: lazy pagination
+  const [visibleProductCount, setVisibleProductCount] = useState<number>(32);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // Reset pagination when category, search query, or pricing mode changes
+  useEffect(() => {
+    setVisibleProductCount(32);
+  }, [selectedCategory, deferredSearchQuery, mode]);
+
+  const visibleProducts = useMemo(() => {
+    return filteredProducts.slice(0, visibleProductCount);
+  }, [filteredProducts, visibleProductCount]);
+
+  // Smooth infinite loading as the customer scrolls down
+  useEffect(() => {
+    if (visibleProductCount >= filteredProducts.length) return;
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleProductCount((prev) => Math.min(prev + 32, filteredProducts.length));
+        }
+      },
+      { rootMargin: '400px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [visibleProductCount, filteredProducts.length]);
 
   const handleOpenMatrix = useCallback((p: Product) => {
     setMatrixProduct(p);
@@ -2418,19 +2450,48 @@ decoding="async"
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {filteredProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                mode={mode}
-                categoryMap={categoryMap}
-                onAddToCart={addToCart}
-                onOpenMatrix={handleOpenMatrix}
-                onZoomImage={handleZoomImage}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {visibleProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  mode={mode}
+                  categoryMap={categoryMap}
+                  onAddToCart={addToCart}
+                  onOpenMatrix={handleOpenMatrix}
+                  onZoomImage={handleZoomImage}
+                />
+              ))}
+            </div>
+
+            {/* Load More & Infinite Scroll Trigger */}
+            {filteredProducts.length > visibleProducts.length && (
+              <div className="mt-8 flex flex-col items-center justify-center gap-3 pb-6">
+                <p className="text-xs text-stone-500 font-medium">
+                  Showing {visibleProducts.length} of {filteredProducts.length} items
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleProductCount((prev) => Math.min(prev + 32, filteredProducts.length))}
+                    className="inline-flex items-center gap-2 rounded-xl bg-stone-900 px-6 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-stone-800 active:scale-95 transition"
+                  >
+                    <span>Load More Products</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVisibleProductCount(filteredProducts.length)}
+                    className="inline-flex items-center rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-xs font-semibold text-stone-700 shadow-2xs hover:bg-stone-50 active:scale-95 transition"
+                  >
+                    <span>Show All</span>
+                  </button>
+                </div>
+                {/* Sentinel for auto infinite scroll */}
+                <div ref={loadMoreSentinelRef} className="h-4 w-full" aria-hidden="true" />
+              </div>
+            )}
+          </>
         )}
       
           </div>
@@ -2592,6 +2653,8 @@ decoding="async"
                       <img
                         src={item.selectedImage}
                         alt={item.product.name || 'Item'}
+                        loading="lazy"
+                        decoding="async"
                         className="h-12 w-12 shrink-0 rounded-lg border border-stone-200 object-contain bg-white p-0.5"
                       />
                     ) : (

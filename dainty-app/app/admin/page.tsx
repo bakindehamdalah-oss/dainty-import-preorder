@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import { compressImageFiles } from '../../lib/imageCompressor';
 import { getShippingBatch, getNextBatchName } from '../../lib/shippingBatches';
 import { Session } from '@supabase/supabase-js';
 import { Upload, Trash2, Plus, LogOut, Check, FolderPlus, RefreshCw, X, ShieldAlert, Sparkles, Layers, Image as ImageIcon, Ship, Plane, Tag, Box, Package, Info, Pencil, Save, Settings, Phone, Search, Sliders, Edit2, CheckSquare, ExternalLink, User, UserPlus, MapPin, Truck, CheckCircle2, Clock, CreditCard, MessageCircle, AlertCircle, ChevronRight, Eye , ArrowRight } from 'lucide-react';
@@ -307,6 +308,7 @@ export default function AdminPage() {
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
 
   // Search & filter in published products
+  const [catalogPageSize, setCatalogPageSize] = useState<number>(30);
   const [catalogSearch, setCatalogSearch] = useState('');
   const [catalogCategoryFilter, setCatalogCategoryFilter] = useState('all');
 
@@ -901,18 +903,21 @@ export default function AdminPage() {
     const files = Array.from(filesList);
     setUploadingItemPhotoId(tempId);
     setErrorMsg(null);
-    setStatusMsg(`Uploading ${files.length} photo(s) to product...`);
+    setStatusMsg(`Optimizing ${files.length} photo(s)...`);
+
+    const optimizedFiles = await compressImageFiles(files);
+    setStatusMsg(`Uploading ${optimizedFiles.length} photo(s) to product...`);
 
     const bucketCandidates = ['product images', 'productimages', 'product-images'];
     const uploadedUrls: string[] = [];
 
-    for (const file of files) {
+    for (const file of optimizedFiles) {
       const ext = file.name.split('.').pop() || 'jpg';
       const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const filePath = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${cleanName}`;
       for (const bName of bucketCandidates) {
         try {
-          const { error: upErr } = await supabase.storage.from(bName).upload(filePath, file, { cacheControl: '3600', upsert: true });
+          const { error: upErr } = await supabase.storage.from(bName).upload(filePath, file, { cacheControl: '31536000, immutable', upsert: true });
           if (!upErr) {
             const { data } = supabase.storage.from(bName).getPublicUrl(filePath);
             if (data?.publicUrl) {
@@ -1063,14 +1068,17 @@ export default function AdminPage() {
     setUploadingPhotos(true);
     setErrorMsg(null);
     setStatusMsg(null);
-    setUploadProgress(`Uploading 0 of ${files.length}...`);
+    setUploadProgress(`Compressing & optimizing ${files.length} photo(s)...`);
+
+    const optimizedFiles = await compressImageFiles(files);
+    setUploadProgress(`Uploading 0 of ${optimizedFiles.length}...`);
 
     const newUploadedUrls: { url: string; originalName: string }[] = [];
     const bucketCandidates = ['product images', 'productimages', 'product-images'];
 
     const batchSize = 6;
-    for (let i = 0; i < files.length; i += batchSize) {
-      const chunk = files.slice(i, i + batchSize);
+    for (let i = 0; i < optimizedFiles.length; i += batchSize) {
+      const chunk = optimizedFiles.slice(i, i + batchSize);
       await Promise.all(
         chunk.map(async (file) => {
           const ext = file.name.split('.').pop() || 'jpg';
@@ -1084,7 +1092,7 @@ export default function AdminPage() {
           for (const bName of bucketCandidates) {
             try {
               const { error: upErr } = await supabase.storage.from(bName).upload(filePath, file, {
-                cacheControl: '3600',
+                cacheControl: '31536000, immutable',
                 upsert: true,
               });
 
@@ -1110,7 +1118,7 @@ export default function AdminPage() {
           }
         })
       );
-      setUploadProgress(`Uploaded ${Math.min(i + batchSize, files.length)} of ${files.length}...`);
+      setUploadProgress(`Uploaded ${Math.min(i + batchSize, optimizedFiles.length)} of ${optimizedFiles.length}...`);
     }
 
     setUploadingPhotos(false);
@@ -1274,17 +1282,20 @@ export default function AdminPage() {
     const files = Array.from(filesList);
     setUploadingExistingPhotoId(productId);
     setErrorMsg(null);
-    setStatusMsg(`Uploading ${files.length} photo(s)...`);
+    setStatusMsg(`Compressing & optimizing ${files.length} photo(s)...`);
+
+    const optimizedFiles = await compressImageFiles(files);
+    setStatusMsg(`Uploading ${optimizedFiles.length} photo(s)...`);
 
     const bucketCandidates = ['product images', 'productimages', 'product-images'];
     const uploadedUrls: string[] = [];
 
-    for (const file of files) {
+    for (const file of optimizedFiles) {
       const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const filePath = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${cleanName}`;
       for (const bName of bucketCandidates) {
         try {
-          const { error: upErr } = await supabase.storage.from(bName).upload(filePath, file, { cacheControl: '3600', upsert: true });
+          const { error: upErr } = await supabase.storage.from(bName).upload(filePath, file, { cacheControl: '31536000, immutable', upsert: true });
           if (!upErr) {
             const { data } = supabase.storage.from(bName).getPublicUrl(filePath);
             if (data?.publicUrl) {
@@ -1670,16 +1681,20 @@ export default function AdminPage() {
     if (!filesList || filesList.length === 0 || !editingProduct) return;
     const files = Array.from(filesList);
     setUploadingEditPhoto(true);
+    setStatusMsg(`Compressing & optimizing ${files.length} photo(s)...`);
+
+    const optimizedFiles = await compressImageFiles(files);
+    setStatusMsg(`Uploading ${optimizedFiles.length} photo(s)...`);
 
     const bucketCandidates = ['product images', 'productimages', 'product-images'];
     const uploadedUrls: string[] = [];
 
-    for (const file of files) {
+    for (const file of optimizedFiles) {
       const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const filePath = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${cleanName}`;
       for (const bName of bucketCandidates) {
         try {
-          const { error: upErr } = await supabase.storage.from(bName).upload(filePath, file, { cacheControl: '3600', upsert: true });
+          const { error: upErr } = await supabase.storage.from(bName).upload(filePath, file, { cacheControl: '31536000, immutable', upsert: true });
           if (!upErr) {
             const { data } = supabase.storage.from(bName).getPublicUrl(filePath);
             if (data?.publicUrl) {
@@ -2812,36 +2827,62 @@ export default function AdminPage() {
           </div>
 
           <div className="max-h-[700px] space-y-2.5 overflow-y-auto pr-1">
-            {products.length === 0 ? (
-              <div className="py-12 text-center space-y-3">
-                <p className="text-sm font-semibold text-stone-600">No products published yet.</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAdminActiveTab('upload');
-                    if (typeof window !== 'undefined') {
-                      const url = new URL(window.location.href);
-                      url.searchParams.set('tab', 'upload');
-                      window.history.replaceState(null, '', url.toString());
-                    }
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#fa9d26] px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#e68c1d] transition"
-                >
-                  <Upload className="h-4 w-4" />
-                  <span>Go to Upload Products</span>
-                </button>
-              </div>
-            ) : (
-              products
-              .filter((p) => {
+            {(() => {
+              const filteredCatalog = products.filter((p) => {
                 const matchCat = catalogCategoryFilter === 'all' || p.category_id === catalogCategoryFilter;
                 const pTitle = (p.name || p.title || '').toLowerCase();
                 const pDesc = (p.description || '').toLowerCase();
                 const q = catalogSearch.toLowerCase().trim();
                 const matchSearch = !q || pTitle.includes(q) || pDesc.includes(q);
                 return matchCat && matchSearch;
-              })
-              .map((p) => {
+              });
+
+              if (products.length === 0) {
+                return (
+                  <div className="py-12 text-center space-y-3">
+                    <p className="text-sm font-semibold text-stone-600">No products published yet.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdminActiveTab('upload');
+                        if (typeof window !== 'undefined') {
+                          const url = new URL(window.location.href);
+                          url.searchParams.set('tab', 'upload');
+                          window.history.replaceState(null, '', url.toString());
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-[#fa9d26] px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#e68c1d] transition"
+                    >
+                      <Upload className="h-4 w-4" />
+                      <span>Go to Upload Products</span>
+                    </button>
+                  </div>
+                );
+              }
+
+              if (filteredCatalog.length === 0) {
+                return (
+                  <div className="py-12 text-center space-y-2">
+                    <p className="text-sm font-semibold text-stone-600">No products match your search or filter.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCatalogSearch('');
+                        setCatalogCategoryFilter('all');
+                      }}
+                      className="text-xs font-bold text-[#fa9d26] hover:underline"
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                );
+              }
+
+              const visibleCatalog = filteredCatalog.slice(0, catalogPageSize);
+
+              return (
+                <>
+                  {visibleCatalog.map((p) => {
                 const ship = getProductShippingFees(p);
                 const air = ship.air;
                 const sea = ship.sea;
@@ -2860,7 +2901,7 @@ export default function AdminPage() {
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         {p.image_url ? (
                           <div className="relative shrink-0">
-                            <img src={p.image_url} alt={pTitle} className="h-14 w-14 rounded-lg object-contain bg-stone-50 border border-stone-200 p-0.5" />
+                            <img src={p.image_url} alt={pTitle} loading="lazy" decoding="async" className="h-14 w-14 rounded-lg object-contain bg-stone-50 border border-stone-200 p-0.5" />
                             {pImages.length > 1 && (
                               <span className="absolute -bottom-1 -right-1 rounded-full bg-stone-900 px-1.5 py-0.2 text-[9px] font-bold text-white shadow-xs">
                                 {pImages.length}
@@ -3049,8 +3090,34 @@ export default function AdminPage() {
                     )}
                   </div>
                 );
-              })
-            )}
+              })}
+
+              {filteredCatalog.length > catalogPageSize && (
+                <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 p-3">
+                  <span className="text-xs text-stone-600 font-medium">
+                    Showing {visibleCatalog.length} of {filteredCatalog.length} published products
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCatalogPageSize((prev) => prev + 30)}
+                      className="rounded-lg bg-stone-900 px-4 py-2 text-xs font-bold text-white hover:bg-stone-800 transition"
+                    >
+                      Load 30 More
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCatalogPageSize(filteredCatalog.length)}
+                      className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-100 transition"
+                    >
+                      Show All
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
           </div>
         </section>
           </div>
