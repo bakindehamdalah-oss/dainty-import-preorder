@@ -375,12 +375,14 @@ export default function AdminPage() {
       const isIphoneCat = catNameLower.includes('iphone') || (catNameLower.includes('case') && !catNameLower.includes('briefcase') && !catNameLower.includes('suitcase'));
       const isCategoryMoq = selCat.moq_scope === 'category' || isIphoneCat;
       const targetScope = isCategoryMoq ? 'category' : 'item';
-      const targetMoq = isIphoneCat ? '50' : (isCategoryMoq ? String(Number(selCat.wholesale_moq) > 0 ? selCat.wholesale_moq : '') : '');
-      const timer = setTimeout(() => {
-        setSharedMoqScope(targetScope);
-        setSharedMoq(targetMoq);
-      }, 0);
-      return () => clearTimeout(timer);
+
+      setSharedMoqScope(targetScope);
+      if (isIphoneCat) {
+        setSharedMoq('50');
+      } else if (isCategoryMoq && Number(selCat.wholesale_moq) > 0) {
+        setSharedMoq(String(selCat.wholesale_moq));
+      }
+      // For per-item category: preserve user entered sharedMoq if already set
     }
   }, [selectedCategoryId, categories]);
 
@@ -1039,8 +1041,58 @@ export default function AdminPage() {
     await refreshData();
   }
 
+  function handleSharedMoqChange(val: string) {
+    setSharedMoq(val);
+    if (sameForAll) {
+      setDraftItems((prev) => prev.map((item) => ({ ...item, moq: val })));
+    }
+  }
+
+  function handleSharedMoqScopeChange(scope: 'category' | 'item') {
+    setSharedMoqScope(scope);
+    if (sameForAll) {
+      setDraftItems((prev) => prev.map((item) => ({ ...item, moqScope: scope })));
+    }
+  }
+
+  function handleSharedRetailChange(val: string) {
+    setSharedRetail(val);
+    if (sameForAll) {
+      setDraftItems((prev) => prev.map((item) => ({ ...item, retailPrice: val })));
+    }
+  }
+
+  function handleSharedWholesaleChange(val: string) {
+    setSharedWholesale(val);
+    if (sameForAll) {
+      setDraftItems((prev) => prev.map((item) => ({ ...item, wholesalePrice: val })));
+    }
+  }
+
+  function handleSharedAirShippingChange(val: string) {
+    setSharedAirShipping(val);
+    if (sameForAll) {
+      setDraftItems((prev) => prev.map((item) => ({ ...item, estAirShipping: val })));
+    }
+  }
+
+  function handleSharedSeaShippingChange(val: string) {
+    setSharedSeaShipping(val);
+    if (sameForAll) {
+      setDraftItems((prev) => prev.map((item) => ({ ...item, estSeaShipping: val })));
+    }
+  }
+
+  function handleToggleSameForAll(val: boolean) {
+    setSameForAll(val);
+    if (val) {
+      setDraftItems((prev) => applySharedSpecsToList(prev));
+    }
+  }
+
   function applySharedSpecsToList(items: DraftPhotoItem[]): DraftPhotoItem[] {
     const base = sharedBaseName.trim();
+    const cleanSharedMoq = sharedMoq.trim();
     return items.map((item, idx) => ({
       ...item,
       name: base ? (items.length > 1 && uploadMode === 'separate' ? `${base} ${idx + 1}` : base) : item.name,
@@ -1048,7 +1100,7 @@ export default function AdminPage() {
       colors: sharedColors !== '' ? sharedColors : item.colors,
       retailPrice: sharedRetail !== '' ? sharedRetail : item.retailPrice,
       wholesalePrice: sharedWholesale !== '' ? sharedWholesale : item.wholesalePrice,
-      moq: sharedMoq !== '' ? sharedMoq : item.moq,
+      moq: cleanSharedMoq !== '' ? cleanSharedMoq : (item.moq !== '' ? item.moq : '1'),
       moqScope: sharedMoqScope,
       estAirShipping: sharedAirShipping !== '' ? sharedAirShipping : item.estAirShipping,
       estSeaShipping: sharedSeaShipping !== '' ? sharedSeaShipping : item.estSeaShipping,
@@ -1134,7 +1186,8 @@ export default function AdminPage() {
     const isIphoneCat = catNameLower.includes('iphone') || (catNameLower.includes('case') && !catNameLower.includes('briefcase') && !catNameLower.includes('suitcase'));
     const defaultScope = isIphoneCat || selCat?.moq_scope === 'category' ? 'category' : 'item';
     const categoryMoq = isIphoneCat ? '50' : (defaultScope === 'category' && Number(selCat?.wholesale_moq) > 0 ? String(selCat?.wholesale_moq) : '');
-    const defaultMoq = isIphoneCat ? '50' : (sharedMoq || categoryMoq || '1');
+    const activeSharedMoq = sharedMoq.trim();
+    const defaultMoq = isIphoneCat ? '50' : (activeSharedMoq !== '' ? activeSharedMoq : (categoryMoq || '1'));
 
     if (uploadMode === 'single_product') {
       const mainPhoto = newUploadedUrls[0];
@@ -1434,14 +1487,24 @@ export default function AdminPage() {
       const parsedSharedMoq = Number(sharedMoq);
       const parsedCatMoq = Number(selCat?.wholesale_moq);
 
-      const moqScopeVal: 'category' | 'item' = item.moqScope || sharedMoqScope || (selCat?.moq_scope === 'category' ? 'category' : 'item');
-      const moqVal = parsedItemMoq > 0
-        ? parsedItemMoq
-        : parsedSharedMoq > 0
-        ? parsedSharedMoq
-        : moqScopeVal === 'category' && parsedCatMoq > 0
-        ? parsedCatMoq
-        : (isIphoneCat && moqScopeVal === 'category' ? 50 : 1);
+      const moqScopeVal: 'category' | 'item' = isIphoneCat
+        ? 'category'
+        : (item.moqScope || (sameForAll ? sharedMoqScope : undefined) || (selCat?.moq_scope === 'category' ? 'category' : 'item'));
+
+      let moqVal = 1;
+      if (isIphoneCat && moqScopeVal === 'category') {
+        moqVal = 50;
+      } else if (sameForAll && parsedSharedMoq > 0) {
+        moqVal = parsedSharedMoq;
+      } else if (parsedItemMoq > 0) {
+        moqVal = parsedItemMoq;
+      } else if (parsedSharedMoq > 0) {
+        moqVal = parsedSharedMoq;
+      } else if (moqScopeVal === 'category' && parsedCatMoq > 0) {
+        moqVal = parsedCatMoq;
+      } else {
+        moqVal = 1;
+      }
 
       // Colors and sizes are completely optional!
       const colorsList = item.colors && item.colors.trim() !== ''
@@ -1462,10 +1525,10 @@ export default function AdminPage() {
       if (allImages.length > 0) {
         descText = descText ? `${descText}\n<!--dainty_images:${JSON.stringify(allImages)}-->` : `<!--dainty_images:${JSON.stringify(allImages)}-->`;
       }
-      // Explicit shipping metadata tags so 0/blank is never lost or confused
+      // Explicit MOQ and shipping metadata tags so 0/blank or schema differences never lose entered values
       descText = descText
-        ? `${descText}\n<!--dainty_ship_air:${airFee}-->\n<!--dainty_ship_sea:${seaFee}-->`
-        : `<!--dainty_ship_air:${airFee}-->\n<!--dainty_ship_sea:${seaFee}-->`;
+        ? `${descText}\n<!--dainty_moq:${moqVal}-->\n<!--dainty_moq_scope:${moqScopeVal}-->\n<!--dainty_ship_air:${airFee}-->\n<!--dainty_ship_sea:${seaFee}-->`
+        : `<!--dainty_moq:${moqVal}-->\n<!--dainty_moq_scope:${moqScopeVal}-->\n<!--dainty_ship_air:${airFee}-->\n<!--dainty_ship_sea:${seaFee}-->`;
 
       return {
         name: cleanName,
@@ -1498,16 +1561,16 @@ export default function AdminPage() {
       error = fallbackRes1.error;
 
       if (error && error.message?.toLowerCase().includes('schema cache')) {
-        const fallbackPayload2 = payload.map(({ moq_scope, sizes, size_options, wholesale_moq, min_order_qty, ...rest }) => rest);
+        const fallbackPayload2 = payload.map(({ moq_scope, sizes, size_options, colors, color_options, ...rest }) => rest);
         const fallbackRes2 = await supabase.from('products').insert(fallbackPayload2);
         error = fallbackRes2.error;
 
         if (error && error.message?.toLowerCase().includes('schema cache')) {
-          const minimalPayload = payload.map(({ moq_scope, images, colors, color_options, sizes, size_options, wholesale_moq, min_order_qty, ...rest }) => rest);
+          const minimalPayload = payload.map(({ moq_scope, images, colors, color_options, sizes, size_options, ...rest }) => rest);
           const minRes = await supabase.from('products').insert(minimalPayload);
           error = minRes.error;
           if (error && error.message?.toLowerCase().includes('schema cache')) {
-            const compatiblePayload = minimalPayload.map(({ est_shipping_fee, est_shipping_fee_air, est_shipping_fee_sea, ...rest }) => rest);
+            const compatiblePayload = minimalPayload.map(({ est_shipping_fee, est_shipping_fee_air, est_shipping_fee_sea, wholesale_moq, min_order_qty, ...rest }) => rest);
             const compatibleRes = await supabase.from('products').insert(compatiblePayload);
             error = compatibleRes.error;
           }
@@ -1520,7 +1583,7 @@ export default function AdminPage() {
       setErrorMsg(error.message);
     } else {
       setDraftItems([]);
-      setStatusMsg(`Published ${payload.length} China product(s) to your storefront.`);
+      setStatusMsg(`Published ${payload.length} product(s) to your storefront.`);
       await refreshData();
     }
   }
@@ -1913,7 +1976,7 @@ export default function AdminPage() {
             <img src="/logo.png" alt="Dainty Import" className="h-8 w-auto rounded object-contain border border-[#fa9d26]/30 p-0.5" />
             <div>
               <h1 className="text-sm font-bold text-stone-900 leading-tight">Dainty Import Admin</h1>
-              <span className="text-[10px] font-semibold text-[#fa9d26] uppercase tracking-wider">China Sourcing Catalog Management</span>
+              <span className="text-[10px] font-semibold text-[#fa9d26] uppercase tracking-wider">Dainty Sourcing Catalog Management</span>
             </div>
           </div>
 
@@ -2270,7 +2333,7 @@ export default function AdminPage() {
                 <input
                   type="checkbox"
                   checked={sameForAll}
-                  onChange={(e) => setSameForAll(e.target.checked)}
+                  onChange={(e) => handleToggleSameForAll(e.target.checked)}
                   className="rounded border-stone-300 text-stone-900 focus:ring-stone-900"
                 />
                 <span className="text-xs font-bold text-stone-900">
@@ -2297,7 +2360,7 @@ export default function AdminPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
                     <button
                       type="button"
-                      onClick={() => setSharedMoqScope('item')}
+                      onClick={() => handleSharedMoqScopeChange('item')}
                       className={`rounded-lg border p-2.5 text-left text-xs transition ${
                         sharedMoqScope === 'item'
                           ? 'border-[#fa9d26] bg-white ring-2 ring-[#fa9d26]/30 shadow-xs text-stone-900 font-semibold'
@@ -2315,7 +2378,7 @@ export default function AdminPage() {
 
                     <button
                       type="button"
-                      onClick={() => setSharedMoqScope('category')}
+                      onClick={() => handleSharedMoqScopeChange('category')}
                       className={`rounded-lg border p-2.5 text-left text-xs transition ${
                         sharedMoqScope === 'category'
                           ? 'border-[#fa9d26] bg-white ring-2 ring-[#fa9d26]/30 shadow-xs text-stone-900 font-semibold'
@@ -2387,8 +2450,8 @@ export default function AdminPage() {
                       type="number"
                       min="1"
                       value={sharedMoq}
-                      onChange={(e) => setSharedMoq(e.target.value)}
-                      placeholder="50 for iPhone cases"
+                      onChange={(e) => handleSharedMoqChange(e.target.value)}
+                      placeholder="e.g. 5, 10 (or 50 for iPhone cases)"
                       className="mt-1 w-full rounded-lg border border-amber-300 bg-amber-50/50 px-2.5 py-1.5 text-xs font-semibold"
                     />
                   </div>
@@ -2401,7 +2464,7 @@ export default function AdminPage() {
                       type="number"
                       step="0.01"
                       value={sharedRetail}
-                      onChange={(e) => setSharedRetail(e.target.value)}
+                      onChange={(e) => handleSharedRetailChange(e.target.value)}
                       placeholder="0"
                       className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
                     />
@@ -2415,7 +2478,7 @@ export default function AdminPage() {
                       type="number"
                       step="0.01"
                       value={sharedWholesale}
-                      onChange={(e) => setSharedWholesale(e.target.value)}
+                      onChange={(e) => handleSharedWholesaleChange(e.target.value)}
                       placeholder="0"
                       className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
                     />
@@ -2439,7 +2502,7 @@ export default function AdminPage() {
                       type="number"
                       step="0.01"
                       value={sharedAirShipping}
-                      onChange={(e) => setSharedAirShipping(e.target.value)}
+                      onChange={(e) => handleSharedAirShippingChange(e.target.value)}
                       placeholder="Leave blank if Sea only"
                       className="mt-1 w-full rounded-lg border border-emerald-300 bg-emerald-50/40 px-2.5 py-1.5 text-xs"
                     />
@@ -2454,7 +2517,7 @@ export default function AdminPage() {
                       type="number"
                       step="0.01"
                       value={sharedSeaShipping}
-                      onChange={(e) => setSharedSeaShipping(e.target.value)}
+                      onChange={(e) => handleSharedSeaShippingChange(e.target.value)}
                       placeholder="e.g. 1500 (optional)"
                       className="mt-1 w-full rounded-lg border border-blue-300 bg-blue-50/40 px-2.5 py-1.5 text-xs"
                     />
@@ -2777,7 +2840,7 @@ export default function AdminPage() {
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-stone-900 py-3 text-xs font-bold text-white shadow-sm hover:bg-[#fa9d26] transition disabled:opacity-50"
               >
                 <Check className="h-4 w-4" />
-                {savingBatch ? 'Publishing to China Catalog...' : `Publish All ${draftItems.length} Product(s) Now`}
+                {savingBatch ? 'Publishing to Dainty Catalog...' : `Publish All ${draftItems.length} Product(s) Now`}
               </button>
             </div>
           )}
@@ -2882,6 +2945,16 @@ export default function AdminPage() {
 
               return (
                 <>
+                  <div className="space-y-2">
+                  {/* Desktop Table Header */}
+                  <div className="hidden lg:grid grid-cols-12 gap-3 px-3 py-2 text-[11px] font-bold text-stone-500 uppercase tracking-wider bg-stone-100/90 rounded-lg border border-stone-200">
+                    <div className="col-span-5">Product & Category</div>
+                    <div className="col-span-2">Wholesale / Retail</div>
+                    <div className="col-span-2">MOQ & Scope</div>
+                    <div className="col-span-1 text-center">Status</div>
+                    <div className="col-span-2 text-right">Actions</div>
+                  </div>
+
                   {visibleCatalog.map((p) => {
                 const ship = getProductShippingFees(p);
                 const air = ship.air;
@@ -2891,121 +2964,230 @@ export default function AdminPage() {
                 const pImages = getProductAllImages(p);
                 const isManagingPhotos = managingPhotosProductId === p.id;
                 const isUploadingPhotos = uploadingExistingPhotoId === p.id;
+                const pCat = categories.find((c) => c.id === p.category_id);
+                const pCatName = (pCat?.name || '').toLowerCase();
+                const prodNameLower = pTitle.toLowerCase();
+                const isIphoneCat = pCatName.includes('iphone') || prodNameLower.includes('iphone') || ((pCatName.includes('case') || prodNameLower.includes('case')) && !pCatName.includes('briefcase') && !prodNameLower.includes('briefcase'));
+                const descMoq = Number((p.description || '').match(/<!--dainty_moq:(\d+(?:\.\d+)?)-->/)?.[1] || 0);
+                const descScope = (p.description || '').match(/<!--dainty_moq_scope:(category|item)-->/)?.[1];
+                const pMoqScope: 'category' | 'item' = isIphoneCat
+                  ? 'category'
+                  : (p.moq_scope === 'category' || p.moq_scope === 'item'
+                      ? p.moq_scope
+                      : descScope === 'category' || descScope === 'item'
+                      ? descScope
+                      : pCat?.moq_scope === 'category' ? 'category' : 'item');
+                const pMoq = isIphoneCat
+                  ? 50
+                  : (pMoqScope === 'category' && Number(pCat?.wholesale_moq) > 0
+                      ? Number(pCat?.wholesale_moq)
+                      : Number(p.wholesale_moq) > 0
+                      ? Number(p.wholesale_moq)
+                      : Number(p.min_order_qty) > 0
+                      ? Number(p.min_order_qty)
+                      : descMoq > 0
+                      ? descMoq
+                      : 1);
 
                 return (
                   <div
                     key={p.id}
-                    className="flex flex-col gap-2 rounded-xl border border-stone-200 bg-white p-3.5 text-xs shadow-2xs hover:border-stone-300 transition"
+                    className="flex flex-col rounded-lg border border-stone-200 bg-white shadow-2xs hover:border-[#fa9d26]/50 transition text-xs"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        {p.image_url ? (
+                    {/* Compact Single-Line Row */}
+                    <div className="flex items-center justify-between gap-2 p-2 sm:px-3">
+                      {/* Desktop Grid Layout */}
+                      <div className="hidden lg:grid grid-cols-12 gap-3 items-center w-full">
+                        {/* Col 1-5: Thumbnail + Name + Category + Photo count */}
+                        <div className="col-span-5 flex items-center gap-2.5 min-w-0">
                           <div className="relative shrink-0">
-                            <img src={p.image_url} alt={pTitle} loading="lazy" decoding="async" className="h-14 w-14 rounded-lg object-contain bg-stone-50 border border-stone-200 p-0.5" />
+                            {p.image_url || pImages[0] ? (
+                              <img
+                                src={p.image_url || pImages[0]}
+                                alt={pTitle}
+                                loading="lazy"
+                                decoding="async"
+                                className="h-9 w-9 rounded-md object-contain bg-stone-50 border border-stone-200 p-0.5"
+                              />
+                            ) : (
+                              <div className="h-9 w-9 rounded-md bg-stone-100 flex items-center justify-center text-[9px] text-stone-400 border border-stone-200">
+                                No img
+                              </div>
+                            )}
                             {pImages.length > 1 && (
-                              <span className="absolute -bottom-1 -right-1 rounded-full bg-stone-900 px-1.5 py-0.2 text-[9px] font-bold text-white shadow-xs">
+                              <span className="absolute -bottom-1 -right-1 rounded-full bg-stone-900 px-1 text-[8px] font-bold text-white shadow-2xs">
                                 {pImages.length}
                               </span>
                             )}
                           </div>
-                        ) : (
-                          <div className="h-14 w-14 rounded-lg bg-stone-100 flex items-center justify-center text-[10px] text-stone-400 border border-stone-200">No img</div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-sm text-stone-900">{pTitle}</span>
-                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
-                              <ImageIcon className="h-3 w-3 text-[#fa9d26]" />
-                              {pImages.length} photo{pImages.length !== 1 ? 's' : ''}
+                          <div className="min-w-0 flex-1 flex items-center gap-2">
+                            <span className="font-bold text-stone-900 truncate max-w-[200px] xl:max-w-xs" title={pTitle}>
+                              {pTitle}
                             </span>
+                            {pCat && (
+                              <span className="shrink-0 rounded-md bg-stone-100 border border-stone-200 px-1.5 py-0.5 text-[10px] font-medium text-stone-600 truncate max-w-[110px]">
+                                {pCat.name}
+                              </span>
+                            )}
                           </div>
-                          <div className="text-[11px] text-stone-500 flex flex-wrap gap-2 mt-1">
-                            <span>Retail: <strong className="text-stone-800">₦{Number(p.retail_price).toLocaleString()}</strong></span>
-                            <span className="text-amber-800">Wholesale: <strong className="text-amber-900">₦{Number(p.wholesale_price).toLocaleString()}</strong></span>
-                            <span className="inline-flex flex-wrap items-center gap-1.5">
-                              {air > 0 ? (
-                                <span className="text-stone-600">Air: ₦{air.toLocaleString()}</span>
-                              ) : (
-                                <span className="text-red-600 font-medium">Can&apos;t be shipped by air</span>
-                              )}
-                              <span className="text-stone-300">•</span>
-                              {sea > 0 ? (
-                                <span className="text-stone-600">Sea: ₦{sea.toLocaleString()}</span>
-                              ) : (
-                                <span className="text-red-600 font-medium">Can&apos;t be shipped by sea</span>
-                              )}
-                            </span>
-                          </div>
-                          <p className="mt-1 line-clamp-2 text-[11px] text-stone-600"><span className="font-semibold text-stone-700">Description:</span> {description || 'No description added.'}</p>
+                        </div>
+
+                        {/* Col 6-7: Wholesale / Retail Price */}
+                        <div className="col-span-2 flex items-baseline gap-1 text-[11px]">
+                          <span className="font-extrabold text-amber-900">₦{Number(p.wholesale_price).toLocaleString()}</span>
+                          <span className="text-[10px] text-stone-400">/ ₦{Number(p.retail_price).toLocaleString()}</span>
+                        </div>
+
+                        {/* Col 8-9: MOQ & Scope */}
+                        <div className="col-span-2 flex items-center gap-1.5">
+                          <span className="inline-flex items-center rounded-md bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-bold text-amber-900">
+                            MOQ: {pMoq} pcs {pMoqScope === 'category' ? '(Cat)' : '(Item)'}
+                          </span>
+                        </div>
+
+                        {/* Col 10: Status */}
+                        <div className="col-span-1 flex justify-center">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                            Published
+                          </span>
+                        </div>
+
+                        {/* Col 11-12: Actions */}
+                        <div className="col-span-2 flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => startEditingProduct(p)}
+                            className="inline-flex items-center gap-1 rounded-md border border-stone-300 bg-white px-2 py-1 text-xs font-bold text-stone-800 hover:bg-[#fa9d26] hover:text-white hover:border-[#fa9d26] transition shadow-2xs"
+                            title="Edit product"
+                          >
+                            <Pencil className="h-3 w-3" />
+                            <span>Edit</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setManagingPhotosProductId(isManagingPhotos ? null : p.id)}
+                            className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold transition ${
+                              isManagingPhotos
+                                ? 'border-[#fa9d26] bg-amber-50 text-amber-950 shadow-2xs'
+                                : 'border-stone-200 text-stone-600 hover:bg-stone-50'
+                            }`}
+                            title="Manage pictures"
+                          >
+                            <ImageIcon className="h-3 w-3 text-[#fa9d26]" />
+                            <span>{isManagingPhotos ? 'Close' : 'Photos'}</span>
+                          </button>
+
+                          <label className="inline-flex items-center rounded-md border border-stone-200 bg-white p-1 text-xs text-stone-600 hover:bg-stone-50 hover:border-stone-400 transition cursor-pointer" title="Add photo">
+                            <Plus className="h-3 w-3 text-[#fa9d26]" />
+                            <input
+                              type="file"
+                              accept="image/*,image/jpeg,image/png,image/webp,image/heic"
+                              multiple
+                              disabled={isUploadingPhotos}
+                              onChange={(e) => {
+                                handleAddPhotosToExistingProduct(p.id, e.target.files);
+                                e.target.value = '';
+                              }}
+                              className="sr-only"
+                            />
+                          </label>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProduct(p.id)}
+                            className="p-1 text-stone-400 hover:text-red-600 rounded-md hover:bg-red-50 transition"
+                            title="Delete Product"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {/* EDIT PRODUCT BUTTON */}
-                        <button
-                          type="button"
-                          onClick={() => startEditingProduct(p)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-bold text-stone-900 shadow-2xs hover:bg-stone-50 hover:border-stone-900 transition"
-                          title="Edit product details, prices, shipping, variants, and description"
-                        >
-                          <Pencil className="h-3.5 w-3.5 text-[#fa9d26]" />
-                          <span>Edit</span>
-                        </button>
+                      {/* Mobile/Tablet Compact Responsive Row (~44px tall) */}
+                      <div className="flex lg:hidden items-center justify-between gap-2 w-full">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <div className="relative shrink-0">
+                            {p.image_url || pImages[0] ? (
+                              <img
+                                src={p.image_url || pImages[0]}
+                                alt={pTitle}
+                                loading="lazy"
+                                decoding="async"
+                                className="h-10 w-10 rounded-md object-contain bg-stone-50 border border-stone-200 p-0.5"
+                              />
+                            ) : (
+                              <div className="h-10 w-10 rounded-md bg-stone-100 flex items-center justify-center text-[9px] text-stone-400 border border-stone-200">
+                                No img
+                              </div>
+                            )}
+                            {pImages.length > 1 && (
+                              <span className="absolute -bottom-1 -right-1 rounded-full bg-stone-900 px-1 text-[8px] font-bold text-white shadow-2xs">
+                                {pImages.length}
+                              </span>
+                            )}
+                          </div>
 
-                        {/* Manage Photos Button */}
-                        <button
-                          type="button"
-                          onClick={() => setManagingPhotosProductId(isManagingPhotos ? null : p.id)}
-                          className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition ${
-                            isManagingPhotos
-                              ? 'border-[#fa9d26] bg-amber-50 text-amber-950 shadow-2xs'
-                              : 'border-stone-200 text-stone-700 hover:bg-stone-50'
-                          }`}
-                          title="View and edit all pictures for this product"
-                        >
-                          <ImageIcon className="h-3.5 w-3.5 text-[#fa9d26]" />
-                          {isManagingPhotos ? 'Close Photos' : 'Photos'}
-                        </button>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-stone-900 text-xs truncate max-w-[160px] sm:max-w-xs" title={pTitle}>
+                                {pTitle}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] text-stone-500 mt-0.5 flex-wrap">
+                              <span className="font-extrabold text-amber-900">₦{Number(p.wholesale_price).toLocaleString()}</span>
+                              <span className="text-stone-300">•</span>
+                              <span className="font-semibold text-stone-700">MOQ: {pMoq} pcs</span>
+                              {pCat && (
+                                <>
+                                  <span className="text-stone-300">•</span>
+                                  <span className="truncate max-w-[80px] text-stone-500">{pCat.name}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
 
-                        {/* Quick Add Photo */}
-                        <label className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-50 hover:border-stone-300 transition cursor-pointer">
-                          <Plus className="h-3.5 w-3.5 text-[#fa9d26]" />
-                          <span className="hidden sm:inline">Add Photo</span>
-                          <input
-                            type="file"
-                            accept="image/*,image/jpeg,image/png,image/webp,image/heic"
-                            multiple
-                            disabled={isUploadingPhotos}
-                            onChange={(e) => {
-                              handleAddPhotosToExistingProduct(p.id, e.target.files);
-                              e.target.value = '';
-                            }}
-                            className="sr-only"
-                          />
-                        </label>
-
-                        {/* Delete Product */}
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteProduct(p.id)}
-                          className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition"
-                          title="Delete Product"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => startEditingProduct(p)}
+                            className="rounded-md border border-stone-300 bg-white px-2 py-1 text-xs font-bold text-stone-800 shadow-2xs hover:bg-[#fa9d26] hover:text-white transition"
+                            title="Edit"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setManagingPhotosProductId(isManagingPhotos ? null : p.id)}
+                            className="p-1 rounded-md border border-stone-200 text-stone-600 hover:bg-stone-50"
+                            title="Photos"
+                          >
+                            <ImageIcon className="h-3 w-3 text-[#fa9d26]" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProduct(p.id)}
+                            className="p-1 text-stone-400 hover:text-red-600 rounded-md hover:bg-red-50 transition"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Quick photo preview thumbnails row */}
+                    {/* Quick photo preview thumbnails row (compact) */}
                     {pImages.length > 1 && !isManagingPhotos && (
-                      <div className="flex items-center gap-1.5 pt-1 overflow-x-auto border-t border-stone-100">
-                        <span className="text-[10px] text-stone-400 font-medium shrink-0">All angles:</span>
+                      <div className="flex items-center gap-1.5 px-3 py-1 overflow-x-auto border-t border-stone-100 bg-stone-50/50">
+                        <span className="text-[9px] text-stone-400 font-medium shrink-0">Photos:</span>
                         {pImages.map((img, i) => (
                           <img
                             key={i}
                             src={img}
                             alt={`${pTitle} photo ${i + 1}`}
-                            className={`h-8 w-8 rounded-md object-contain bg-stone-50 border p-0.5 shrink-0 ${
+                            className={`h-6 w-6 rounded-md object-contain bg-white border p-0.5 shrink-0 ${
                               img === p.image_url ? 'border-[#fa9d26] ring-1 ring-[#fa9d26]' : 'border-stone-200'
                             }`}
                           />
@@ -3091,6 +3273,7 @@ export default function AdminPage() {
                   </div>
                 );
               })}
+              </div>
 
               {filteredCatalog.length > catalogPageSize && (
                 <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 p-3">

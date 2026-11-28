@@ -379,7 +379,7 @@ export default function TrackOrderPage() {
         <div className="mx-auto flex max-w-lg items-center justify-around">
           <Link href="/me" className="flex flex-col items-center gap-0.5 text-[#fa9d26] font-bold transition active:scale-95">
             <User className="h-4 w-4" />
-            <span className="text-[10px]">Me</span>
+            <span className="text-[10px] font-bold">My Account</span>
           </Link>
           <Link href="/?categories=1" className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95">
             <Grid className="h-4 w-4" />

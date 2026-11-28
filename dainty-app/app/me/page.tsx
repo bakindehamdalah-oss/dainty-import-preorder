@@ -526,7 +526,7 @@ export default function MePage() {
               className="h-6 sm:h-7 w-auto object-contain"
             />
             <span className="text-xs sm:text-sm font-extrabold tracking-tight text-stone-900">
-              Me & Orders
+              My Account & Orders
             </span>
           </div>
 
@@ -912,13 +912,13 @@ export default function MePage() {
       {/* Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200 px-4 py-2 shadow-lg">
         <div className="mx-auto flex max-w-lg items-center justify-around">
-          {/* 1. Me (where Request was) */}
+          {/* 1. My Account (where Request was) */}
           <Link
             href="/me"
             className="flex flex-col items-center gap-0.5 text-[#fa9d26] font-bold transition active:scale-95"
           >
             <User className="h-4 w-4" />
-            <span className="text-[10px] font-bold">Me</span>
+            <span className="text-[10px] font-bold">My Account</span>
           </Link>
 
           {/* 2. Categories */}

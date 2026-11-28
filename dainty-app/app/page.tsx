@@ -1417,8 +1417,23 @@ export default function StorefrontPage() {
   const isInitialCartLoadRef = useRef(false);
 
   useEffect(() => {
+    // 1. Instant Cache-First Display from sessionStorage (0ms perceived load)
+    try {
+      const cached = sessionStorage.getItem('dainty_catalog_cache_v2');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && Array.isArray(parsed.products) && parsed.products.length > 0) {
+          setProducts(parsed.products);
+          if (Array.isArray(parsed.categories)) setCategories(parsed.categories);
+          if (parsed.settings) setSettings(parsed.settings);
+          setLoading(false);
+        }
+      }
+    } catch {}
+
     async function loadStoreData() {
-      setLoading(true);
+      // Only show skeleton loader if we have no cached products yet
+      setLoading((prev) => (products.length > 0 ? false : true));
       setErrorMsg(null);
 
       const [settingsRes, categoriesRes, productsRes] = await Promise.all([
@@ -1464,7 +1479,21 @@ export default function StorefrontPage() {
             });
         }
         setCategories(normalizedCats);
-        setProducts(productsRes.data || []);
+        const freshProducts = productsRes.data || [];
+        setProducts(freshProducts);
+
+        // Update sessionStorage cache for subsequent visits
+        try {
+          sessionStorage.setItem(
+            'dainty_catalog_cache_v2',
+            JSON.stringify({
+              products: freshProducts,
+              categories: normalizedCats,
+              settings: settingsRes.data,
+              timestamp: Date.now(),
+            })
+          );
+        } catch {}
       }
       setLoading(false);
     }
@@ -2039,17 +2068,29 @@ export default function StorefrontPage() {
               </div>
             </Link>
 
-            {/* Quick How It Works Button in Header */}
-            <button
-              type="button"
-              onClick={() => setIsHowItWorksOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50/95 px-3 py-1.5 text-[11px] sm:text-xs font-bold text-amber-900 shadow-2xs hover:bg-amber-100 transition active:scale-95 shrink-0"
-              title="How Dainty Preorder Works"
-            >
-              <HelpCircle className="h-3.5 w-3.5 text-[#fa9d26]" />
-              <span className="hidden sm:inline">HOW DAINTY PREORDER WORKS</span>
-              <span className="sm:hidden">How It Works</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Desktop My Account Link */}
+              <Link
+                href="/me"
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[11px] sm:text-xs font-bold text-stone-700 shadow-2xs hover:border-[#fa9d26] hover:text-[#fa9d26] transition active:scale-95 shrink-0"
+                title="My Account & Orders"
+              >
+                <User className="h-3.5 w-3.5 text-[#fa9d26]" />
+                <span>My Account</span>
+              </Link>
+
+              {/* Quick How It Works Button in Header */}
+              <button
+                type="button"
+                onClick={() => setIsHowItWorksOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50/95 px-3 py-1.5 text-[11px] sm:text-xs font-bold text-amber-900 shadow-2xs hover:bg-amber-100 transition active:scale-95 shrink-0"
+                title="How Dainty Preorder Works"
+              >
+                <HelpCircle className="h-3.5 w-3.5 text-[#fa9d26]" />
+                <span className="hidden sm:inline">HOW DAINTY PREORDER WORKS</span>
+                <span className="sm:hidden">How It Works</span>
+              </button>
+            </div>
           </div>
 
           {/* Search Bar (positioned at the bottom of the logo) */}
@@ -2422,8 +2463,31 @@ decoding="async"
         )}
 
         {loading ? (
-          <div className="py-20 text-center text-sm text-stone-500">
-            Connecting to China catalog...
+          <div className="space-y-4 py-2">
+            <div className="flex items-center justify-center gap-2.5 rounded-2xl border border-amber-200/80 bg-amber-50/70 p-3 text-xs sm:text-sm font-semibold text-stone-700 animate-pulse shadow-2xs">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-stone-300 border-t-[#fa9d26]" />
+              <span>Connecting to Dainty Catalog...</span>
+            </div>
+            {/* Skeleton Grid */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className="flex flex-col justify-between overflow-hidden rounded-2xl border border-stone-200 bg-white p-3 space-y-3 animate-pulse shadow-2xs"
+                >
+                  <div className="aspect-square w-full rounded-xl bg-stone-100" />
+                  <div className="space-y-2">
+                    <div className="h-3 w-16 rounded bg-amber-100" />
+                    <div className="h-4 w-full rounded bg-stone-100" />
+                    <div className="h-3 w-2/3 rounded bg-stone-100" />
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-stone-100">
+                    <div className="h-4 w-16 rounded bg-stone-100" />
+                    <div className="h-7 w-16 rounded-xl bg-[#fa9d26]/20" />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="py-16 text-center space-y-3">
@@ -2961,7 +3025,7 @@ decoding="async"
                   <span>Checkout & Tracking Your Order</span>
                 </div>
                 <p className="text-xs text-stone-600 leading-relaxed pl-7">
-                  Clicking <strong>Checkout</strong> in your cart takes you directly to WhatsApp with your full order summary. Your unique <strong>Order ID</strong> lets you track order progress anytime from the <strong>Me</strong> tab (including when your goods arrive in Nigeria waiting for clearance, when shipping fees can be paid). Once your items are delivered, you can review individual items or reorder them anytime.
+                  Clicking <strong>Checkout</strong> in your cart takes you directly to WhatsApp with your full order summary. Your unique <strong>Order ID</strong> lets you track order progress anytime from the <strong>My Account</strong> tab (including when your goods arrive in Nigeria waiting for clearance, when shipping fees can be paid). Once your items are delivered, you can review individual items or reorder them anytime.
                 </p>
               </div>
             </div>
@@ -3154,14 +3218,14 @@ decoding="async"
       {/* Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200 px-4 py-2 shadow-lg">
         <div className="mx-auto flex max-w-lg items-center justify-around">
-          {/* 1. Me (where Request was) */}
-          <a
+          {/* 1. My Account (where Request was) */}
+          <Link
             href="/me"
             className="flex flex-col items-center gap-0.5 text-stone-600 hover:text-[#fa9d26] transition active:scale-95"
           >
             <User className="h-4 w-4" />
-            <span className="text-[10px] font-bold">Me</span>
-          </a>
+            <span className="text-[10px] font-bold">My Account</span>
+          </Link>
 
           {/* 2. Categories */}
           <button
